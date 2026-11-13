@@ -1,0 +1,543 @@
+{
+  "schema_version": 1,
+  "spdx_license_identifier": "MIT",
+  "copyright": "2026 Lee Bussy",
+  "authorship": "Original project specification data; source-informed interoperability facts, not captured or reference-generated output.",
+  "reference_firmware_revision": "8f1fa1213cbbfc1f987fada5168d01925e1a2ee8",
+  "reference_host_revision": "d183fb5319b928f78b4c0eb6f05fe3620610ffff",
+  "reference_panel_revision": "f79631830a99575e250403f08a19be8bf944596c",
+  "execution_status": "not_executed_against_emulator_or_reference",
+  "format": "brewpi-emulator-milestone-1-defaults-v1",
+  "identity": {
+    "v": "0.2.13",
+    "n": "8f1fa12",
+    "s": 2,
+    "y": 0,
+    "b": "s",
+    "l": "3"
+  },
+  "settings_c": {
+    "mode": "o",
+    "beerSet": null,
+    "fridgeSet": null,
+    "heatEst": 0.199,
+    "coolEst": 5.0
+  },
+  "constants_c": {
+    "tempFormat": "C",
+    "tempSetMin": 1.0,
+    "tempSetMax": 30.0,
+    "pidMax": 10.0,
+    "Kp": 5.0,
+    "Ki": 0.25,
+    "Kd": 1.5,
+    "iMaxErr": 0.5,
+    "idleRangeH": 1.0,
+    "idleRangeL": -1.0,
+    "heatTargetH": 0.301,
+    "heatTargetL": -0.199,
+    "coolTargetH": 0.199,
+    "coolTargetL": -0.301,
+    "maxHeatTimeForEst": 600,
+    "maxCoolTimeForEst": 1200,
+    "fridgeFastFilt": 1,
+    "fridgeSlowFilt": 4,
+    "fridgeSlopeFilt": 3,
+    "beerFastFilt": 3,
+    "beerSlowFilt": 4,
+    "beerSlopeFilt": 4,
+    "lah": 0,
+    "hs": 0
+  },
+  "constants_f": {
+    "tempFormat": "F",
+    "tempSetMin": 33.8,
+    "tempSetMax": 86.0,
+    "pidMax": 18.0,
+    "Kp": 5.0,
+    "Ki": 0.25,
+    "Kd": 1.5,
+    "iMaxErr": 0.9,
+    "idleRangeH": 1.801,
+    "idleRangeL": -1.801,
+    "heatTargetH": 0.541,
+    "heatTargetL": -0.359,
+    "coolTargetH": 0.359,
+    "coolTargetL": -0.541,
+    "maxHeatTimeForEst": 600,
+    "maxCoolTimeForEst": 1200,
+    "fridgeFastFilt": 1,
+    "fridgeSlowFilt": 4,
+    "fridgeSlopeFilt": 3,
+    "beerFastFilt": 3,
+    "beerSlowFilt": 4,
+    "beerSlopeFilt": 4,
+    "lah": 0,
+    "hs": 0
+  },
+  "variables_cold_c": {
+    "beerDiff": 0.0,
+    "diffIntegral": 0.0,
+    "beerSlope": 0.0,
+    "p": 0.0,
+    "i": 0.0,
+    "d": 0.0,
+    "estPeak": 48.0,
+    "negPeakEst": 48.0,
+    "posPeakEst": 48.0,
+    "negPeak": 48.0,
+    "posPeak": 48.0
+  },
+  "variables_cold_f": {
+    "beerDiff": 0.0,
+    "diffIntegral": 0.0,
+    "beerSlope": 0.0,
+    "p": 0.0,
+    "i": 0.0,
+    "d": 0.0,
+    "estPeak": 118.4,
+    "negPeakEst": 118.4,
+    "posPeakEst": 118.4,
+    "negPeak": 118.4,
+    "posPeak": 118.4
+  },
+  "raw_defaults": {
+    "heatEst": 102,
+    "coolEst": 2560,
+    "tempSetMin": -24064,
+    "tempSetMax": -9216,
+    "pidMax": 5120,
+    "Kp": 2560,
+    "Ki": 128,
+    "Kd": 768,
+    "iMaxErr": 256,
+    "idleRangeH": 512,
+    "idleRangeL": -512,
+    "heatTargetH": 154,
+    "heatTargetL": -102,
+    "coolTargetH": 102,
+    "coolTargetL": -154
+  },
+  "inventory": [
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A1010000000204",
+      "j": 0.0
+    },
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A10100000001E6",
+      "j": 0.0
+    },
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A101000000035A",
+      "j": 0.0
+    },
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 1,
+      "d": 0,
+      "p": 2,
+      "x": 1
+    },
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 1,
+      "d": 0,
+      "p": 5,
+      "x": 1
+    },
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 1,
+      "d": 0,
+      "p": 6,
+      "x": 1
+    },
+    {
+      "i": -1,
+      "t": 0,
+      "c": 1,
+      "b": 0,
+      "f": 0,
+      "h": 1,
+      "d": 0,
+      "p": 19,
+      "x": 1
+    }
+  ],
+  "assigned_slots": [
+    {
+      "i": 0,
+      "t": 1,
+      "c": 1,
+      "b": 1,
+      "f": 9,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A10100000001E6",
+      "j": 0.0
+    },
+    {
+      "i": 1,
+      "t": 1,
+      "c": 1,
+      "b": 0,
+      "f": 5,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A1010000000204",
+      "j": 0.0
+    },
+    {
+      "i": 2,
+      "t": 1,
+      "c": 1,
+      "b": 0,
+      "f": 6,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A101000000035A",
+      "j": 0.0
+    },
+    {
+      "i": 3,
+      "t": 3,
+      "c": 1,
+      "b": 0,
+      "f": 2,
+      "h": 1,
+      "d": 0,
+      "p": 5,
+      "x": 1
+    },
+    {
+      "i": 4,
+      "t": 3,
+      "c": 1,
+      "b": 0,
+      "f": 3,
+      "h": 1,
+      "d": 0,
+      "p": 6,
+      "x": 1
+    }
+  ],
+  "all_assigned_slots": [
+    {
+      "i": 0,
+      "t": 1,
+      "c": 1,
+      "b": 1,
+      "f": 9,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A10100000001E6",
+      "j": 0.0
+    },
+    {
+      "i": 1,
+      "t": 1,
+      "c": 1,
+      "b": 0,
+      "f": 5,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A1010000000204",
+      "j": 0.0
+    },
+    {
+      "i": 2,
+      "t": 1,
+      "c": 1,
+      "b": 0,
+      "f": 6,
+      "h": 2,
+      "d": 0,
+      "p": 18,
+      "a": "28A101000000035A",
+      "j": 0.0
+    },
+    {
+      "i": 3,
+      "t": 3,
+      "c": 1,
+      "b": 0,
+      "f": 2,
+      "h": 1,
+      "d": 0,
+      "p": 5,
+      "x": 1
+    },
+    {
+      "i": 4,
+      "t": 3,
+      "c": 1,
+      "b": 0,
+      "f": 3,
+      "h": 1,
+      "d": 0,
+      "p": 6,
+      "x": 1
+    },
+    {
+      "i": 5,
+      "t": 3,
+      "c": 1,
+      "b": 0,
+      "f": 4,
+      "h": 1,
+      "d": 0,
+      "p": 2,
+      "x": 1
+    },
+    {
+      "i": 6,
+      "t": 3,
+      "c": 1,
+      "b": 0,
+      "f": 7,
+      "h": 1,
+      "d": 0,
+      "p": 19,
+      "x": 1
+    }
+  ],
+  "initial_telemetry": {
+    "BeerTemp": null,
+    "BeerSet": null,
+    "BeerAnn": null,
+    "FridgeTemp": null,
+    "FridgeSet": null,
+    "FridgeAnn": null,
+    "State": 0
+  },
+  "assigned_telemetry": {
+    "BeerTemp": 20.0,
+    "BeerSet": null,
+    "BeerAnn": null,
+    "FridgeTemp": 20.0,
+    "FridgeSet": null,
+    "FridgeAnn": null,
+    "State": 0,
+    "RoomTemp": 20.0
+  },
+  "controller_timing_seconds": {
+    "minimum_cool_off": 300,
+    "minimum_heat_off": 300,
+    "minimum_cool_on": 180,
+    "minimum_heat_on": 180,
+    "opposite_direction_switch": 600,
+    "fridge_constant_cool_off": 600,
+    "positive_peak_timeout": 900,
+    "negative_peak_timeout": 1800,
+    "camera_auto_off": 600,
+    "minimum_on_release_comparison": "strictly_greater_than"
+  },
+  "external_scenario": {
+    "instance_id": "chamber1",
+    "initial_temperatures_c": {
+      "beer": 20,
+      "chamber": 20,
+      "room": 20
+    },
+    "beer_liters": 18.927,
+    "beer_density_kg_per_m3": 1000,
+    "beer_specific_heat_j_per_kg_k": 4180,
+    "carboy_capacity_j_per_k": 6000,
+    "chamber_liters": 400,
+    "cabinet_capacity_j_per_k": 2000,
+    "air_capacity_j_per_m3_k": 1210,
+    "beer_chamber_conductance_w_per_k": 3,
+    "chamber_room_conductance_w_per_k": 1.67,
+    "physical_loads": [
+      {
+        "pin": 5,
+        "kind": "heater",
+        "watts": 25,
+        "active_low": true
+      },
+      {
+        "pin": 6,
+        "kind": "cooler",
+        "watts": 60,
+        "active_low": true
+      },
+      {
+        "pin": 2,
+        "kind": "light",
+        "watts": 0,
+        "active_low": true
+      },
+      {
+        "pin": 19,
+        "kind": "fan",
+        "watts": 0,
+        "active_low": true
+      }
+    ],
+    "door_pin": 4,
+    "door_open": false,
+    "probe_quantization_c": 0.0625,
+    "probe_lag_seconds": 0,
+    "noise_amplitude_c": 0,
+    "random_seed": 1,
+    "fermentation_enabled": false,
+    "active_fermentation_profile": {
+      "maximum_watts": 5,
+      "breakpoints_hours_watts": [
+        [
+          0,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          20,
+          5
+        ],
+        [
+          44,
+          5
+        ],
+        [
+          92,
+          0
+        ]
+      ]
+    },
+    "speed_factor": 1
+  },
+  "presets": {
+    "initialized": {
+      "eeprom": "valid_version_4_factory",
+      "settings": "settings_c",
+      "constants": "constants_c",
+      "variables": "variables_cold_c",
+      "slots": [],
+      "controller_state": 0,
+      "ticks_paused": true,
+      "observation": "constructed reference state at controller second 0, after source UI rendering; not a claim that a physical power-on completes at wall second 0",
+      "controller_preconditions": "default_controller_preconditions"
+    },
+    "erased": {
+      "eeprom": "all_FF",
+      "settings": "settings_c",
+      "constants": "constants_c",
+      "variables": "variables_cold_c",
+      "slots": "not_initialized",
+      "controller_state": 0,
+      "ticks_paused": true,
+      "controller_preconditions": "default_controller_preconditions"
+    },
+    "assigned": {
+      "extends": "initialized",
+      "slots": "assigned_slots",
+      "probe_filters": {
+        "beer_fast_c": 20,
+        "beer_slow_c": 20,
+        "beer_slope_raw": 0,
+        "chamber_fast_c": 20,
+        "chamber_slow_c": 20,
+        "chamber_slope_raw": 0,
+        "sensor_update_counters": 255,
+        "history": "constant history seeded from the declared sample; current source coefficient mapping"
+      },
+      "physical_temperatures_c": [
+        20,
+        20,
+        20
+      ]
+    },
+    "all_assigned": {
+      "extends": "assigned",
+      "slots": "all_assigned_slots"
+    },
+    "profile_saved_20": {
+      "extends": "assigned",
+      "live_and_saved_settings": {
+        "mode": "p",
+        "beerSet": 20.0,
+        "fridgeSet": 20.0,
+        "heatEst": 0.199,
+        "coolEst": 5.0
+      },
+      "last_saved_beer_target_c": 20.0,
+      "integral_and_slope_raw": 0
+    }
+  },
+  "variables_raw_cold": {
+    "beerDiff": 0,
+    "diffIntegral": 0,
+    "beerSlope": 0,
+    "p": 0,
+    "i": 0,
+    "d": 0,
+    "estPeak": 0,
+    "negPeakEst": 0,
+    "posPeakEst": 0,
+    "negPeak": 0,
+    "posPeak": 0
+  },
+  "default_controller_preconditions": {
+    "controller_seconds": 0,
+    "controller_millis": 0,
+    "last_idle_seconds": 0,
+    "last_heat_seconds": 0,
+    "last_cool_seconds": 0,
+    "wait_seconds": 0,
+    "integral_evaluation_count": 0,
+    "positive_peak_pending": false,
+    "negative_peak_pending": false,
+    "door_open": false,
+    "alarm_active": false,
+    "camera_request_active": false,
+    "camera_last_active_seconds": 0,
+    "fallback_actuator_active": false,
+    "ordinary_loop_ticks_suspended": true,
+    "unconfigured_pin_electrical_state": "declared external idle condition; no invented controller write",
+    "stored_and_live_configuration": "same unless a preset or step explicitly overrides one",
+    "variables_raw": "variables_raw_cold"
+  }
+}

@@ -7,8 +7,8 @@ Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status des
 - ✅ Establish repository documentation, metadata, and directory scaffolding.
 - ✅ Review scaffolding/plan consistency and clarify MIT contribution, dependency, and provenance requirements.
 - ✅ Create the public GitHub repository, initialize local `main`, and configure the HTTPS `origin`.
-- ⏳ Review and finalize the implementation plan; implementation remains unapproved.
-- ▧ Complete milestone 1's behavioral contract, independently authored fixtures, default values, and dependency decisions.
+- ✅ Complete milestone 1's firmware-faithful contract, fixed-point defaults/units, diagnostic metadata, original fixtures, findings, and independent MIT/dependency disposition.
+- ⏳ Owner review of milestone 1; implementation remains unapproved, and characterization-required cases are not passing tests.
 - ▧ Implement serial transport, device registry, and persistence after authorization.
 - ▧ Implement independent controller behavior, thermal model, and clock after authorization.
 - ▧ Verify the actual host/panel workflows and retain interface-specific evidence.

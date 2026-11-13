@@ -1,0 +1,4752 @@
+{
+  "schema_version": 1,
+  "spdx_license_identifier": "MIT",
+  "copyright": "2026 Lee Bussy",
+  "authorship": "Original project specification data; source-informed interoperability facts, not captured or reference-generated output.",
+  "reference_firmware_revision": "8f1fa1213cbbfc1f987fada5168d01925e1a2ee8",
+  "reference_host_revision": "d183fb5319b928f78b4c0eb6f05fe3620610ffff",
+  "reference_panel_revision": "f79631830a99575e250403f08a19be8bf944596c",
+  "execution_status": "not_executed_against_emulator_or_reference",
+  "format": "brewpi-emulator-milestone-1-protocol-v1",
+  "fixture_semantics": "README.md",
+  "cases": [
+    {
+      "id": "startup_reads",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6E0A730A630A760A740A"
+          ],
+          "input_display": "n\ns\nc\nv\nt\n",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "N",
+                "payload_ref": "defaults-v1.json#/identity"
+              },
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              },
+              {
+                "prefix": "V",
+                "payload_ref": "defaults-v1.json#/variables_cold_c"
+              },
+              {
+                "prefix": "T",
+                "payload_ref": "defaults-v1.json#/initial_telemetry"
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "N",
+              "S",
+              "C",
+              "V",
+              "T"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "split_and_coalesced_input",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B",
+            "703A",
+            "377D6E"
+          ],
+          "input_display": "j{Kp:7}n split across three writes",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              },
+              {
+                "prefix": "N",
+                "payload_ref": "defaults-v1.json#/identity"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              }
+            ],
+            "output_order": [
+              "D:I12",
+              "S",
+              "C",
+              "N"
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "byte_exact_identity_and_settings",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F03"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6E73"
+          ],
+          "input_display": "ns",
+          "expected": {
+            "raw_hex": "4E3A7B2276223A22302E322E3133222C226E223A2238663166613132222C2273223A322C2279223A302C2262223A2273222C226C223A2233227D0D0A533A7B226D6F6465223A226F222C2262656572536574223A6E756C6C2C22667269646765536574223A6E756C6C2C2268656174457374223A20302E3139392C22636F6F6C457374223A20352E3030307D0D0A"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tab_is_not_separator",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "09"
+          ],
+          "input_display": "\t",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  9
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "200D0A"
+          ],
+          "input_display": " \r\n",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown_setting_keeps_prior_mutation",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F01"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A372C756E7265636F676E697A65643A312C4B693A302E357D"
+          ],
+          "input_display": "j{Kp:7,unrecognized:1,Ki:0.5}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.5,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "unrecognized",
+                  "1"
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 0,
+                "V": []
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Ki",
+                  "0.5"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "D:W0",
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "known_bad_conversion_is_not_unknown_key",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F01",
+        "F03"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A6E6F74616E756D6265722C4B693A3165327D"
+          ],
+          "input_display": "j{Kp:notanumber,Ki:1e2}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "notanumber"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Ki",
+                  "1e2"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate_key_last_value",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F01"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A372C4B703A387D"
+          ],
+          "input_display": "j{Kp:7,Kp:8}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 8.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "8"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "trailing_comma_no_new_validation",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A372C7D"
+          ],
+          "input_display": "j{Kp:7,}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "overlong_key_reuses_prior_value_then_dispatches_remainder",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A372C7171717171717171717171717171717171717171717171717171717171717D"
+          ],
+          "input_display": "j{Kp:7,qqqqqqqqqqqqqqqqqqqqqqqqqqqqqq}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "qqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+                  "7"
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 0,
+                "V": []
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  125
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "D:W0",
+              "S",
+              "C",
+              "D:W1"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "partial_pair_applies_on_read_timeout",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F01",
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A37"
+          ],
+          "input_display": "j{Kp:7 without closing brace",
+          "expected": {
+            "output_before_read_timeout": []
+          }
+        },
+        {
+          "action": "allow_serial_read_timeout",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              }
+            ],
+            "output_order": [
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bad_brace_leaves_remainder_for_dispatch",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A5B6E73"
+          ],
+          "input_display": "j[ns",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              },
+              {
+                "prefix": "N",
+                "payload_ref": "defaults-v1.json#/identity"
+              },
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 10,
+                "V": [
+                  91
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:E10",
+              "S",
+              "C",
+              "N",
+              "S"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit_switch_preserves_legacy_unscaled_fields",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F03",
+        "F13"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B74656D70466F726D61743A467D"
+          ],
+          "input_display": "j{tempFormat:F}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_f"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "tempFormat",
+                  "F"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "76"
+          ],
+          "input_display": "v",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "V",
+                "payload_ref": "defaults-v1.json#/variables_cold_f"
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "input_order_and_pre_setpoint_annotations",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F01",
+        "F04"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B74656D70466F726D61743A462C6D6F64653A662C6672696467655365743A36387D"
+          ],
+          "input_display": "j{tempFormat:F,mode:f,fridgeSet:68}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": null,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": null,
+                  "FridgeSet": null,
+                  "FridgeAnn": "Mode set to f by web",
+                  "State": 0
+                }
+              },
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": null,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": null,
+                  "FridgeSet": null,
+                  "FridgeAnn": "Fridge set to 68 by web",
+                  "State": 0
+                }
+              },
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "f",
+                  "beerSet": null,
+                  "fridgeSet": 68.0,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_f"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "tempFormat",
+                  "F"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "mode",
+                  "f"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "fridgeSet",
+                  "68"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "T",
+              "D:I12",
+              "T",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid_mode_character_is_retained",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F03"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B6D6F64653A7A7D"
+          ],
+          "input_display": "j{mode:z}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": null,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": null,
+                  "FridgeSet": null,
+                  "FridgeAnn": "Mode set to z by web",
+                  "State": 0
+                }
+              },
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "z",
+                  "beerSet": null,
+                  "fridgeSet": null,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "mode",
+                  "z"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "T",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "byte_wrapped_filter_and_flag",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F03",
+        "F10"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B6672696467654661737446696C743A3236302C6C61683A3235362C6D61784865617454696D65466F724573743A37303030307D"
+          ],
+          "input_display": "j{fridgeFastFilt:260,lah:256,maxHeatTimeForEst:70000}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 5.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 65535,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 4,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "fridgeFastFilt",
+                  "260"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "lah",
+                  "256"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "maxHeatTimeForEst",
+                  "70000"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "empty_objects_keep_default_readbacks",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B7D"
+          ],
+          "input_display": "j{}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B7D"
+          ],
+          "input_display": "h{}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A1010000000204",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 2,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 6,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 19,
+                    "x": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "empty_discovery_and_slot_queries",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B7D"
+          ],
+          "input_display": "d{}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A302C723A317D"
+          ],
+          "input_display": "d{i:0,r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B653A317D"
+          ],
+          "input_display": "d{e:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 1,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 2,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 3,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 4,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 5,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 6,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 7,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 8,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 9,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 10,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 11,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 12,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 13,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 14,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 15,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A39397D"
+          ],
+          "input_display": "d{i:99}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B683A337D"
+          ],
+          "input_display": "h{h:3}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "fresh_inventory_and_query_aliases",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B753A2D317D"
+          ],
+          "input_display": "h{u:-1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A1010000000204",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 2,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 6,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 19,
+                    "x": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B68617264776172653A322C70696E3A31382C76616C7565733A312C756E757365643A2D317D"
+          ],
+          "input_display": "h{hardware:2,pin:18,values:1,unused:-1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A1010000000204",
+                    "j": 0.0,
+                    "v": 20.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0,
+                    "v": 20.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0,
+                    "v": 20.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ],
+      "notes": "The declared ROM search order is chamber, beer, room: zero-branch-first traversal of the selected ROMs, read least-significant bit first as in the reference OneWire search."
+    },
+    {
+      "id": "apply_probe_normalizes_owner_without_extra_T",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F06"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B2269223A302C2263223A39392C2262223A39392C2266223A392C2268223A322C2270223A31382C2261223A2232384131303130303030303030314536227D"
+          ],
+          "input_display": "U{\"i\":0,\"c\":99,\"b\":99,\"f\":9,\"h\":2,\"p\":18,\"a\":\"28A10100000001E6\"}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 9,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "28A10100000001E6",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B723A317D"
+          ],
+          "input_display": "d{r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 1,
+                    "c": 1,
+                    "b": 1,
+                    "f": 9,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0,
+                    "v": 20.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B753A2D312C683A327D"
+          ],
+          "input_display": "h{u:-1,h:2}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A1010000000204",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "beer_patch_omitting_function_fails_owner_check",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F06"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C6A3A317D"
+          ],
+          "input_display": "U{i:0,j:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 9,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "28A10100000001E6",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 7,
+                "V": [
+                  2,
+                  0,
+                  1
+                ]
+              },
+              {
+                "logType": "E",
+                "logID": 3,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:E7",
+              "D:E3",
+              "U"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "EEPROM_owner_validation_is_not_U_normalization",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F06"
+      ],
+      "observation_scope": "wire_and_semantic",
+      "steps": [
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "persisted_device_records": [
+              {
+                "i": 0,
+                "t": 1,
+                "c": 5,
+                "b": 1,
+                "f": 9,
+                "h": 2,
+                "d": 0,
+                "p": 18,
+                "a": "28A10100000001E6",
+                "j": 0.0
+              }
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 4,
+                "V": [
+                  5
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A307D"
+          ],
+          "input_display": "d{i:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "persisted_device_records": [
+              {
+                "i": 0,
+                "t": 1,
+                "c": 1,
+                "b": 7,
+                "f": 9,
+                "h": 2,
+                "d": 0,
+                "p": 18,
+                "a": "28A10100000001E6",
+                "j": 0.0
+              }
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 5,
+                "V": [
+                  7
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A307D"
+          ],
+          "input_display": "d{i:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "persisted_device_records": [
+              {
+                "i": 0,
+                "t": 1,
+                "c": 4,
+                "b": 6,
+                "f": 9,
+                "h": 2,
+                "d": 0,
+                "p": 18,
+                "a": "28A10100000001E6",
+                "j": 0.0
+              }
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A302C723A317D"
+          ],
+          "input_display": "d{i:0,r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 1,
+                    "c": 4,
+                    "b": 6,
+                    "f": 9,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "failed_hardware_type_logs_specific_then_generic",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A392C683A312C703A357D"
+          ],
+          "input_display": "U{i:0,f:9,h:1,p:5}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 0,
+                  "c": 0,
+                  "b": 0,
+                  "f": 0,
+                  "h": 0,
+                  "d": 0,
+                  "p": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 8,
+                "V": [
+                  1,
+                  1
+                ]
+              },
+              {
+                "logType": "E",
+                "logID": 3,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:E8",
+              "D:E3",
+              "U"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "failed_bus_and_function_validation",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A392C683A322C703A31377D"
+          ],
+          "input_display": "U{i:0,f:9,h:2,p:17}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 0,
+                  "c": 0,
+                  "b": 0,
+                  "f": 0,
+                  "h": 0,
+                  "d": 0,
+                  "p": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 9,
+                "V": [
+                  17
+                ]
+              },
+              {
+                "logType": "E",
+                "logID": 3,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:E9",
+              "D:E3",
+              "U"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A31362C683A307D"
+          ],
+          "input_display": "U{i:0,f:16,h:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 0,
+                  "c": 0,
+                  "b": 0,
+                  "f": 0,
+                  "h": 0,
+                  "d": 0,
+                  "p": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "E",
+                "logID": 6,
+                "V": [
+                  16
+                ]
+              },
+              {
+                "logType": "E",
+                "logID": 3,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:E6",
+              "D:E3",
+              "U"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "negative_and_missing_U_indices_are_silent",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A2D312C663A322C683A312C703A357D"
+          ],
+          "input_display": "U{i:-1,f:2,h:1,p:5}",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B663A322C683A312C703A357D"
+          ],
+          "input_display": "U{f:2,h:1,p:5}",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown_and_output_only_U_fields_are_ignored",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A322C683A312C703A352C783A312C743A39392C763A39392C713A397D"
+          ],
+          "input_display": "U{i:0,f:2,h:1,p:5,x:1,t:99,v:99,q:9}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 3,
+                  "c": 1,
+                  "b": 0,
+                  "f": 2,
+                  "h": 1,
+                  "d": 0,
+                  "p": 5,
+                  "x": 1
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "duplicate_ROM_is_not_rejected",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F07"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B2269223A312C2266223A352C2268223A322C2270223A31382C2261223A2232384131303130303030303030314536227D"
+          ],
+          "input_display": "U{\"i\":1,\"f\":5,\"h\":2,\"p\":18,\"a\":\"28A10100000001E6\"}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 1,
+                  "t": 1,
+                  "c": 1,
+                  "b": 0,
+                  "f": 5,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "28A10100000001E6",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A307D"
+          ],
+          "input_display": "d{i:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 1,
+                    "c": 1,
+                    "b": 1,
+                    "f": 9,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A317D"
+          ],
+          "input_display": "d{i:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 1,
+                    "t": 1,
+                    "c": 1,
+                    "b": 0,
+                    "f": 5,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "calibration_minus_one_sentinel",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F08"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A392C6A3A2D302E303632357D"
+          ],
+          "input_display": "U{i:0,f:9,j:-0.0625}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 9,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "28A10100000001E6",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A392C6A3A302E357D"
+          ],
+          "input_display": "U{i:0,f:9,j:0.5}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 9,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "28A10100000001E6",
+                  "j": 0.5
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A302C723A317D"
+          ],
+          "input_display": "d{i:0,r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 1,
+                    "c": 1,
+                    "b": 1,
+                    "f": 9,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.5,
+                    "v": 20.5
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B683A322C703A31382C763A312C753A307D"
+          ],
+          "input_display": "h{h:2,p:18,v:1,u:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_contains": [
+                  {
+                    "i": 0,
+                    "a": "28A10100000001E6",
+                    "j": 0.5,
+                    "v": 20.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          },
+          "notes": "Later unassigned records follow F09; the contains projection does not waive that finding."
+        }
+      ]
+    },
+    {
+      "id": "remove_and_deactivate_do_not_force_telemetry",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F04",
+        "F17"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A392C643A317D"
+          ],
+          "input_display": "U{i:0,f:9,d:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 9,
+                  "h": 2,
+                  "d": 1,
+                  "p": 18,
+                  "a": "28A10100000001E6",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "74"
+          ],
+          "input_display": "t",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": null,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": 20.0,
+                  "FridgeSet": null,
+                  "FridgeAnn": null,
+                  "State": 0,
+                  "RoomTemp": 20.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A307D"
+          ],
+          "input_display": "U{i:0,f:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 0,
+                  "c": 0,
+                  "b": 0,
+                  "f": 0,
+                  "h": 0,
+                  "d": 0,
+                  "p": 0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "room_disconnected_key_is_omitted",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F04"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A322C663A307D"
+          ],
+          "input_display": "U{i:2,f:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 2,
+                  "t": 0,
+                  "c": 0,
+                  "b": 0,
+                  "f": 0,
+                  "h": 0,
+                  "d": 0,
+                  "p": 0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "74"
+          ],
+          "input_display": "t",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": 20.0,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": 20.0,
+                  "FridgeSet": null,
+                  "FridgeAnn": null,
+                  "State": 0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pin_enumeration_reuses_matched_config",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F09"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A322C683A312C703A322C783A317D"
+          ],
+          "input_display": "U{i:0,f:2,h:1,p:2,x:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 3,
+                  "c": 1,
+                  "b": 0,
+                  "f": 2,
+                  "h": 1,
+                  "d": 0,
+                  "p": 2,
+                  "x": 1
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B683A312C753A307D"
+          ],
+          "input_display": "h{h:1,u:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 3,
+                    "c": 1,
+                    "b": 0,
+                    "f": 2,
+                    "h": 1,
+                    "d": 0,
+                    "p": 2,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 3,
+                    "c": 1,
+                    "b": 0,
+                    "f": 2,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 3,
+                    "c": 1,
+                    "b": 0,
+                    "f": 2,
+                    "h": 1,
+                    "d": 0,
+                    "p": 6,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 3,
+                    "c": 1,
+                    "b": 0,
+                    "f": 2,
+                    "h": 1,
+                    "d": 0,
+                    "p": 19,
+                    "x": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B683A312C753A2D317D"
+          ],
+          "input_display": "h{h:1,u:-1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 6,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 19,
+                    "x": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "manual_actuator_write_has_no_v_until_read",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B6D6F64653A747D"
+          ],
+          "input_display": "j{mode:t}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": 20.0,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": 20.0,
+                  "FridgeSet": null,
+                  "FridgeAnn": "Mode set to t by web",
+                  "State": 0,
+                  "RoomTemp": 20.0
+                }
+              },
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "t",
+                  "beerSet": null,
+                  "fridgeSet": null,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "mode",
+                  "t"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "T",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A332C773A312C723A317D"
+          ],
+          "input_display": "d{i:3,w:1,r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 3,
+                    "t": 3,
+                    "c": 1,
+                    "b": 0,
+                    "f": 2,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A332C723A317D"
+          ],
+          "input_display": "d{i:3,r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 3,
+                    "t": 3,
+                    "c": 1,
+                    "b": 0,
+                    "f": 2,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1,
+                    "v": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "camera_and_alarm_no_fake_ack",
+      "classification": "source_defined",
+      "initial_preset": "all_assigned",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A2D322C773A317D"
+          ],
+          "input_display": "d{i:-2,w:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "41"
+          ],
+          "input_display": "A",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "61"
+          ],
+          "input_display": "a",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A2D322C773A307D"
+          ],
+          "input_display": "d{i:-2,w:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C_reset_is_volatile",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F05"
+      ],
+      "observation_scope": "wire_and_lifecycle",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B4B703A377D"
+          ],
+          "input_display": "j{Kp:7}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "Kp",
+                  "7"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "43"
+          ],
+          "input_display": "C",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 13,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "C",
+              "D:I13"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "63"
+          ],
+          "input_display": "c",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 7.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 3,
+                  "beerSlowFilt": 4,
+                  "beerSlopeFilt": 4,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "S_can_save_intermediate_estimates",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F05"
+      ],
+      "observation_scope": "wire_and_lifecycle",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B686561744573743A312C636F6F6C4573743A322C6D6F64653A667D"
+          ],
+          "input_display": "j{heatEst:1,coolEst:2,mode:f}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": null,
+                  "BeerSet": null,
+                  "BeerAnn": null,
+                  "FridgeTemp": null,
+                  "FridgeSet": null,
+                  "FridgeAnn": "Mode set to f by web",
+                  "State": 0
+                }
+              },
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "f",
+                  "beerSet": null,
+                  "fridgeSet": null,
+                  "heatEst": 1.0,
+                  "coolEst": 2.0
+                }
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "heatEst",
+                  "1"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "coolEst",
+                  "2"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "mode",
+                  "f"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "D:I12",
+              "T",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "53"
+          ],
+          "input_display": "S",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 14,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "S",
+              "D:I14"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "73"
+          ],
+          "input_display": "s",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "o",
+                  "beerSet": null,
+                  "fridgeSet": null,
+                  "heatEst": 1.0,
+                  "coolEst": 2.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "profile_quarter_degree_not_saved",
+      "classification": "source_defined",
+      "initial_preset": "profile_saved_20",
+      "findings": [
+        "F05"
+      ],
+      "observation_scope": "wire_and_lifecycle",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B626565725365743A32302E32357D"
+          ],
+          "input_display": "j{beerSet:20.25}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": 20.0,
+                  "BeerSet": 20.0,
+                  "BeerAnn": "Beer set to 20.25 by profile",
+                  "FridgeTemp": 20.0,
+                  "FridgeSet": 20.0,
+                  "FridgeAnn": null,
+                  "State": 0,
+                  "RoomTemp": 20.0
+                }
+              },
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "p",
+                  "beerSet": 20.25,
+                  "fridgeSet": 21.5,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "beerSet",
+                  "20.25"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "T",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "73"
+          ],
+          "input_display": "s",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "p",
+                  "beerSet": 20.0,
+                  "fridgeSet": 20.0,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "profile_half_degree_is_saved",
+      "classification": "source_defined",
+      "initial_preset": "profile_saved_20",
+      "findings": [
+        "F05"
+      ],
+      "observation_scope": "wire_and_lifecycle",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B626565725365743A32302E357D"
+          ],
+          "input_display": "j{beerSet:20.5}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_equals": {
+                  "BeerTemp": 20.0,
+                  "BeerSet": 20.0,
+                  "BeerAnn": "Beer set to 20.5 by profile",
+                  "FridgeTemp": 20.0,
+                  "FridgeSet": 20.0,
+                  "FridgeAnn": null,
+                  "State": 0,
+                  "RoomTemp": 20.0
+                }
+              },
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "p",
+                  "beerSet": 20.5,
+                  "fridgeSet": 23.0,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "beerSet",
+                  "20.5"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "T",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "73"
+          ],
+          "input_display": "s",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_equals": {
+                  "mode": "p",
+                  "beerSet": 20.5,
+                  "fridgeSet": 23.0,
+                  "heatEst": 0.199,
+                  "coolEst": 5.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "factory_reset_has_only_info_ack",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F13",
+        "F18"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "45"
+          ],
+          "input_display": "E",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 15,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "736376"
+          ],
+          "input_display": "scv",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_c"
+              },
+              {
+                "prefix": "V",
+                "payload_ref": "defaults-v1.json#/variables_cold_c"
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B7D"
+          ],
+          "input_display": "d{}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "687B753A2D317D"
+          ],
+          "input_display": "h{u:-1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "h",
+                "payload_equals": [
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A1010000000204",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A10100000001E6",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 2,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 5,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 6,
+                    "x": 1
+                  },
+                  {
+                    "i": -1,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 0,
+                    "h": 1,
+                    "d": 0,
+                    "p": 19,
+                    "x": 1
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "erased_store_safe_mode_then_initialize",
+      "classification": "source_defined",
+      "initial_preset": "erased",
+      "findings": [
+        "F18"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "controller_boot",
+          "expected": {
+            "diagnostics": [
+              {
+                "logType": "W",
+                "logID": 3,
+                "V": []
+              }
+            ],
+            "replies": []
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B7D"
+          ],
+          "input_display": "d{}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": []
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "45"
+          ],
+          "input_display": "E",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 15,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B653A317D"
+          ],
+          "input_display": "d{e:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 0,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 1,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 2,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 3,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 4,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 5,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 6,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 7,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 8,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 9,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 10,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 11,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 12,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 13,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 14,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  },
+                  {
+                    "i": 15,
+                    "t": 0,
+                    "c": 0,
+                    "b": 0,
+                    "f": 0,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stored_secondary_and_reserved_functions_have_no_live_target",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A362C663A31302C683A322C703A31382C613A323841313031303030303030303335417D"
+          ],
+          "input_display": "U{i:6,f:10,h:2,p:18,a:28A101000000035A}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 6,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 10,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "28A101000000035A",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B693A362C723A317D"
+          ],
+          "input_display": "d{i:6,r:1}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 6,
+                    "t": 1,
+                    "c": 1,
+                    "b": 1,
+                    "f": 10,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A372C663A382C683A307D"
+          ],
+          "input_display": "U{i:7,f:8,h:0}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 7,
+                  "t": 0,
+                  "c": 1,
+                  "b": 0,
+                  "f": 8,
+                  "h": 0,
+                  "d": 0,
+                  "p": 0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "647B7D"
+          ],
+          "input_display": "d{}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "d",
+                "payload_equals": [
+                  {
+                    "i": 6,
+                    "t": 1,
+                    "c": 1,
+                    "b": 1,
+                    "f": 10,
+                    "h": 2,
+                    "d": 0,
+                    "p": 18,
+                    "a": "28A101000000035A",
+                    "j": 0.0
+                  },
+                  {
+                    "i": 7,
+                    "t": 0,
+                    "c": 1,
+                    "b": 0,
+                    "f": 8,
+                    "h": 0,
+                    "d": 0,
+                    "p": 0
+                  }
+                ]
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ],
+      "notes": "Do not reject these accepted records merely because the normal panel hides the functions; no live target or v reading is invented."
+    },
+    {
+      "id": "optional_commands_remain_individual_invalid_bytes",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F02"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "797B7D5920655A46"
+          ],
+          "input_display": "y{}Y eZF",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  121
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  123
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  125
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  89
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  101
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  90
+                ]
+              },
+              {
+                "logType": "W",
+                "logID": 1,
+                "V": [
+                  70
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "LCD_preserves_exported_B0_byte",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F16"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6C"
+          ],
+          "input_display": "l",
+          "expected": {
+            "raw_hex": "4C3A5B224D6F64652020204F666620202020202020202020222C22426565722020202D2D2E2D20202D2D2E2D20B043222C22467269646765202D2D2E2D20202D2D2E2D20B043222C2249646C696E6720666F72202020202030306D3030225D0D0A",
+            "row_lengths_bytes": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "unit_byte_positions": {
+              "rows": [
+                1,
+                2
+              ],
+              "column": 18,
+              "hex": "B0"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "beer_filter_write_routing",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F10"
+      ],
+      "observation_scope": "wire_and_semantic",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B626565724661737446696C743A362C62656572536C6F7746696C743A372C62656572536C6F706546696C743A387D"
+          ],
+          "input_display": "j{beerFastFilt:6,beerSlowFilt:7,beerSlopeFilt:8}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_equals": {
+                  "tempFormat": "C",
+                  "tempSetMin": 1.0,
+                  "tempSetMax": 30.0,
+                  "pidMax": 10.0,
+                  "Kp": 5.0,
+                  "Ki": 0.25,
+                  "Kd": 1.5,
+                  "iMaxErr": 0.5,
+                  "idleRangeH": 1.0,
+                  "idleRangeL": -1.0,
+                  "heatTargetH": 0.301,
+                  "heatTargetL": -0.199,
+                  "coolTargetH": 0.199,
+                  "coolTargetL": -0.301,
+                  "maxHeatTimeForEst": 600,
+                  "maxCoolTimeForEst": 1200,
+                  "fridgeFastFilt": 1,
+                  "fridgeSlowFilt": 4,
+                  "fridgeSlopeFilt": 3,
+                  "beerFastFilt": 6,
+                  "beerSlowFilt": 7,
+                  "beerSlopeFilt": 8,
+                  "lah": 0,
+                  "hs": 0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "beerFastFilt",
+                  "6"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "beerSlowFilt",
+                  "7"
+                ]
+              },
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "beerSlopeFilt",
+                  "8"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "postconditions": {
+              "effective_beer_filter_coefficients": {
+                "fast": 7,
+                "slow": 8,
+                "slope": 4
+              }
+            },
+            "output_order": [
+              "D:I12",
+              "D:I12",
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "52"
+          ],
+          "input_display": "R",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "await_controller_restart",
+          "expected": {
+            "replies": [],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick",
+            "postconditions": {
+              "effective_beer_filter_coefficients": {
+                "fast": 6,
+                "slow": 7,
+                "slope": 8
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "test_mode_camera_timeout_is_skipped",
+      "classification": "source_defined",
+      "initial_preset": "all_assigned",
+      "findings": [
+        "F11"
+      ],
+      "observation_scope": "semantic",
+      "steps": [
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "mode": "t",
+            "camera_request_active": true,
+            "camera_last_active_seconds": 0,
+            "controller_seconds": 601,
+            "controller_millis": 601000
+          },
+          "notes": "A fixture precondition, not a new serial API."
+        },
+        {
+          "action": "controller_output_update",
+          "expected": {
+            "camera_request_active": true
+          }
+        },
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "mode": "o"
+          }
+        },
+        {
+          "action": "controller_output_update",
+          "expected": {
+            "camera_request_active": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "V_integral_readback_narrows_long_to_low_signed_word",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F21"
+      ],
+      "observation_scope": "wire_and_semantic",
+      "steps": [
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "variables_raw": {
+              "diffIntegral": 66048
+            }
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "76"
+          ],
+          "input_display": "v",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "V",
+                "payload_equals": {
+                  "beerDiff": 0.0,
+                  "diffIntegral": 1.0,
+                  "beerSlope": 0.0,
+                  "p": 0.0,
+                  "i": 0.0,
+                  "d": 0.0,
+                  "estPeak": 48.0,
+                  "negPeakEst": 48.0,
+                  "posPeakEst": 48.0,
+                  "negPeak": 48.0,
+                  "posPeak": 48.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick",
+            "postconditions": {
+              "variables_raw": {
+                "diffIntegral": 66048
+              }
+            }
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "6A7B74656D70466F726D61743A467D"
+          ],
+          "input_display": "j{tempFormat:F}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "S",
+                "payload_ref": "defaults-v1.json#/settings_c"
+              },
+              {
+                "prefix": "C",
+                "payload_ref": "defaults-v1.json#/constants_f"
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 12,
+                "V": [
+                  "tempFormat",
+                  "F"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:I12",
+              "S",
+              "C"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "76"
+          ],
+          "input_display": "v",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "V",
+                "payload_equals": {
+                  "beerDiff": 0.0,
+                  "diffIntegral": 1.801,
+                  "beerSlope": 0.0,
+                  "p": 0.0,
+                  "i": 0.0,
+                  "d": 0.0,
+                  "estPeak": 118.4,
+                  "negPeakEst": 118.4,
+                  "posPeakEst": 118.4,
+                  "negPeak": 118.4,
+                  "posPeak": 118.4
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick",
+            "postconditions": {
+              "variables_raw": {
+                "diffIntegral": 66048
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "positive_derivative_and_counter_boundary",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F12"
+      ],
+      "observation_scope": "semantic",
+      "steps": [
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "mode": "b",
+            "beer_target_c": 20,
+            "slow_beer_c": 20,
+            "beer_slope_c_per_hour": 1,
+            "diff_integral_raw": 0,
+            "integral_evaluation_count": 0,
+            "state": 0
+          }
+        },
+        {
+          "action": "controller_pid_evaluation",
+          "repeat": 60,
+          "expected": {
+            "integral_branch_executions": 0,
+            "last_d_unscaled": 1.5,
+            "last_fridge_target_c": 21.5
+          }
+        },
+        {
+          "action": "controller_pid_evaluation",
+          "repeat": 1,
+          "expected": {
+            "integral_branch_executions": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "minimum_on_boundary_is_strict",
+      "classification": "source_defined",
+      "initial_preset": "assigned",
+      "findings": [
+        "F12"
+      ],
+      "observation_scope": "semantic",
+      "steps": [
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "mode": "f",
+            "state": 4,
+            "fridge_target_c": 20,
+            "fast_fridge_temperature_c": 20,
+            "cool_estimator_raw": 2560,
+            "required_probe_connected": true,
+            "seconds_since_idle": 180
+          }
+        },
+        {
+          "action": "controller_state_update",
+          "expected": {
+            "state": 8
+          }
+        },
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "seconds_since_idle": 181
+          }
+        },
+        {
+          "action": "controller_state_update",
+          "expected": {
+            "state": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "V_is_not_cleared_by_E",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F13"
+      ],
+      "observation_scope": "wire_and_semantic",
+      "steps": [
+        {
+          "action": "set_fixture_precondition",
+          "values": {
+            "variables_raw": {
+              "beerDiff": 512,
+              "diffIntegral": 1024,
+              "beerSlope": 0,
+              "p": 2560,
+              "i": 256,
+              "d": 0,
+              "estPeak": -13824,
+              "negPeakEst": 0,
+              "posPeakEst": 0,
+              "negPeak": 0,
+              "posPeak": 0
+            }
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "45"
+          ],
+          "input_display": "E",
+          "expected": {
+            "replies": [],
+            "diagnostics": [
+              {
+                "logType": "I",
+                "logID": 15,
+                "V": []
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "76"
+          ],
+          "input_display": "v",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "V",
+                "payload_equals": {
+                  "beerDiff": 1.0,
+                  "diffIntegral": 2.0,
+                  "beerSlope": 0.0,
+                  "p": 5.0,
+                  "i": 0.5,
+                  "d": 0.0,
+                  "estPeak": 21.0,
+                  "negPeakEst": 48.0,
+                  "posPeakEst": 48.0,
+                  "negPeak": 48.0,
+                  "posPeak": 48.0
+                }
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ]
+    },
+    {
+      "id": "zero_ROM_is_accepted_but_not_resolved_to_first_sensor",
+      "classification": "source_defined",
+      "initial_preset": "initialized",
+      "findings": [
+        "F20"
+      ],
+      "observation_scope": "wire",
+      "steps": [
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "557B693A302C663A392C683A322C703A31382C613A303030303030303030303030303030307D"
+          ],
+          "input_display": "U{i:0,f:9,h:2,p:18,a:0000000000000000}",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "U",
+                "payload_equals": {
+                  "i": 0,
+                  "t": 1,
+                  "c": 1,
+                  "b": 1,
+                  "f": 9,
+                  "h": 2,
+                  "d": 0,
+                  "p": 18,
+                  "a": "0000000000000000",
+                  "j": 0.0
+                }
+              }
+            ],
+            "diagnostics": [
+              {
+                "logType": "W",
+                "logID": 2,
+                "V": [
+                  18,
+                  "0000000000000000"
+                ]
+              }
+            ],
+            "additional_output": "none_before_next_explicit_tick",
+            "output_order": [
+              "D:W2",
+              "U"
+            ]
+          }
+        },
+        {
+          "action": "serial_write",
+          "chunks_hex": [
+            "74"
+          ],
+          "input_display": "t",
+          "expected": {
+            "replies": [
+              {
+                "prefix": "T",
+                "payload_ref": "defaults-v1.json#/initial_telemetry"
+              }
+            ],
+            "diagnostics": [],
+            "additional_output": "none_before_next_explicit_tick"
+          }
+        }
+      ],
+      "notes": "Virtual bus has no literal zero-ROM device; exact conversion/reset latency is separately characterized."
+    },
+    {
+      "id": "U_slot_16",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F14"
+      ],
+      "stimulus_display": "U{i:16,f:2,h:1,p:5}",
+      "required_evidence": "Exact resulting U bytes, reset/failure state, and EEPROM effects depend on uninitialized stack/layout.",
+      "expected_exact_output": null,
+      "counts_as_pass": false,
+      "stimulus_hex": "557B693A31362C663A322C683A312C703A357D"
+    },
+    {
+      "id": "overlong_ROM",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F14"
+      ],
+      "stimulus_display": "U{i:0,f:9,h:2,p:18,a:28010203040506070809}",
+      "required_evidence": "Address parser can write beyond its destination; no invented stable reply.",
+      "expected_exact_output": null,
+      "counts_as_pass": false,
+      "stimulus_hex": "557B693A302C663A392C683A322C703A31382C613A32383031303230333034303530363037303830397D"
+    },
+    {
+      "id": "U_before_E",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F18"
+      ],
+      "stimulus_display": "U{i:0,f:2,h:1,p:5}",
+      "required_evidence": "Original record fetch fails before store initialization; characterize stack/history effects.",
+      "expected_exact_output": null,
+      "counts_as_pass": false,
+      "stimulus_hex": "557B693A302C663A322C683A312C703A357D"
+    },
+    {
+      "id": "duplicate_function_remove_history",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F07"
+      ],
+      "stimulus_display": "U{i:5,f:2,h:1,p:19}",
+      "required_evidence": "Follow with removal of each duplicate slot and compare live-target/pin-latch history.",
+      "expected_exact_output": null,
+      "counts_as_pass": false,
+      "stimulus_hex": "557B693A352C663A322C683A312C703A31397D"
+    },
+    {
+      "id": "drift_sentinel_error",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F15"
+      ],
+      "stimulus_display": null,
+      "required_evidence": "Drive the timeout branch with a missing peak and retain the exact AVR estimator/error result.",
+      "expected_exact_output": null,
+      "counts_as_pass": false
+    },
+    {
+      "id": "removed_active_pin_latch",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F17"
+      ],
+      "stimulus_display": null,
+      "required_evidence": "Assert an active-low output, remove its assignment, inspect actual electrical latch and later reassignment.",
+      "expected_exact_output": null,
+      "counts_as_pass": false
+    },
+    {
+      "id": "sensor_initialization_and_embedded_D",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F19"
+      ],
+      "stimulus_display": null,
+      "required_evidence": "Disconnect/reset a detected probe during h value initialization; capture byte placement inside open list and latency.",
+      "expected_exact_output": null,
+      "counts_as_pass": false
+    },
+    {
+      "id": "large_numeric_overflow",
+      "classification": "requires_reference_trace",
+      "initial_preset": "initialized",
+      "findings": [
+        "F03"
+      ],
+      "stimulus_display": "j{Kp:9999999999999999999999999999}",
+      "required_evidence": "Characterize custom long arithmetic and compiler result; no new validation policy.",
+      "expected_exact_output": null,
+      "counts_as_pass": false,
+      "stimulus_hex": "6A7B4B703A393939393939393939393939393939393939393939393939393939397D"
+    },
+    {
+      "id": "digital_pin_conflicts_with_OneWire_bus",
+      "classification": "requires_reference_trace",
+      "initial_preset": "assigned",
+      "findings": [
+        "F17",
+        "F19"
+      ],
+      "stimulus_display": "U{i:5,f:2,h:1,p:18,x:1}",
+      "stimulus_hex": "557B693A352C663A322C683A312C703A31382C783A317D",
+      "required_evidence": "The source accepts this digital pin assignment; characterize resulting bus electrical state, probe reads, diagnostic order, and reset/recovery without inventing a validation error.",
+      "expected_exact_output": null,
+      "counts_as_pass": false
+    }
+  ]
+}

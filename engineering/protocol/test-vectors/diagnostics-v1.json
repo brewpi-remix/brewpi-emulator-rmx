@@ -1,0 +1,790 @@
+{
+  "schema_version": 1,
+  "spdx_license_identifier": "MIT",
+  "copyright": "2026 Lee Bussy",
+  "authorship": "Original project specification data; source-informed interoperability facts, not captured or reference-generated output.",
+  "reference_firmware_revision": "8f1fa1213cbbfc1f987fada5168d01925e1a2ee8",
+  "reference_host_revision": "d183fb5319b928f78b4c0eb6f05fe3620610ffff",
+  "reference_panel_revision": "f79631830a99575e250403f08a19be8bf944596c",
+  "execution_status": "not_executed_against_emulator_or_reference",
+  "format": "brewpi-emulator-milestone-1-diagnostic-metadata-v1",
+  "records": [
+    {
+      "log_type": "E",
+      "log_id": 0,
+      "sample_arguments": [
+        "28A10100000001E6"
+      ],
+      "argument_types": [
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 0,
+        "V": [
+          "28A10100000001E6"
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 1,
+      "sample_arguments": [
+        18
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "declared_without_active_check",
+      "expected_record": {
+        "logType": "E",
+        "logID": 1,
+        "V": [
+          18
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 2,
+      "sample_arguments": [
+        9
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 2,
+        "V": [
+          9
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 3,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 3,
+        "V": []
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 4,
+      "sample_arguments": [
+        5
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_on_EEPROM_reload; normalized_away_only_in_U",
+      "expected_record": {
+        "logType": "E",
+        "logID": 4,
+        "V": [
+          5
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 5,
+      "sample_arguments": [
+        7
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_on_EEPROM_reload; normalized_away_only_in_U",
+      "expected_record": {
+        "logType": "E",
+        "logID": 5,
+        "V": [
+          7
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 6,
+      "sample_arguments": [
+        16
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 6,
+        "V": [
+          16
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 7,
+      "sample_arguments": [
+        2,
+        0,
+        1
+      ],
+      "argument_types": [
+        "integer",
+        "integer",
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 7,
+        "V": [
+          2,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 8,
+      "sample_arguments": [
+        1,
+        1
+      ],
+      "argument_types": [
+        "integer",
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 8,
+        "V": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 9,
+      "sample_arguments": [
+        17
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 9,
+        "V": [
+          17
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 10,
+      "sample_arguments": [
+        91
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "E",
+        "logID": 10,
+        "V": [
+          91
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 11,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "declared_without_active_check",
+      "expected_record": {
+        "logType": "E",
+        "logID": 11,
+        "V": []
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 12,
+      "sample_arguments": [
+        0
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "declared_without_active_check",
+      "expected_record": {
+        "logType": "E",
+        "logID": 12,
+        "V": [
+          0
+        ]
+      }
+    },
+    {
+      "log_type": "E",
+      "log_id": 13,
+      "sample_arguments": [
+        0
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "declared_without_active_check",
+      "expected_record": {
+        "logType": "E",
+        "logID": 13,
+        "V": [
+          0
+        ]
+      }
+    },
+    {
+      "log_type": "W",
+      "log_id": 0,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "W",
+        "logID": 0,
+        "V": []
+      }
+    },
+    {
+      "log_type": "W",
+      "log_id": 1,
+      "sample_arguments": [
+        9
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "W",
+        "logID": 1,
+        "V": [
+          9
+        ]
+      }
+    },
+    {
+      "log_type": "W",
+      "log_id": 2,
+      "sample_arguments": [
+        18,
+        "28A10100000001E6"
+      ],
+      "argument_types": [
+        "integer",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "W",
+        "logID": 2,
+        "V": [
+          18,
+          "28A10100000001E6"
+        ]
+      }
+    },
+    {
+      "log_type": "W",
+      "log_id": 3,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "W",
+        "logID": 3,
+        "V": []
+      }
+    },
+    {
+      "log_type": "W",
+      "log_id": 4,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "inactive_path",
+      "expected_record": {
+        "logType": "W",
+        "logID": 4,
+        "V": []
+      }
+    },
+    {
+      "log_type": "W",
+      "log_id": 5,
+      "sample_arguments": [
+        "28A10100000001E6"
+      ],
+      "argument_types": [
+        "string"
+      ],
+      "reachability": "ds2413_disabled",
+      "expected_record": {
+        "logType": "W",
+        "logID": 5,
+        "V": [
+          "28A10100000001E6"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 0,
+      "sample_arguments": [
+        18,
+        "28A10100000001E6"
+      ],
+      "argument_types": [
+        "integer",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 0,
+        "V": [
+          18,
+          "28A10100000001E6"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 1,
+      "sample_arguments": [
+        18,
+        "28A10100000001E6"
+      ],
+      "argument_types": [
+        "integer",
+        "string"
+      ],
+      "reachability": "inactive_path",
+      "expected_record": {
+        "logType": "I",
+        "logID": 1,
+        "V": [
+          18,
+          "28A10100000001E6"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 2,
+      "sample_arguments": [
+        18,
+        "28A10100000001E6",
+        " 20.0"
+      ],
+      "argument_types": [
+        "integer",
+        "string",
+        "string"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 2,
+        "V": [
+          18,
+          "28A10100000001E6",
+          " 20.0"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 3,
+      "sample_arguments": [
+        9
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 3,
+        "V": [
+          9
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 4,
+      "sample_arguments": [
+        2
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 4,
+        "V": [
+          2
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 5,
+      "sample_arguments": [
+        1
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 5,
+        "V": [
+          1
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 6,
+      "sample_arguments": [
+        9
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 6,
+        "V": [
+          9
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 7,
+      "sample_arguments": [
+        2
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "declared_without_active_call",
+      "expected_record": {
+        "logType": "I",
+        "logID": 7,
+        "V": [
+          2
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 8,
+      "sample_arguments": [
+        1
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "declared_without_active_call",
+      "expected_record": {
+        "logType": "I",
+        "logID": 8,
+        "V": [
+          1
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 9,
+      "sample_arguments": [
+        2
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 9,
+        "V": [
+          2
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 10,
+      "sample_arguments": [
+        0
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "debug_guarded",
+      "expected_record": {
+        "logType": "I",
+        "logID": 10,
+        "V": [
+          0
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 11,
+      "sample_arguments": [
+        1
+      ],
+      "argument_types": [
+        "integer"
+      ],
+      "reachability": "declared_without_active_call",
+      "expected_record": {
+        "logType": "I",
+        "logID": 11,
+        "V": [
+          1
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 12,
+      "sample_arguments": [
+        "Kp",
+        "7"
+      ],
+      "argument_types": [
+        "string",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 12,
+        "V": [
+          "Kp",
+          "7"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 13,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 13,
+        "V": []
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 14,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 14,
+        "V": []
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 15,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 15,
+        "V": []
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 16,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "debug_command_disabled",
+      "expected_record": {
+        "logType": "I",
+        "logID": 16,
+        "V": []
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 17,
+      "sample_arguments": [
+        " 20.0",
+        " 20.1",
+        " 0.199",
+        " 0.201"
+      ],
+      "argument_types": [
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 17,
+        "V": [
+          " 20.0",
+          " 20.1",
+          " 0.199",
+          " 0.201"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 18,
+      "sample_arguments": [
+        " 19.0",
+        " 19.1",
+        " 5.000",
+        " 4.998"
+      ],
+      "argument_types": [
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 18,
+        "V": [
+          " 19.0",
+          " 19.1",
+          " 5.000",
+          " 4.998"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 19,
+      "sample_arguments": [
+        " 20.0",
+        " 20.1",
+        " 0.199",
+        " 0.197"
+      ],
+      "argument_types": [
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 19,
+        "V": [
+          " 20.0",
+          " 20.1",
+          " 0.199",
+          " 0.197"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 20,
+      "sample_arguments": [
+        " 19.0",
+        " 19.1",
+        " 5.000",
+        " 4.998"
+      ],
+      "argument_types": [
+        "string",
+        "string",
+        "string",
+        "string"
+      ],
+      "reachability": "active_or_conditional",
+      "expected_record": {
+        "logType": "I",
+        "logID": 20,
+        "V": [
+          " 19.0",
+          " 19.1",
+          " 5.000",
+          " 4.998"
+        ]
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 21,
+      "sample_arguments": [],
+      "argument_types": [],
+      "reachability": "inactive_path",
+      "expected_record": {
+        "logType": "I",
+        "logID": 21,
+        "V": []
+      }
+    },
+    {
+      "log_type": "I",
+      "log_id": 22,
+      "sample_arguments": [
+        "28A10100000001E6"
+      ],
+      "argument_types": [
+        "string"
+      ],
+      "reachability": "ds2413_disabled",
+      "expected_record": {
+        "logType": "I",
+        "logID": 22,
+        "V": [
+          "28A10100000001E6"
+        ]
+      }
+    }
+  ]
+}

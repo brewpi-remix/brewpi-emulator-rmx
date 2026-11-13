@@ -1,7 +1,12 @@
 # Protocol documentation
 
-Status: source-reviewed plan only; no implemented protocol or conformance suite exists. The [implementation plan](../../IMPLEMENTATION_PLAN.md) currently contains the command inventory, identity proposal, field schemas, host timing, discovery behavior, and intentional differences.
+Milestone 1 is complete as a source-backed specification and original fixture deliverable for owner review. No emulator, executable conformance suite, or reference-hardware execution exists. The owner's firmware-first instruction supersedes earlier proposed behavioral improvements: preserve Arduino action/reaction, including deterministic bugs, while writing original MIT implementation later.
 
-Before implementation, finish the plan's milestone 1: independently authored command/response fixtures, default settings/constants, field-specific unit conversion, supported diagnostic IDs/arguments, mutation validation, and reset/persistence semantics. Required wire identifiers and numeric values are compatibility facts; do not copy upstream source enums, parsers, tables, or tests.
+- [Behavioral contract v1](behavioral-contract.md): selected build personality, serial semantics, commands, schemas, timing, and persistence.
+- [Defaults and units](defaults.md): full S/C/V data, fixed-point C/F behavior, identities, and external plant inputs.
+- [Diagnostic metadata](diagnostics.md): version-3 IDs, typed arguments, reachability, and output ordering without copied expansion text.
+- [Firmware findings](firmware-findings.md): required bugs/quirks and explicit characterization obligations.
+- [Original protocol fixtures](test-vectors/README.md): machine-readable defaults, 43 diagnostic signatures, 48 source-defined cases, and nine characterization cases.
+- [Milestone review](../development/milestone-1-review.md) and [provenance record](../licenses/milestone-1.md).
 
-Keep exact wire compatibility separate from approximate controller numerics. Include strict JSON responses, permissive flat host command objects, CP437-safe transport, null setpoints/readings, full telemetry on state changes, and discovery refresh ordering. Distinguish panel operations from socket/harness-only operations. The [test-vector directory](test-vectors/README.md) reserves space for independently authored vectors; none have been created. Write them from behavioral facts, not copied upstream tests or captured diagnostic prose, and apply the [provenance review gate](../licenses/README.md#review-gate).
+The [implementation plan](../../IMPLEMENTATION_PLAN.md) owns later milestones. This document set is normative for milestone 1 topics and supersedes inconsistent provisional protocol choices in earlier history. Undefined/hardware-dependent findings are not assigned invented exact outputs or counted as passing tests. Stop for review before implementation.

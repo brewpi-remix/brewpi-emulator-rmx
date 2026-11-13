@@ -4,6 +4,8 @@ Read the [project contract](CONTRACT.md), [implementation plan](IMPLEMENTATION_P
 
 Base documentation contributions on `main` and target `main` in pull requests. No separate development branch, branch-protection policy, automated merge policy, or release process has been established. Implementation remains subject to an explicit user instruction.
 
+Follow the [firmware behavioral contract](engineering/protocol/behavioral-contract.md), including documented bugs. When uncertain, preserve the Arduino action/reaction and record a finding rather than improve validation, persistence, output, or control behavior. Required interoperability facts and original fixtures remain compatible with independent authorship; copying or translating implementation is still prohibited. Do not count characterization-required cases as passing conformance checks.
+
 Contribute original work under the [MIT License](LICENSE.md). Do not import or translate reference implementation code, tests, tables, or assets. Describe the relevant behavioral contract and author changes independently. Record any new general-purpose dependency and its license in [third-party notices](THIRD_PARTY_NOTICES.md) before adding it.
 
 By intentionally submitting an original contribution for inclusion, you agree to license that contribution under this project's MIT License and confirm you are entitled to do so. Preserve existing copyright notices and identify additional contributors' notices as appropriate; the owner's root notice does not replace them. Include `SPDX-License-Identifier: MIT` on new original source/helper files, using an adjacent record for formats that cannot carry comments. Do not submit reference-derived work through an automated translation or an AI-assisted rewrite.

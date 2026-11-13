@@ -6,6 +6,8 @@ The owner selected MIT for independent BrewPi Emulator Remix code and documentat
 
 No emulator implementation or third-party dependency has been incorporated. The [plan](../../IMPLEMENTATION_PLAN.md) records inspected BrewPi/Fuscus source revisions and behavioral facts. Existing source exposure is disclosed; the project does not claim a formally separated clean-room process. Scaffolding follows the owner's existing repository-layout/formatting conventions and uses standard MIT license text; these conventions are not incorporated BrewPi/Fuscus implementation code.
 
+The [milestone 1 provenance record](milestone-1.md) covers the completed original behavioral specification, defaults, diagnostic metadata, firmware findings, and JSON fixtures. Faithful behavior, including documented bugs, is required; independent licensing prohibits copied implementation, not interoperability facts. No runtime library or executable implementation was added with these artifacts.
+
 ## Implementation boundary
 
 Do not copy, vendor, link, translate, mechanically rewrite, or adapt reference code, test helpers, assets, headers, generated tables, or source structure. Write an independent behavior specification and original implementation. Wire names, schemas, enum values, timings, and original interoperability examples may appear in that specification. External host/panel execution does not incorporate their code into the emulator.

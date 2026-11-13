@@ -1,6 +1,8 @@
 # Development guide
 
-Read the [contract](../../CONTRACT.md), [plan](../../IMPLEMENTATION_PLAN.md), and [architecture](../architecture.md) before changes. The current repository contains scaffolding only; there are no build/test commands to run yet.
+Read the [contract](../../CONTRACT.md), [plan](../../IMPLEMENTATION_PLAN.md), and [architecture](../architecture.md) before changes. The current repository contains documentation, scaffolding, and specification fixtures only; there are no emulator build/test commands to run yet.
+
+Milestone 1 now includes the [firmware behavioral specification and original JSON fixtures](../protocol/README.md). These are documentation/data, not an executable suite. Firmware action/reaction governs all questions, including bugs; preserve documented quirks and do not introduce a safer or cleaner policy. The [milestone review](milestone-1-review.md) records static checks and unresolved reference-characterization cases.
 
 The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). Local Git is initialized on `main` with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. `main` is the base/target for the initial documentation baseline; CI, branch protection, and release policies remain to be established. The initial commit/push does not authorize implementation.
 

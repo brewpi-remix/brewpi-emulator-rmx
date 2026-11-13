@@ -20,6 +20,8 @@ Apply the plan's permissive-license requirement to incorporated general-purpose 
 
 Planning, MIT licensing, repository scaffolding, public GitHub repository creation, local Git initialization, and the initial documentation/scaffolding commit and push to `main` are authorized. Emulator implementation remains pending a subsequent explicit user instruction. Directory README files reserve future locations; they are not implemented modules. There is no runnable program, build, test suite, CI, package, or service to install.
 
+The owner subsequently authorized milestone 1's behavioral contract, default values, diagnostic mappings, and original protocol fixtures, with a stop for review before implementation. These are specification/data artifacts, not a parser, simulator, executable harness, or approval to implement. After review, the owner explicitly authorized committing and pushing the milestone 1 artifacts and supporting documentation to main. This publication authorization does not approve implementation.
+
 The repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx); the initialized local branch is `main`, and `origin` is `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. Authorization for this initial baseline does not authorize software releases, deployment, reference-repository changes, or Pi installation. Preserve the historical handoff/setup snapshots and reviewed source revisions.
 
 For conflicts, current explicit user instructions take precedence, followed by this contract for scope/licensing, the implementation plan for proposed behavior and acceptance, and supporting guides for navigation and workflow. HANDOFF.md and SETUP.md are historical snapshots, not instructions to reuse source or restart preparation. A review or milestone checklist does not approve implementation.
@@ -28,7 +30,9 @@ For conflicts, current explicit user instructions take precedence, followed by t
 
 Distinguish source inference, local checks, native Linux execution, actual host/panel integration, and Raspberry Pi qualification. A planning document or directory structure is not runtime evidence. Never claim firmware arithmetic equivalence or physical controller qualification from plausible simulated behavior.
 
-Protocol field names/types, device identities, framing, and supported workflows require exact compatibility. Independent controller numerics and thermal parameters may approximate the reference where the plan identifies that boundary. Record deliberate deviations and deferred features rather than silently claiming completeness.
+The owner's latest instruction makes the selected Arduino firmware action/reaction authoritative whenever a question arises, including deterministic bugs. Protocol field names/types, identities, framing, numeric/control effects, mutation order, and supported workflows must follow that behavior; independent MIT authorship does not permit corrective redesign. The [milestone 1 contract](engineering/protocol/behavioral-contract.md) and [findings register](engineering/protocol/firmware-findings.md) supersede earlier proposed improvements. Document bugs and preserve them; do not add stricter validation, atomic rollback, corrected filters, extra telemetry, or cleaner defaults merely because they seem preferable.
+
+Undefined-memory, artifact-dependent, and physical-bus outcomes must be identified as requiring reference characterization, without invented exact replies or claims of success. Do not induce native memory corruption as a shortcut to emulating an AVR result. The independent thermal plant models external equipment and may use declared illustrative physical parameters; it does not authorize changing firmware control responses. The exact reference profile and qualification boundaries are recorded in the milestone document set.
 
 ## Documentation conventions
 
