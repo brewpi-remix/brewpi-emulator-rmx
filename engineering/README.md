@@ -10,3 +10,5 @@ The [project contract](../CONTRACT.md) governs scope and independent MIT impleme
 - [Milestone 2 review](development/milestone-2-review.md): original transport/registry/persistence implementation, fixture/runtime evidence, and stopping boundary.
 
 The milestone review records distinguish implemented/tested scope from planned behavior and unqualified reference outcomes.
+
+- [Milestone 3 review](development/milestone-3-review.md): controller behavior, independent physical model, clock/checkpoint implementation, and local evidence/provenance.

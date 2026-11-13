@@ -26,9 +26,6 @@ std::string object(const Fields& fields) {
 std::string wire_string(const std::string& s) {
     return '"' + s + '"';
 }
-int bound(int v, int lo, int hi) {
-    return v < lo ? lo : v > hi ? hi : v;
-}
 long long ratio(long long n, long long divisor) {
     return n < 0 ? -((-n + divisor / 2) / divisor) : (n + divisor / 2) / divisor;
 }
@@ -133,6 +130,8 @@ Engine::Engine(Sink sink) : output(std::move(sink)) {
         variables[k] = 0;
     saved_settings = settings;
     saved_constants = constants;
+    apply_filter_constants();
+    reset_display();
 }
 void Engine::defaults(bool cs, bool cc) {
     if (cs)
@@ -322,28 +321,10 @@ void Engine::mode(int m) {
     }
 }
 void Engine::command_evaluation() {
-    // Synchronous target derivation required by target/store callbacks. The
-    // scheduled filter/PID/state machine and plant belong to milestone 3.
-    if (settings.at("mode") != 'b' && settings.at("mode") != 'p')
-        return;
-    auto it = targets.find(9);
-    auto r = it == targets.end() ? std::optional<int>{} : reading_raw(it->second, true);
-    if (!r || settings.at("beerSet") <= -32767) {
-        settings["fridgeSet"] = -32768;
-        return;
-    }
-    int diff = narrow16(settings.at("beerSet") - *r);
-    variables["beerDiff"] = diff;
-    variables["p"] = narrow16((static_cast<long long>(constants.at("Kp")) * diff) >> 9);
-    variables["d"] =
-        narrow16((static_cast<long long>(constants.at("Kd")) * variables.at("beerSlope")) >> 9);
-    variables["i"] =
-        narrow16((static_cast<long long>(constants.at("Ki")) * variables.at("diffIntegral")) >> 9);
-    int delta = bound(variables.at("p") + variables.at("i") + variables.at("d"),
-                      -constants.at("pidMax"), constants.at("pidMax"));
-    settings["fridgeSet"] = bound(settings.at("beerSet") + delta, constants.at("tempSetMin"),
-                                  constants.at("tempSetMax"));
+    evaluate_pid();
+    evaluate_state();
 }
+
 void Engine::setting(const std::string& k, const std::string& v) {
     diagnostic('I', 12, {k, v});
     if (k == "mode") {
@@ -353,6 +334,7 @@ void Engine::setting(const std::string& k, const std::string& v) {
     }
     if (k == "tempFormat") {
         constants[k] = static_cast<unsigned char>(v[0]);
+        stationary_display();
         save(true);
         return;
     }
@@ -365,6 +347,10 @@ void Engine::setting(const std::string& k, const std::string& v) {
             telemetry("Beer set to " + v + (profile ? " by profile" : " by web"), "");
         if (!beer && settings.at("mode") == 'f')
             telemetry("", "Fridge set to " + v + " by web");
+        if (!beer || std::abs(word16(settings.at(k) - *n)) > 256) {
+            positive_pending = false;
+            negative_pending = false;
+        }
         settings[k] = *n;
         command_evaluation();
         if (!beer || !profile || std::abs(*n - last_saved_target) > 128)
@@ -400,6 +386,19 @@ void Engine::setting(const std::string& k, const std::string& v) {
                                                                    : 2);
     if (n) {
         (cs ? settings : constants)[k] = *n;
+        const std::map<std::string, std::pair<int, int>> routing{{"fridgeFastFilt", {5, 0}},
+                                                                 {"fridgeSlowFilt", {5, 1}},
+                                                                 {"fridgeSlopeFilt", {5, 2}},
+                                                                 {"beerSlowFilt", {9, 0}},
+                                                                 {"beerSlopeFilt", {9, 1}}};
+        auto route = routing.find(k);
+        if (route != routing.end()) {
+            auto& h = sensors.at(route->second.first);
+            (route->second.second == 0   ? h.fast
+             : route->second.second == 1 ? h.slow
+                                         : h.slope)
+                .coefficient = unsigned(*n);
+        }
         save(true);
     }
 }
@@ -543,6 +542,8 @@ void Engine::byte(unsigned char c) {
         return;
     case 'C':
         defaults(false, true);
+        apply_filter_constants();
+        stationary_display();
         frame('C', constants_wire());
         diagnostic('I', 13);
         return;
@@ -550,9 +551,16 @@ void Engine::byte(unsigned char c) {
         defaults(true, true);
         slots = {};
         targets.clear();
+        for (auto& sensor : sensors) {
+            sensor.second.connected = false;
+            sensor.second.missed = 255;
+        }
         valid = true;
         state = 0;
         camera = false;
+        last_heat = last_cool = 0;
+        positive_pending = negative_pending = false;
+        apply_filter_constants();
         save(true);
         diagnostic('I', 15);
         return;
@@ -586,18 +594,33 @@ bool Engine::live_target(const Device& d) const {
            (d.f == 1 || d.f == 2 || d.f == 3 || d.f == 4 || d.f == 5 || d.f == 6 || d.f == 7 ||
             d.f == 9);
 }
-std::optional<int> Engine::reading_raw(const Device& d, bool) const {
+std::optional<int> Engine::reading_raw(const Device& d, bool filtered_value) const {
     if (d.d || !live_target(d) || d.h != 2)
         return {};
-    if (d.rom != "28A10100000001E6" && d.rom != "28A1010000000204" && d.rom != "28A101000000035A")
+    auto index = physical_index(d);
+    if (!index)
         return {};
-    return -14336 + d.cal * 32;
+    auto raw = plant.read(*index);
+    if (!raw)
+        return {};
+    if (filtered_value && (d.f == 5 || d.f == 9))
+        return filtered(d.f, 0);
+    return word16(*raw + d.cal * 32);
 }
+
 void Engine::install(const Device& d) {
     if (live_target(d)) {
         targets[d.f] = d;
-        if (d.h == 2 && !d.d && !reading_raw(d))
-            diagnostic('W', 2, {d.p, d.rom});
+        if (d.h == 2) {
+            auto raw = reading_raw(d);
+            auto& h = sensors.at(d.f);
+            h.connected = raw.has_value();
+            h.missed = 255;
+            if (raw && *raw != -32768)
+                h.seed(*raw);
+            else if (!d.d)
+                diagnostic('W', 2, {d.p, d.rom});
+        }
         if (d.h == 1 && !d.d && type_of(d.f) == 3)
             pins[d.p] = bool(d.x);
     }
@@ -686,8 +709,13 @@ void Engine::update_device() {
     if ((d.d != 0 && d.d != 1) || (d.x != 0 && d.x != 1))
         throw std::runtime_error(
             "fidelity gap: noncanonical bool representation requires characterization");
-    if (live_target(old))
+    if (live_target(old)) {
         targets.erase(old.f);
+        if (old.h == 2) {
+            sensors.at(old.f).connected = false;
+            sensors.at(old.f).missed = 255;
+        }
+    }
     install(d);
     slots[size_t(index)] = d;
     if (save_callback)
@@ -700,8 +728,11 @@ void Engine::query_slots() {
         if (q.count(e.first))
             q[e.first] = e.second;
     if (q['i'] == -2) {
-        if (q['w'] >= 0)
+        if (q['w'] >= 0) {
             camera = q['w'] != 0;
+            if (camera)
+                camera_last = seconds();
+        }
         frame('d', "[]");
         return;
     }
@@ -730,7 +761,7 @@ void Engine::query_slots() {
                         v = std::to_string(target.d ? int(fallback)
                                                     : int(pins[target.p] != bool(target.x)));
                     else if (type_of(d.f) == 2)
-                        v = "0";
+                        v = std::to_string(int(sense_switch(target)));
                 }
             }
             if (out.size() > 1)
@@ -771,6 +802,8 @@ void Engine::discover() {
             carry.c = 1;
             previous_hardware = hardware.h;
         }
+        if (hardware.h == 2 && !plant.read(*physical_index(hardware)))
+            continue;
         if (q['h'] != -1 && q['h'] != hardware.h)
             continue;
         if (q['p'] != -1 && q['p'] != hardware.p)
@@ -804,7 +837,11 @@ void Engine::discover() {
             if (carry.rom != hardware.rom)
                 throw std::runtime_error(
                     "fidelity gap: nested discovery diagnostics require characterization");
-            val = number(-14336, 3, 1);
+            auto index = physical_index(hardware);
+            auto raw = plant.read(*index);
+            if (!raw)
+                continue;
+            val = number(*raw, 3, 1);
         }
         if (out.size() > 1)
             out += ',';
@@ -813,13 +850,15 @@ void Engine::discover() {
     frame('h', out + ']');
 }
 std::string Engine::lcd() const {
-    // Only the rendered stationary off display is in milestone 2's byte fixture.
-    // Dynamic controller display timing is deliberately not claimed until milestone 3.
-    std::string degree(1, char(0xb0));
-    return "[\"Mode   Off          \",\"Beer   --.-  --.- " + degree +
-           char(constants.at("tempFormat")) + "\",\"Fridge --.-  --.- " + degree +
-           char(constants.at("tempFormat")) + "\",\"Idling for     00m00\"]";
+    std::string rows = "[";
+    for (auto& row : screen) {
+        if (rows.size() > 1)
+            rows += ',';
+        rows += wire_string(row);
+    }
+    return rows + ']';
 }
+
 void Engine::boot() {
     targets.clear();
     if (!valid) {
@@ -828,6 +867,7 @@ void Engine::boot() {
     }
     settings = saved_settings;
     constants = saved_constants;
+    apply_filter_constants();
     last_saved_target = settings.at("beerSet");
     if (settings.at("mode") == 'o') {
         settings["beerSet"] = -32767;
@@ -844,6 +884,7 @@ void Engine::boot() {
     }
     if (cleared && save_callback)
         save_callback(store_image());
+    render_display();
 }
 void Engine::restart() {
     phase = Phase::dispatch;
@@ -852,11 +893,21 @@ void Engine::restart() {
     camera = false;
     fallback = false;
     state = 0;
+    controller_ms = 0;
+    last_evaluation_ms = uint32_t(-1000);
+    last_lcd_reset = 0;
+    last_idle = last_heat = last_cool = wait_seconds = camera_last = 0;
+    integral_counter = 0;
+    integral_branches = 0;
+    positive_pending = negative_pending = door_open = false;
+    sensors = {{5, {}}, {6, {}}, {9, {}}};
     pins.clear();
     variables.clear();
     for (auto& k : vkeys)
         variables[k] = 0;
     defaults(true, true);
+    apply_filter_constants();
+    reset_display();
     boot();
 }
 Json Engine::encode_device(const Device& d) {
@@ -963,6 +1014,18 @@ void Engine::construct(const Json& spec) {
     targets.clear();
     pins.clear();
     state = 0;
+    controller_ms = 0;
+    last_evaluation_ms = uint32_t(-1000);
+    last_lcd_reset = 0;
+    pending_ms = 0;
+    last_idle = last_heat = last_cool = wait_seconds = camera_last = 0;
+    integral_counter = 0;
+    integral_branches = 0;
+    positive_pending = negative_pending = door_open = false;
+    plant = Plant{};
+    if (spec.has("scenario"))
+        plant.configure(spec.at("scenario"));
+    sensors = {{5, {}}, {6, {}}, {9, {}}};
     valid = spec.at("valid").boolean();
     for (auto& k : vkeys)
         variables[k] = 0;
@@ -981,6 +1044,8 @@ void Engine::construct(const Json& spec) {
     address.reset();
     key.clear();
     value.clear();
+    apply_filter_constants();
+    reset_display();
     if (spec.has("slots"))
         for (auto& j : spec.at("slots").array())
             slots.at(size_t(j.at("i").integer())) = decode_device(j);
@@ -990,21 +1055,118 @@ void Engine::construct(const Json& spec) {
     for (auto& d : slots)
         if (d.f)
             install(d);
+    render_display();
 }
 void Engine::precondition(const Json& fields) {
-    for (auto& e : fields.object())
-        if (e.first != "variables_raw" && e.first != "persisted_device_records")
-            throw std::runtime_error("unsupported milestone 2 test precondition: " + e.first);
-    if (fields.has("variables_raw"))
-        for (auto& e : fields.at("variables_raw").object())
-            variables.at(e.first) = e.second.integer();
-    if (fields.has("persisted_device_records")) {
-        slots = {};
-        for (auto& j : fields.at("persisted_device_records").array())
-            slots.at(size_t(j.at("i").integer())) = decode_device(j);
+    for (auto& e : fields.object()) {
+        auto& k = e.first;
+        auto& v = e.second;
+        if (k == "variables_raw")
+            for (auto& item : v.object())
+                variables.at(item.first) = item.second.integer();
+        else if (k == "persisted_device_records") {
+            slots = {};
+            for (auto& j : v.array())
+                slots.at(size_t(j.at("i").integer())) = decode_device(j);
+        } else if (k == "mode")
+            settings["mode"] = v.string().at(0);
+        else if (k == "state")
+            state = v.integer();
+        else if (k == "beer_target_c" || k == "fridge_target_c")
+            settings[k == "beer_target_c" ? "beerSet" : "fridgeSet"] = absolute_raw(v.number());
+        else if (k == "slow_beer_c")
+            sensors.at(9).slow.seed(absolute_raw(v.number()));
+        else if (k == "fast_fridge_temperature_c")
+            sensors.at(5).fast.seed(absolute_raw(v.number()));
+        else if (k == "beer_slope_c_per_hour")
+            sensors.at(9).slope.seed(temperature_limit(std::llround(v.number() * 512)));
+        else if (k == "diff_integral_raw")
+            variables["diffIntegral"] = v.integer();
+        else if (k == "cool_estimator_raw")
+            settings["coolEst"] = v.integer();
+        else if (k == "integral_evaluation_count") {
+            int n = v.integer();
+            if (n < 0 || n > 60)
+                throw std::runtime_error("invalid PID fixture count");
+            integral_counter = unsigned(n);
+        } else if (k == "camera_request_active")
+            camera = v.boolean();
+        else if (k == "camera_last_active_seconds")
+            camera_last = uint16_t(v.integer());
+        else if (k == "controller_millis") {
+            double n = v.number();
+            if (n < 0 || n > 4294967295.0 || n != std::floor(n))
+                throw std::runtime_error("invalid fixture clock");
+            controller_ms = uint32_t(n);
+        } else if (k == "controller_seconds") {
+            if (!fields.has("controller_millis"))
+                controller_ms = uint32_t(v.integer()) * 1000;
+        } else if (k == "seconds_since_idle") {
+        } // Coherent timestamp construction occurs after clock patches.
+        else if (k == "required_probe_connected") {
+            for (size_t i = 0; i < 3; ++i)
+                plant.set_connected(i, v.boolean());
+        } else if (k == "door_open")
+            plant.set_door(v.boolean());
+        else if (k == "positive_peak_pending")
+            positive_pending = v.boolean();
+        else if (k == "negative_peak_pending")
+            negative_pending = v.boolean();
+        else if (k == "last_heat_seconds")
+            last_heat = uint16_t(v.integer());
+        else if (k == "last_cool_seconds")
+            last_cool = uint16_t(v.integer());
+        else if (k == "physical_temperatures_c") {
+            auto& a = v.array();
+            if (a.size() != 3)
+                throw std::runtime_error("invalid physical fixture temperatures");
+            for (size_t i = 0; i < 3; ++i)
+                plant.set_temperature(i, a[i].number());
+        } else if (k == "connected") {
+            auto& a = v.array();
+            if (a.size() != 3)
+                throw std::runtime_error("invalid physical fixture connectivity");
+            for (size_t i = 0; i < 3; ++i)
+                plant.set_connected(i, a[i].boolean());
+        } else
+            throw std::runtime_error("unknown fixture precondition: " + k);
     }
+    if (fields.has("controller_seconds") && seconds() != fields.at("controller_seconds").integer())
+        throw std::runtime_error("incoherent fixture clocks");
+    if (fields.has("seconds_since_idle"))
+        last_idle = uint16_t(seconds() - fields.at("seconds_since_idle").integer());
 }
+
 Json Engine::observations() const {
-    return Json::Object{{"variables_raw", map_json(variables)}, {"store", store_image()}};
+    Json::Array electrical;
+    for (auto& pin : pins)
+        electrical.emplace_back(Json::Array{pin.first, pin.second});
+    int fridge = settings.at("fridgeSet");
+    return Json::Object{
+        {"variables_raw", map_json(variables)},
+        {"store", store_image()},
+        {"state", state},
+        {"controller_millis", double(controller_ms)},
+        {"controller_seconds", int(seconds())},
+        {"pending_ms", double(pending_ms)},
+        {"camera_request_active", camera},
+        {"camera_last_active_seconds", int(camera_last)},
+        {"integral_branch_executions", double(integral_branches)},
+        {"integral_evaluation_count", int(integral_counter)},
+        {"last_d_unscaled", variables.at("d") / 512.0},
+        {"last_fridge_target_c", fridge <= -32767 ? Json{} : Json(fridge / 512.0 + 48)},
+        {"effective_beer_filter_coefficients",
+         Json::Object{{"fast", int(sensors.at(9).fast.coefficient)},
+                      {"slow", int(sensors.at(9).slow.coefficient)},
+                      {"slope", int(sensors.at(9).slope.coefficient)}}},
+        {"plant", plant.observations()},
+        {"pins", electrical},
+        {"wait_seconds", int(wait_seconds)},
+        {"last_idle_seconds", int(last_idle)},
+        {"last_heat_seconds", int(last_heat)},
+        {"last_cool_seconds", int(last_cool)},
+        {"positive_peak_pending", positive_pending},
+        {"negative_peak_pending", negative_pending},
+        {"door_open", door_open}};
 }
 } // namespace rmx

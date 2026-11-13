@@ -1,5 +1,7 @@
 # Milestone 2 review handoff
 
+This is the historical milestone 2 review/publication record. Current controller/thermal/clock status and evidence are recorded in the [milestone 3 review](milestone-3-review.md).
+
 Date: November 13, 2026. Status: transport, registry, and persistence implementation complete for review against the milestone 2 fixture scope. The owner authorized implementation and local validation, with a stop before committing or pushing. At completion of review, all changes were local and unstaged, based on milestone 1 commit c476bf9c03e6070f23b63504e388dbc5928daf81. The owner subsequently authorized committing and pushing the reviewed implementation, tests, fixtures, and supporting documentation to main. No release, deployment, Pi installation, physical controller operation, or reference-repository modification was performed.
 
 ## Delivered behavior

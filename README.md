@@ -1,10 +1,10 @@
 # BrewPi Emulator Remix
 
-BrewPi Emulator Remix (`brewpi-emulator-rmx`) is an independent native C++ Linux emulator under development for hardware-free integration testing of BrewPi Remix. It will expose a stable pseudo-terminal serial path and simulate a fermentation chamber containing a carboy with five US gallons of beer, responding to the existing host and web panel.
+BrewPi Emulator Remix (`brewpi-emulator-rmx`) is an independent native C++ Linux emulator under development for hardware-free integration testing of BrewPi Remix. It exposes a stable pseudo-terminal serial path and models a fermentation chamber containing a carboy with five US gallons of beer, responding to the existing host and web panel.
 
-**Status: reviewed milestone 2 transport, registry, and persistence.** Original C++17, a CMake build, a fixture runner, and real PTY/process tests now exist. Autonomous controller/filter/thermal behavior remains milestone 3 work. No installer, CI workflow, release, host/panel integration qualification, or Pi qualification exists. See the [milestone 2 review](engineering/development/milestone-2-review.md) and [build/run guide](docs/milestone-2.md) for tested commands and limits.
+**Status: milestone 3 controller, thermal model, and clock implemented and reviewed.** Original C++17 now includes autonomous control/filtering, energy dynamics, paced/pause clocks, LCD updates, and coherent checkpoint resume, with six test suites. No installer, CI workflow, release, host/panel integration qualification, or Pi qualification exists. See the [milestone 3 review](engineering/development/milestone-3-review.md) and [build/run guide](docs/milestone-3.md) for tested commands and limits.
 
-The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The owner authorized publication of the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to `main`. Milestone 3 remains unapproved.
+The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The owner authorized publication of the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to `main`. After milestone 3 implementation and review, the owner authorized committing and pushing its reviewed implementation, tests, and supporting documentation to `main`. Milestone 4 remains unapproved.
 
 ## Project direction
 
@@ -12,7 +12,7 @@ The emulator will independently implement the observed communications and releva
 
 When a question arises, Arduino firmware action/reaction is authoritative, including bugs. The [behavioral contract](engineering/protocol/behavioral-contract.md) and [findings register](engineering/protocol/firmware-findings.md) replace earlier proposed improvements with firmware-faithful expectations. Undefined/hardware-dependent cases are explicit characterization obligations, not invented passing results.
 
-Planned capabilities include device discovery and assignment, stable virtual sensor identities, reactive beer/chamber/room temperatures, fermentation heat, heater/cooler behavior, persistent settings, repeatable scenarios, and optional accelerated simulation time. Host fermentation profiles and chart timestamps continue to use wall time.
+Implemented development capabilities include device discovery and assignment, stable virtual sensor identities, reactive beer/chamber/room temperatures, fermentation heat, heater/cooler behavior, persistent settings, repeatable scenarios, and optional accelerated simulation time. Host fermentation profiles and chart timestamps continue to use wall time.
 
 ## Start here
 
@@ -27,10 +27,10 @@ Planned capabilities include device discovery and assignment, stable virtual sen
 
 | Path | Purpose |
 | --- | --- |
-| `src/` | Original C++17 transport, protocol, registry, local codec, and persistence. |
-| `tests/` | Independent fixture driver, regression runner, and real PTY/process tests. |
+| `src/` | Original C++17 transport, controller, sensor histories, thermal model, clock, and persistence. |
+| `tests/` | Independent protocol, model arithmetic, controller/thermal/clock, regression, and real PTY/process tests. |
 | `cmake/` | Future build configuration helpers. |
-| `config/` | Future configuration schemas and scenario examples. |
+| `config/` | Original active-fermentation and daily-room scenario examples. |
 | `scripts/` | Future development and validation helpers. |
 | `systemd/` | Future optional Linux service templates. |
 | `engineering/` | Design, development, protocol, and provenance documentation. |

@@ -12,12 +12,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'engineering/protocol/test-vectors'
-DEFERRED = {
-    'beer_filter_write_routing': 'live filter execution belongs to milestone 3',
-    'test_mode_camera_timeout_is_skipped': 'scheduled output updates belong to milestone 3',
-    'positive_derivative_and_counter_boundary': 'scheduled PID evaluations belong to milestone 3',
-    'minimum_on_boundary_is_strict': 'controller state/timer execution belongs to milestone 3',
-}
+
 
 def unique_object(pairs):
     result = {}
@@ -124,7 +119,6 @@ def run(executable):
         return result | spec
 
     assert len({c['id'] for c in cases}) == len(cases), 'duplicate case ID'
-    assert set(DEFERRED) <= {c['id'] for c in cases}
     report = []
     for case in cases:
         cid = case['id']
@@ -139,9 +133,6 @@ def run(executable):
             report.append(dict(id=cid, status='unresolved_reference_characterization'))
             continue
         assert case['classification'] == 'source_defined', 'unsupported case classification'
-        if cid in DEFERRED:
-            report.append(dict(id=cid, status='deferred_milestone_3', reason=DEFERRED[cid]))
-            continue
         driver = Driver(executable)
         try:
             spec = preset(case['initial_preset'])
@@ -178,7 +169,7 @@ def run(executable):
             for key in ('controller_seconds', 'controller_millis', 'last_idle_seconds',
                         'last_heat_seconds', 'last_cool_seconds', 'wait_seconds',
                         'integral_evaluation_count', 'camera_last_active_seconds'):
-                assert conditions[key] == 0, 'nonzero clock/history requires milestone 3'
+                assert conditions[key] == 0, 'nonzero preset clock/history requires explicit construction'
             for key in ('positive_peak_pending', 'negative_peak_pending', 'door_open',
                         'alarm_active', 'camera_request_active', 'fallback_actuator_active'):
                 assert conditions[key] is False, 'nondefault latch/history requires explicit construction'
@@ -214,6 +205,9 @@ def run(executable):
                     wire, observations = driver.call('restart')
                 elif action == 'set_fixture_precondition':
                     wire, observations = driver.call('precondition', fields=step['values'])
+                elif action in ('controller_pid_evaluation','controller_state_update','controller_output_update'):
+                    op={'controller_pid_evaluation':'pid','controller_state_update':'state','controller_output_update':'outputs'}[action]
+                    wire, observations=driver.call(op, repeat=step.get('repeat',1))
                 else:
                     raise AssertionError('unclassified action: ' + action)
                 expected = step.get('expected', {})
@@ -249,6 +243,8 @@ def run(executable):
                     assert order == expected['output_order'], ('order', order, expected['output_order'])
                 if 'postconditions' in expected:
                     assert contains(observations, expected['postconditions']), ('postconditions', observations, expected)
+                semantic={k:v for k,v in expected.items() if k not in ('replies','diagnostics','postconditions','additional_output','output_order')}
+                assert contains(observations,semantic), ('semantic observations',observations,semantic)
             report.append(dict(id=cid, status='passed'))
         except Exception as exc:
             report.append(dict(id=cid, status='failed', reason=str(exc)))
@@ -259,10 +255,10 @@ def run(executable):
     counts = dict(Counter(x['status'] for x in report))
     out = Path('test-results')
     out.mkdir(exist_ok=True)
-    (out / 'milestone2-fixtures.json').write_text(json.dumps(dict(counts=counts, cases=report), indent=2) + '\n')
+    (out / 'milestone3-fixtures.json').write_text(json.dumps(dict(counts=counts, cases=report), indent=2) + '\n')
     print(json.dumps(counts))
     assert counts.get('failed', 0) == 0
-    assert counts['passed'] == 44 and counts['deferred_milestone_3'] == 4
+    assert counts['passed'] == 48 and counts.get('deferred_milestone_3',0) == 0
     assert counts['unresolved_reference_characterization'] == 9
 
 

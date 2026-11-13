@@ -6,6 +6,8 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Added
 
+- Milestone 3 original controller/filter/peak/LCD behavior, independent thermal/probe/fermentation model, paced clock/pause, checkpoint resume, scenario examples, and six-suite local validation. All 48 source-defined reviewed cases now execute; nine characterization cases remain unresolved. Reviewed and authorized for commit and push to main.
+
 - Original MIT milestone 2 C++17 transport, registry, persistence, local codec, and CMake build, with reviewed-fixture, regression, and actual PTY/process tests, plus review/provenance/build guidance.
 
 - Milestone 1 firmware behavioral contract, full defaults/units, version-3 diagnostic metadata, 21 fidelity findings, original protocol fixtures, and provenance/review records.
@@ -26,5 +28,5 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Status
 
-- Milestone 2 code/build/tests are complete locally for review, without commit or push. Milestone 3 controller/thermal work, actual host/panel integration, and Pi qualification remain outstanding.
+- Milestone 2 is published on main. Milestone 3 controller/thermal/clock work is reviewed and authorized for commit and push to main. Actual host/panel integration and Pi qualification remain outstanding.
 - The published main baseline contains reviewed milestone 1 artifacts. No software release, CI, package, deployment, or device operation is included in milestone 2.

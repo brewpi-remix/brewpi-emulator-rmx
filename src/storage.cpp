@@ -36,7 +36,10 @@ Storage::~Storage() {
         ::close(lock_fd);
 }
 std::optional<Json> Storage::load() const {
-    int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    return read(path);
+}
+std::optional<Json> Storage::read(const std::filesystem::path& file) {
+    int fd = ::open(file.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
     if (fd < 0) {
         if (errno == ENOENT)
             return {};

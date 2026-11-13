@@ -1,5 +1,7 @@
 # Milestone 2 development operation
 
+This is the historical milestone 2 operating record. Current controller/thermal/clock operation is documented in the [milestone 3 guide](milestone-3.md); its implementation supersedes the limits that were pending at milestone 2.
+
 This is a transport/registry/persistence review build, not a complete brewing controller. It has no autonomous controller/filter/thermal ticks, fermentation dynamics, acceleration, checkpoint resume, or changing LCD display. Assigned probes currently present the fixed 20 C external baseline plus calibration. Command-side target derivation supports the reviewed persistence scenarios; repeated PID/integral/state histories remain milestone 3 work. Do not use this stage to claim complete host/panel compatibility or control trajectory fidelity.
 
 ## Build and validate

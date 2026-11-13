@@ -10,3 +10,5 @@ Milestone 1 is complete as a source-backed specification and original fixture de
 - [Milestone review](../development/milestone-1-review.md) and [provenance record](../licenses/milestone-1.md).
 
 The [implementation plan](../../IMPLEMENTATION_PLAN.md) owns later milestones. This document set is normative for milestone 1 topics and supersedes inconsistent provisional protocol choices in earlier history. Undefined/hardware-dependent findings are not assigned invented exact outputs or counted as passing tests. Stop for review before implementation.
+
+Milestone 3 adds original [controller/filter/clock/thermal behavioral mathematics](milestone-3-details.md) and executes all 48 source-defined reviewed cases. The [milestone 3 review](../development/milestone-3-review.md) records test evidence and the nine unresolved characterization obligations. Existing reviewed JSON oracles remain unchanged; independent physical checks are separate from reference qualification.

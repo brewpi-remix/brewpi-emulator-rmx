@@ -1,6 +1,7 @@
 // Copyright 2026 Lee Bussy
 // SPDX-License-Identifier: MIT
 #pragma once
+#include "dynamics.hpp"
 #include "json.hpp"
 
 #include <array>
@@ -37,6 +38,19 @@ class Engine {
     void construct(const Json& state);
     void precondition(const Json& fields);
     Json observations() const;
+    void configure_plant(const Json& scenario);
+    void advance_ms(uint64_t milliseconds, bool controller_allowed = true);
+    void service_controller(bool allowed = true);
+    void evaluate_pid();
+    void evaluate_state();
+    void update_outputs();
+    void update_sensors();
+    void detect_peaks();
+    Json checkpoint() const;
+    void restore_checkpoint(const Json& snapshot);
+    uint16_t seconds() const {
+        return uint16_t(controller_ms / 1000);
+    }
 
   private:
     enum class Phase { dispatch, brace, key, value };
@@ -48,6 +62,30 @@ class Engine {
     std::map<int, bool> pins;
     bool valid = false, restart_requested = false, alarm = false, camera = false, fallback = false;
     int state = 0, last_saved_target = -32767;
+    Plant plant;
+    std::map<int, SensorHistory> sensors{{5, {}}, {6, {}}, {9, {}}};
+    uint32_t controller_ms = 0, last_evaluation_ms = uint32_t(-1000), last_lcd_reset = 0;
+    uint64_t pending_ms = 0, integral_branches = 0;
+    uint16_t last_idle = 0, last_heat = 0, last_cool = 0, wait_seconds = 0, camera_last = 0;
+    unsigned integral_counter = 0;
+    bool positive_pending = false, negative_pending = false, door_open = false;
+    std::array<std::string, 4> screen;
+    int screen_state = -1;
+    bool screen_room = false;
+    void apply_filter_constants();
+    void render_display();
+    void render_state();
+    void stationary_display();
+    void reset_display();
+    void loop_evaluation();
+    void write_actuator(int function, bool active);
+    bool configured_actuator(int function) const;
+    bool sense_switch(const Device& device) const;
+    int filtered(int function, int kind) const;
+    uint16_t since(uint16_t timestamp) const {
+        return uint16_t(seconds() - timestamp);
+    }
+    static std::optional<size_t> physical_index(const Device& d);
     Phase phase = Phase::dispatch;
     char command = 0;
     std::string key, value;

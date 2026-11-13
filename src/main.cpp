@@ -5,12 +5,14 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <poll.h>
 #include <stdexcept>
 #include <sys/file.h>
@@ -109,30 +111,96 @@ int main(int argc, char** argv) {
     try {
         std::string serial = "/run/brewpi-emulator/chamber1/serial",
                     store = "/var/lib/brewpi-emulator/chamber1/controller.json";
+        std::string scenario_path, resume_path, checkpoint_path;
+        double speed = 1, pacing_fraction = 0;
+        bool speed_supplied = false;
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--help") {
-                std::cout
-                    << "Usage: brewpi-emulator-rmx [--serial PATH] [--state PATH]\nMilestone 2 "
-                       "transport/registry/store; controller/thermal ticking is not implemented.\n";
+                std::cout << "Usage: brewpi-emulator-rmx [--serial PATH] [--state PATH] "
+                             "[--scenario PATH]\n"
+                             "       [--speed FACTOR] [--resume PATH] [--checkpoint PATH]\n"
+                             "Speed 1 is real time; 0 pauses simulated time. Checkpoints save on "
+                             "clean shutdown.\n";
                 return 0;
             }
             if (arg == "--version") {
-                std::cout << "brewpi-emulator-rmx milestone-2-review\n";
+                std::cout << "brewpi-emulator-rmx milestone-3-review\n";
                 return 0;
             }
-            if ((arg != "--serial" && arg != "--state") || i + 1 == argc)
-                throw std::runtime_error("unknown or incomplete option: " + arg);
-            (arg == "--serial" ? serial : store) = argv[++i];
+            if (i + 1 == argc)
+                throw std::runtime_error("incomplete option: " + arg);
+            std::string val = argv[++i];
+            if (arg == "--serial")
+                serial = val;
+            else if (arg == "--state")
+                store = val;
+            else if (arg == "--scenario")
+                scenario_path = val;
+            else if (arg == "--resume")
+                resume_path = val;
+            else if (arg == "--checkpoint")
+                checkpoint_path = val;
+            else if (arg == "--speed") {
+                size_t used = 0;
+                speed = std::stod(val, &used);
+                if (used != val.size() || !std::isfinite(speed) || speed < 0 || speed > 1000)
+                    throw std::runtime_error("invalid speed factor");
+                speed_supplied = true;
+            } else
+                throw std::runtime_error("unknown option: " + arg);
         }
+        if (!resume_path.empty() && !scenario_path.empty())
+            throw std::runtime_error("scenario override is incompatible with checkpoint resume");
         rmx::Storage storage(store);
+        std::unique_ptr<rmx::Storage> checkpoint_file;
+        if (!checkpoint_path.empty())
+            checkpoint_file = std::make_unique<rmx::Storage>(checkpoint_path);
         std::string pending;
         rmx::Engine engine([&](const std::string& s) { pending += s; });
-        if (auto image = storage.load())
-            engine.load_store(*image);
+        auto saved = storage.load();
+        if (!resume_path.empty()) {
+            std::optional<rmx::Json> snapshot;
+            if (resume_path == checkpoint_path)
+                snapshot = checkpoint_file->load();
+            else {
+                snapshot = rmx::Storage::read(resume_path);
+            }
+            if (!snapshot || snapshot->at("format").string() != "brewpi-emulator-checkpoint-v1")
+                throw std::runtime_error("missing or incompatible checkpoint");
+            engine.restore_checkpoint(snapshot->at("engine"));
+            if (saved) {
+                rmx::Engine current([](const std::string&) {});
+                current.load_store(*saved);
+                if (current.store_image().dump() != engine.store_image().dump())
+                    throw std::runtime_error("checkpoint does not match saved controller store");
+            }
+
+            if (!speed_supplied)
+                speed = snapshot->at("speed").number();
+            if (!std::isfinite(speed) || speed < 0 || speed > 1000)
+                throw std::runtime_error("invalid checkpoint speed");
+            pacing_fraction = snapshot->at("pacing_fraction_ms").number();
+            if (pacing_fraction < 0 || pacing_fraction >= 1)
+                throw std::runtime_error("invalid checkpoint pacing fraction");
+            if (!saved)
+                storage.write(engine.store_image());
+        } else {
+            if (!scenario_path.empty()) {
+                auto config = rmx::Storage::read(scenario_path);
+                if (!config)
+                    throw std::runtime_error("missing scenario file");
+                engine.configure_plant(*config);
+                if (!speed_supplied && config->has("speed_factor"))
+                    speed = config->at("speed_factor").number();
+            }
+            if (saved)
+                engine.load_store(*saved);
+        }
         engine.on_save([&](const rmx::Json& image) { storage.write(image); });
         Pty pty(serial);
-        engine.boot();
+        if (resume_path.empty())
+            engine.boot();
         std::signal(SIGINT, stop);
         std::signal(SIGTERM, stop);
         std::signal(SIGPIPE, SIG_IGN);
@@ -140,7 +208,20 @@ int main(int argc, char** argv) {
         using Clock = std::chrono::steady_clock;
         auto deadline = Clock::now() + std::chrono::seconds(1);
         size_t sent = 0;
+        auto wall_anchor = Clock::now();
+        auto advance_wall = [&]() {
+            auto wall_now = Clock::now();
+            double elapsed =
+                std::chrono::duration<double, std::milli>(wall_now - wall_anchor).count();
+            wall_anchor = wall_now;
+            pacing_fraction += elapsed * speed;
+            auto simulated = uint64_t(std::floor(pacing_fraction));
+            pacing_fraction -= double(simulated);
+            if (speed > 0)
+                engine.advance_ms(simulated, pending.size() - sent < 65536);
+        };
         while (!stopping) {
+            advance_wall();
             if (engine.restarting())
                 engine.restart();
             // Stop accepting input while the reader is backpressured; retain every output byte.
@@ -148,7 +229,7 @@ int main(int argc, char** argv) {
             if (sent < pending.size())
                 events |= POLLOUT;
             pollfd f{pty.fd(), events, 0};
-            int wait = 100;
+            int wait = speed > 0 ? std::max(1, std::min(100, int(std::ceil(100 / speed)))) : 100;
             if (engine.reading())
                 wait = std::max(
                     0, std::min(100, int(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -160,6 +241,7 @@ int main(int argc, char** argv) {
                     continue;
                 throw std::runtime_error("PTY poll failed");
             }
+            advance_wall();
             if (f.revents & (POLLERR | POLLNVAL | POLLHUP))
                 throw std::runtime_error("PTY disconnected unexpectedly");
             if (f.revents & POLLOUT) {
@@ -189,6 +271,14 @@ int main(int argc, char** argv) {
                 engine.read_timeout();
                 deadline = Clock::now() + std::chrono::seconds(1);
             }
+        }
+        if (checkpoint_file) {
+            if (sent != pending.size())
+                throw std::runtime_error("checkpoint requires drained serial output");
+            checkpoint_file->write(rmx::Json::Object{{"format", "brewpi-emulator-checkpoint-v1"},
+                                                     {"engine", engine.checkpoint()},
+                                                     {"speed", speed},
+                                                     {"pacing_fraction_ms", pacing_fraction}});
         }
         return 0;
     } catch (const std::exception& e) {
