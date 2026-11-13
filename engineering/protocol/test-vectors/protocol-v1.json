@@ -4662,7 +4662,7 @@
     {
       "id": "U_before_E",
       "classification": "requires_reference_trace",
-      "initial_preset": "initialized",
+      "initial_preset": "erased",
       "findings": [
         "F18"
       ],
@@ -4675,7 +4675,7 @@
     {
       "id": "duplicate_function_remove_history",
       "classification": "requires_reference_trace",
-      "initial_preset": "initialized",
+      "initial_preset": "assigned",
       "findings": [
         "F07"
       ],

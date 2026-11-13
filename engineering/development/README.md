@@ -1,23 +1,15 @@
 # Development guide
 
-Read the [contract](../../CONTRACT.md), [plan](../../IMPLEMENTATION_PLAN.md), and [architecture](../architecture.md) before changes. The current repository contains documentation, scaffolding, and specification fixtures only; there are no emulator build/test commands to run yet.
+Read the [contract](../../CONTRACT.md), [plan](../../IMPLEMENTATION_PLAN.md), and [architecture](../architecture.md) before changes. Milestone 1 is the published firmware specification; milestone 2 is an original C++17 transport/registry/persistence implementation reviewed and authorized for commit and push to main. Milestone 3 work, CI, releases, deployment, reference edits, and hardware operations remain outside this publication task.
 
-Milestone 1 now includes the [firmware behavioral specification and original JSON fixtures](../protocol/README.md). These are documentation/data, not an executable suite. Firmware action/reaction governs all questions, including bugs; preserve documented quirks and do not introduce a safer or cleaner policy. The [milestone review](milestone-1-review.md) records static checks and unresolved reference-characterization cases.
+Use the tested commands in the [build/run guide](../../docs/milestone-2.md). The [milestone 2 review](milestone-2-review.md) records fixture accounting, Linux/macOS/sanitizer evidence, and limits. [Milestone 1 review](milestone-1-review.md) is the historical specification/static-check handoff. Firmware action/reaction, including bugs, governs all behavior; four reviewed controller cases are deferred to milestone 3, and nine characterization cases remain unresolved.
 
-The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). Local Git is initialized on `main` with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. `main` is the base/target for the initial documentation baseline; CI, branch protection, and release policies remain to be established. The initial commit/push does not authorize implementation.
+## Tools and layout
 
-## Planned tooling and layout
+The foundation is C++17, CMake, a system compiler, the C++ standard library, and POSIX APIs. Python's standard library drives tests; no Python package or third-party JSON/controller library is needed. Actual exercised tool/image versions are recorded in [milestone 2 provenance](../licenses/milestone-2.md). Source belongs in src, independent tests in tests, future build helpers in cmake, future configuration/scenarios in config, and optional service templates in systemd. Generated binaries/reports/state belong in ignored directories. Follow root formatting files.
 
-The proposed baseline is C++17, CMake, POSIX/Linux APIs, and a system compiler. Linux x86_64 supports host validation; the agreed Raspberry Pi/Linux architecture requires separate qualification. No compiler, CMake, dependency, or CI version has been pinned or installed by this scaffolding task.
+## Validation and provenance
 
-Future source belongs in `src/`, independently authored tests in `tests/`, build helpers in `cmake/`, development tooling in `scripts/`, configuration contracts/examples in `config/`, and optional service templates in `systemd/`. Use ignored build/local/run directories for generated outputs. Follow root formatting files.
+Build and run CTest after relevant source/test changes. Use the sanitizer configuration for native memory/arithmetic checks; passing sanitizers are not AVR-equivalence or hardware evidence. Check changed documentation links, SPDX markers, whitespace, fixture preservation, and generated-output exclusions. Isolate ordinary validation from working BrewPi state/services/serial devices. Actual host/panel and Pi checks remain separate milestones.
 
-## Validation
-
-For documentation/scaffolding changes, inspect relative links, source citations where present, whitespace, file inventory, and claims of completion. Do not present these checks as emulator tests. Once implementation is authorized, add meaningful deterministic tests, then actual host/panel integration checks and Pi qualification as specified by the plan.
-
-Future ordinary validation must stay hardware-free and isolate its PTYs, state files, sockets, logs, and web data from a working BrewPi installation. Do not change services, attach physical controllers, or deploy as a side effect of a test command.
-
-## Licensing
-
-Record behavioral facts before authoring original MIT implementation. No reference source or translated test helper may enter the build. Complete the [provenance record](../licenses/README.md) for every introduced dependency and keep [third-party notices](../../THIRD_PARTY_NOTICES.md) accurate.
+The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx); local main tracks its HTTPS origin. The owner authorized committing and pushing the reviewed milestone 2 artifacts to main; no milestone 3 work is authorized. Keep original work under MIT, record additional behavioral facts before implementation, and never copy or translate reference routines/helpers. The [provenance gate](../licenses/README.md#review-gate) and [third-party inventory](../../THIRD_PARTY_NOTICES.md) remain mandatory for new dependencies/material.

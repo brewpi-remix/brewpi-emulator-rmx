@@ -18,7 +18,7 @@ Apply the plan's permissive-license requirement to incorporated general-purpose 
 
 ## Current stage
 
-Planning, MIT licensing, repository scaffolding, public GitHub repository creation, local Git initialization, and the initial documentation/scaffolding commit and push to `main` are authorized. Emulator implementation remains pending a subsequent explicit user instruction. Directory README files reserve future locations; they are not implemented modules. There is no runnable program, build, test suite, CI, package, or service to install.
+Planning, MIT licensing, repository scaffolding, public GitHub repository creation, local Git initialization, and the initial documentation/scaffolding commit and push to `main` are authorized. The owner subsequently authorized milestone 2 transport, registry, and persistence implementation and validation, with a stop for review before any commit or push. After that review, the owner explicitly authorized committing and pushing the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to main. A C++17/CMake executable and independent tests now exist; autonomous controller/thermal behavior remains milestone 3 work. There is no CI, release package, installer, or service to install.
 
 The owner subsequently authorized milestone 1's behavioral contract, default values, diagnostic mappings, and original protocol fixtures, with a stop for review before implementation. These are specification/data artifacts, not a parser, simulator, executable harness, or approval to implement. After review, the owner explicitly authorized committing and pushing the milestone 1 artifacts and supporting documentation to main. This publication authorization does not approve implementation.
 

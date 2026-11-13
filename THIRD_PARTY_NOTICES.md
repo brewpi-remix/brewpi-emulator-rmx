@@ -4,9 +4,9 @@ The [MIT License](LICENSE.md) covers original BrewPi Emulator Remix code and doc
 
 ## Current incorporation inventory
 
-No third-party implementation code, assets, runtime libraries, generated source tables, or vendored dependencies have been incorporated. The repository currently contains original planning/scaffolding documentation, milestone 1 behavioral specifications and original JSON fixtures, project metadata, and standard MIT license text. No executable or dependency closure exists yet. The [milestone provenance record](engineering/licenses/milestone-1.md) describes numeric metadata, synthetic identities, and fixture authorship; source-derived interoperability facts do not relicense or incorporate the referenced implementation.
+No third-party implementation code, assets, runtime libraries, generated source tables, or vendored dependencies have been incorporated. The repository currently contains original planning/scaffolding documentation, milestone 1 behavioral specifications and original JSON fixtures, project metadata, and standard MIT license text. Original milestone 2 source/tests/build configuration now exist; no executable or system-library bundle is distributed. The [milestone 2 provenance record](engineering/licenses/milestone-2.md) inventories the external tools and test environments actually used. The [milestone provenance record](engineering/licenses/milestone-1.md) describes numeric metadata, synthetic identities, and fixture authorship; source-derived interoperability facts do not relicense or incorporate the referenced implementation.
 
-Layout and formatting follow the owner's existing repository conventions. This inventory does not claim those conventions or the standard license text are newly invented. No reference application implementation was used to populate the source/test directories, which contain documentation placeholders only.
+Layout and formatting follow the owner's existing repository conventions. This inventory does not claim those conventions or the standard license text are newly invented. No reference application implementation was used to populate the source/test directories, which now contain independently authored milestone 2 code and tests.
 
 ## Behavioral references
 

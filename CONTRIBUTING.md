@@ -1,8 +1,8 @@
 # Contributing
 
-Read the [project contract](CONTRACT.md), [implementation plan](IMPLEMENTATION_PLAN.md), and [development guide](engineering/development/README.md) first. The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx), with `main` holding the initial plan/scaffolding baseline. Local Git is initialized, and `origin` uses the repository's HTTPS URL. No runnable application or automated CI exists yet.
+Read the [project contract](CONTRACT.md), [implementation plan](IMPLEMENTATION_PLAN.md), and [development guide](engineering/development/README.md) first. The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx), with `main` holding the reviewed project baseline. Local Git is initialized, and `origin` uses the repository's HTTPS URL. Milestone 2 now has a reviewed C++17/CMake executable and tests; no automated CI exists.
 
-Base documentation contributions on `main` and target `main` in pull requests. No separate development branch, branch-protection policy, automated merge policy, or release process has been established. Implementation remains subject to an explicit user instruction.
+Base documentation contributions on `main` and target `main` in pull requests. No separate development branch, branch-protection policy, automated merge policy, or release process has been established. Further milestone work remains subject to an explicit user instruction; the owner authorized the reviewed milestone 2 commit and push to main, while milestone 3 remains unapproved.
 
 Follow the [firmware behavioral contract](engineering/protocol/behavioral-contract.md), including documented bugs. When uncertain, preserve the Arduino action/reaction and record a finding rather than improve validation, persistence, output, or control behavior. Required interoperability facts and original fixtures remain compatible with independent authorship; copying or translating implementation is still prohibited. Do not count characterization-required cases as passing conformance checks.
 

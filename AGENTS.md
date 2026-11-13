@@ -4,9 +4,9 @@ Read [CONTRACT.md](CONTRACT.md), [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md
 
 ## Current authorization
 
-This is a planning repository with documentation and supporting scaffolding. The owner authorized creation of the public `brewpi-remix/brewpi-emulator-rmx` repository, local initialization on `main`, the HTTPS `origin`, and the initial documentation/scaffolding commit and push to `main`. This records the initial publication scope, not blanket authorization for later commits, pushes, releases, installation, service changes, or reference-repository modifications. Current explicit user instructions control the authorized scope. Do not start emulator implementation until the user explicitly requests it.
+This repository contains reviewed specification artifacts and a reviewed milestone 2 implementation. The owner authorized creation of the public `brewpi-remix/brewpi-emulator-rmx` repository, local initialization on `main`, the HTTPS `origin`, and the initial documentation/scaffolding commit and push to `main`. This records the initial publication scope, not blanket authorization for later commits, pushes, releases, installation, service changes, or reference-repository modifications. Current explicit user instructions control the authorized scope. Do not start emulator implementation until the user explicitly requests it.
 
-Milestone 1 documentation/defaults/diagnostics/original fixtures were reviewed, and the owner authorized committing and pushing them and their supporting documentation to main; implementation remains unapproved. Read the [behavioral contract](engineering/protocol/behavioral-contract.md) and [firmware findings](engineering/protocol/firmware-findings.md) before further work. Whenever a question arises, follow the selected Arduino firmware action/reaction even if it is a bug. Document the finding and preserve the behavior; do not introduce a corrective policy. Classify undefined/artifact-dependent outcomes as reference-characterization obligations instead of inventing a response.
+Milestone 1 documentation/defaults/diagnostics/original fixtures were reviewed, and the owner authorized committing and pushing them and their supporting documentation to main; the owner subsequently authorized milestone 2 implementation and validation, with a stop before committing or pushing. After review, the owner authorized committing and pushing milestone 2 and its supporting artifacts to main. Milestone 3 remains unapproved. Read the [behavioral contract](engineering/protocol/behavioral-contract.md) and [firmware findings](engineering/protocol/firmware-findings.md) before further work. Whenever a question arises, follow the selected Arduino firmware action/reaction even if it is a bug. Document the finding and preserve the behavior; do not introduce a corrective policy. Classify undefined/artifact-dependent outcomes as reference-characterization obligations instead of inventing a response.
 
 ## Original implementation
 
@@ -16,7 +16,7 @@ Apply the same restriction to automated and AI-assisted rewrites. Standard equat
 
 ## Layout and changes
 
-Use `src/` for future C++ code, `tests/` for original tests, `cmake/` and `scripts/` for build/development support, `config/` for scenarios/configuration contracts, and `systemd/` for optional service definitions. Keep design in `engineering/` and operator guidance in `docs/`. Preserve unrelated work and historical handoff records. Do not add fake implementation files, executable placeholders, or CI badges that imply a working build.
+Use `src/` for original C++ code, `tests/` for original tests, `cmake/` and `scripts/` for build/development support, `config/` for scenarios/configuration contracts, and `systemd/` for optional service definitions. Keep design in `engineering/` and operator guidance in `docs/`. Preserve unrelated work and historical handoff records. Do not add fake implementation files, executable placeholders, or CI badges that imply a working build.
 
 ## Validation and writing
 

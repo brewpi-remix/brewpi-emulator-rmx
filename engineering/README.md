@@ -6,6 +6,7 @@ The [project contract](../CONTRACT.md) governs scope and independent MIT impleme
 - [Development](development/README.md): layout, tooling direction, and evidence expectations.
 - [Protocol](protocol/README.md): behavioral contract scope, compatibility boundaries, and reserved test-vector directory.
 - [Licensing provenance](licenses/README.md): original authorship and dependency inventory requirements.
-- [Milestone 1 review](development/milestone-1-review.md): completed behavioral specification/data and static validation, with implementation and runtime evidence still absent.
+- [Milestone 1 review](development/milestone-1-review.md): historical behavioral specification/data and static-validation handoff.
+- [Milestone 2 review](development/milestone-2-review.md): original transport/registry/persistence implementation, fixture/runtime evidence, and stopping boundary.
 
-These documents organize planned work; they do not establish that any proposed behavior has been implemented or executed.
+The milestone review records distinguish implemented/tested scope from planned behavior and unqualified reference outcomes.

@@ -1,6 +1,6 @@
 # Protocol documentation
 
-Milestone 1 is complete as a source-backed specification and original fixture deliverable for owner review. No emulator, executable conformance suite, or reference-hardware execution exists. The owner's firmware-first instruction supersedes earlier proposed behavioral improvements: preserve Arduino action/reaction, including deterministic bugs, while writing original MIT implementation later.
+Milestone 1 is complete as a source-backed specification and original fixture deliverable for owner review. Milestone 2 now executes its scoped cases through an original C++ engine and tests; see the [review](../development/milestone-2-review.md) and [additional behavioral facts](milestone-2-details.md). Reference-hardware execution remains unperformed. The owner's firmware-first instruction supersedes earlier proposed behavioral improvements: preserve Arduino action/reaction, including deterministic bugs, while writing original MIT implementation later.
 
 - [Behavioral contract v1](behavioral-contract.md): selected build personality, serial semantics, commands, schemas, timing, and persistence.
 - [Defaults and units](defaults.md): full S/C/V data, fixed-point C/F behavior, identities, and external plant inputs.

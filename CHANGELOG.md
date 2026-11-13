@@ -6,6 +6,8 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Added
 
+- Original MIT milestone 2 C++17 transport, registry, persistence, local codec, and CMake build, with reviewed-fixture, regression, and actual PTY/process tests, plus review/provenance/build guidance.
+
 - Milestone 1 firmware behavioral contract, full defaults/units, version-3 diagnostic metadata, 21 fidelity findings, original protocol fixtures, and provenance/review records.
 
 - Source-backed implementation plan and compatibility review.
@@ -24,5 +26,5 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Status
 
-- Emulator implementation, build/test infrastructure, CI, packaging, and deployment have not started.
-- The initial repository publication contains planning and scaffolding only; no software release has been made, and implementation remains unapproved.
+- Milestone 2 code/build/tests are complete locally for review, without commit or push. Milestone 3 controller/thermal work, actual host/panel integration, and Pi qualification remain outstanding.
+- The published main baseline contains reviewed milestone 1 artifacts. No software release, CI, package, deployment, or device operation is included in milestone 2.

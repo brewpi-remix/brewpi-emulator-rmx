@@ -1,7 +1,5 @@
-# Operator documentation
+# Operator and development documentation
 
-No runnable emulator or installation procedure exists yet. The [implementation plan](../IMPLEMENTATION_PLAN.md) describes proposed behavior; it is not an operating guide.
+The [milestone 2 build/run guide](milestone-2.md) describes the current development executable, isolated PTY/state paths, initialization, restart, cleanup, and storage/fidelity limits. This stage implements transport, registry, and persistence, with fixed external readings and no autonomous thermal/controller loop. No installer or service deployment exists.
 
-Future operator documentation will cover Linux/Pi prerequisites, building, selecting the explicit serial path, host configuration, sensor/actuator discovery and assignment, normal panel use, persistent state, restart/reset policies, repeatable scenarios, acceleration versus host wall time, and troubleshooting. Document the actual tested commands after implementation rather than publishing speculative commands now.
-
-For development scope and licensing, start with the [project contract](../CONTRACT.md) and [engineering index](../engineering/README.md).
+Later guidance will cover actual host/panel integration, agreed Linux/Pi prerequisites, changing sensors/loads, brewing scenarios, fermentation physics, acceleration versus host wall time, checkpoints, and qualified operation. The [implementation plan](../IMPLEMENTATION_PLAN.md) and [milestone 2 review](../engineering/development/milestone-2-review.md) distinguish future scope from completed evidence.

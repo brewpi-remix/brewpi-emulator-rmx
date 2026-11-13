@@ -1,3 +1,3 @@
 # Build support
 
-Future CMake helpers belong here. No CMakeLists.txt, presets, configured build, or compiler/dependency selection exists yet. The proposed C++17/Linux build approach remains subject to the [plan](../IMPLEMENTATION_PLAN.md).
+The root [CMakeLists.txt](../CMakeLists.txt) builds the original C++17 library/executable and independent tests with CTest. Optional address/undefined-behavior sanitizer flags are available for GCC/Clang. No helper module or downloaded dependency is required. Future CMake helper files belong here. Use the tested commands in the [build/run guide](../docs/milestone-2.md).

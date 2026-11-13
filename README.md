@@ -1,10 +1,10 @@
 # BrewPi Emulator Remix
 
-BrewPi Emulator Remix (`brewpi-emulator-rmx`) is a planned native C++ Linux emulator for hardware-free integration testing of BrewPi Remix. It will expose a stable pseudo-terminal serial path and simulate a fermentation chamber containing a carboy with five US gallons of beer, responding to the existing host and web panel.
+BrewPi Emulator Remix (`brewpi-emulator-rmx`) is an independent native C++ Linux emulator under development for hardware-free integration testing of BrewPi Remix. It will expose a stable pseudo-terminal serial path and simulate a fermentation chamber containing a carboy with five US gallons of beer, responding to the existing host and web panel.
 
-**Status: milestone 1 specification and original fixtures completed for review.** No emulator executable, build system, executable test suite, CI workflow, installer, or release exists yet. Implementation remains unapproved. See the [milestone review](engineering/development/milestone-1-review.md) for deliverables and evidence limits.
+**Status: reviewed milestone 2 transport, registry, and persistence.** Original C++17, a CMake build, a fixture runner, and real PTY/process tests now exist. Autonomous controller/filter/thermal behavior remains milestone 3 work. No installer, CI workflow, release, host/panel integration qualification, or Pi qualification exists. See the [milestone 2 review](engineering/development/milestone-2-review.md) and [build/run guide](docs/milestone-2.md) for tested commands and limits.
 
-The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The initial `main` baseline contains the reviewed plan and scaffolding; publishing it does not approve implementation.
+The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The owner authorized publication of the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to `main`. Milestone 3 remains unapproved.
 
 ## Project direction
 
@@ -27,14 +27,14 @@ Planned capabilities include device discovery and assignment, stable virtual sen
 
 | Path | Purpose |
 | --- | --- |
-| `src/` | Future original C++ implementation. |
-| `tests/` | Future independently authored tests and fixtures. |
+| `src/` | Original C++17 transport, protocol, registry, local codec, and persistence. |
+| `tests/` | Independent fixture driver, regression runner, and real PTY/process tests. |
 | `cmake/` | Future build configuration helpers. |
 | `config/` | Future configuration schemas and scenario examples. |
 | `scripts/` | Future development and validation helpers. |
 | `systemd/` | Future optional Linux service templates. |
 | `engineering/` | Design, development, protocol, and provenance documentation. |
-| `docs/` | Future operator and integration guidance. |
+| `docs/` | Development build/run guidance and future integration/operator documentation. |
 | `.github/` | Contribution templates; no active CI or publication automation. |
 
 ## License and provenance

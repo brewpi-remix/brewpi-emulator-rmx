@@ -4,7 +4,7 @@
 
 The owner selected MIT for independent BrewPi Emulator Remix code and documentation on November 13, 2026. See the root [license](../../LICENSE.md), [contract](../../CONTRACT.md), and [third-party inventory](../../THIRD_PARTY_NOTICES.md).
 
-No emulator implementation or third-party dependency has been incorporated. The [plan](../../IMPLEMENTATION_PLAN.md) records inspected BrewPi/Fuscus source revisions and behavioral facts. Existing source exposure is disclosed; the project does not claim a formally separated clean-room process. Scaffolding follows the owner's existing repository-layout/formatting conventions and uses standard MIT license text; these conventions are not incorporated BrewPi/Fuscus implementation code.
+Original milestone 2 implementation now exists; no third-party implementation/dependency has been incorporated. The [milestone 2 provenance record](milestone-2.md) covers original code, tests, external tools, and build environments. The [plan](../../IMPLEMENTATION_PLAN.md) records inspected BrewPi/Fuscus source revisions and behavioral facts. Existing source exposure is disclosed; the project does not claim a formally separated clean-room process. Scaffolding follows the owner's existing repository-layout/formatting conventions and uses standard MIT license text; these conventions are not incorporated BrewPi/Fuscus implementation code.
 
 The [milestone 1 provenance record](milestone-1.md) covers the completed original behavioral specification, defaults, diagnostic metadata, firmware findings, and JSON fixtures. Faithful behavior, including documented bugs, is required; independent licensing prohibits copied implementation, not interoperability facts. No runtime library or executable implementation was added with these artifacts.
 

@@ -1,3 +1,3 @@
-# Application source
+# Original C++ implementation
 
-Future original C++17 implementation belongs here. No implementation files exist yet. Follow the module boundaries in the [architecture](../engineering/architecture.md) and the independent MIT requirements in the [contract](../CONTRACT.md).
+Milestone 2 implements the streaming protocol/registry/settings state in engine.cpp, PTY process lifecycle in main.cpp, locked host-file persistence in storage.cpp, and strict local JSON storage/test envelopes in json.cpp. The local JSON parser is not used to parse Arduino commands. All source is original MIT C++17; no reference headers, routines, classes, or binary EEPROM layouts are incorporated. The [architecture](../engineering/architecture.md), [contract](../CONTRACT.md), and [review](../engineering/development/milestone-2-review.md) define behavior, evidence, and remaining milestone 3 work.
