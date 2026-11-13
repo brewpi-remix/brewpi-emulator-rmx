@@ -1,0 +1,23 @@
+# Third-party notices
+
+The [MIT License](LICENSE.md) covers original BrewPi Emulator Remix code and documentation. It does not relicense external software, source references, or future dependencies.
+
+## Current incorporation inventory
+
+No third-party implementation code, assets, runtime libraries, generated tables, or vendored dependencies have been incorporated. The repository currently contains original planning/scaffolding documentation, project metadata, and standard MIT license text. No executable or dependency closure exists yet.
+
+Layout and formatting follow the owner's existing repository conventions. This inventory does not claim those conventions or the standard license text are newly invented. No reference application implementation was used to populate the source/test directories, which contain documentation placeholders only.
+
+## Behavioral references
+
+BrewPi firmware, BrewPi script, BrewPi web UI, BrewPi tools, BrewPi user documentation, and historical Fuscus were reviewed to establish behavioral compatibility requirements. Their inspected revisions and source citations appear in the [implementation plan](IMPLEMENTATION_PLAN.md). These references retain their existing licenses and are not part of this project's MIT-licensed implementation. BrewPi names identify interoperability targets and do not imply endorsement or transferred trademark rights.
+
+The existing host and panel may run as separate external compatibility clients. Their licenses and their own dependencies remain unchanged. Do not bundle their source, binaries, or assets into emulator distributions under this notice.
+
+## Future dependencies
+
+Before adding or redistributing a dependency, record its name, purpose, upstream location, exact version/revision, license identifier and license text, copyright notices, modifications, build/runtime role, and distribution obligations. Update this file from the actual dependency inventory, not from the proposed dependency list. A proposed JSON library, compiler, or test tool is not an incorporated dependency merely because the plan mentions it.
+
+Select permissively licensed incorporated library code, keep its notices separate from original MIT work, and record external tools/system libraries/compatibility clients according to their actual role. A future decision to bundle any external component requires a separate inventory and distribution review. Generated outputs, captures, logs, and screenshots do not acquire MIT provenance merely by entering this tree; follow the material categories and review gate in the linked licensing guide.
+
+See [licensing provenance](engineering/licenses/README.md) for the independent implementation boundary and review record requirements.

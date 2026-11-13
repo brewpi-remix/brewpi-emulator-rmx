@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: MIT
+
+# Local agent, editor, and operating-system state
+.agents/
+.codex/
+.idea/
+.vscode/
+.worktrees/
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+._*
+.AppleDouble/
+
+# Build, packaging, and developer-local configuration
+/build/
+/build-*/
+/cmake-build-*/
+/dist/
+/out/
+/stage/
+/local/
+CMakeUserPresets.json
+compile_commands.json
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.exe
+*.deb
+*.rpm
+
+# Test, analysis, and documentation output
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.cache/
+coverage/
+test-results/
+*.gcda
+*.gcno
+*.lcov
+/docs/_build/
+
+# Generated runs, state, and captures; keep authored fixtures trackable
+/runs/
+/state/
+/captures/
+*.log
+*.tmp
+*.bak
+
+# Local credentials; example files remain trackable
+.env
+.env.*
+!.env.example
