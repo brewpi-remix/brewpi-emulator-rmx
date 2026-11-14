@@ -1,6 +1,6 @@
 # R2 CI and regression execution
 
-Date: November 14, 2026. Source baseline: 8fef678e963124540548a7efa4c0c5b7402b7ba7 plus the uncommitted R2 working changes. Status: local R2 preparation and validation for owner review; hosted results remain pending separately authorized publication. Candidate selection remains 0.0.1-rc.1. No R3 work, commit, push, tag, release, repository-rule activation, deployment, physical Pi qualification, systemd activation, or Arduino characterization is performed.
+Date: November 14, 2026. Source baseline: 8fef678e963124540548a7efa4c0c5b7402b7ba7 plus the uncommitted R2 working changes. Status: historical local preparation and review evidence; R2 is now published with separate [verified hosted evidence](software-release-r2-hosted.md). Candidate selection remains 0.0.1-rc.1. No R3 work, commit, push, tag, release, repository-rule activation, deployment, physical Pi qualification, systemd activation, or Arduino characterization is performed.
 
 ## Execution contract
 

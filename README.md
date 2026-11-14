@@ -2,7 +2,7 @@
 
 BrewPi Emulator Remix (`brewpi-emulator-rmx`) is an independent native C++ Linux emulator under development for hardware-free integration testing of BrewPi Remix. It exposes a stable pseudo-terminal serial path and models a fermentation chamber containing a carboy with five US gallons of beer, responding to the existing host and web panel.
 
-**Status: milestones 1–5 published; cross-milestone fixes are reviewed and authorized for commit and push to main.** The owner selected isolated Debian 12 ARM64 Linux software qualification. The [operating guide](docs/operation.md) covers staged installation, readiness, private paths, lifecycle, and recovery; the [milestone 5 review](engineering/development/milestone-5-review.md) separates native/runtime evidence from unqualified physical Pi, actual systemd activation, and nine firmware-characterization cases. No release, live deployment, or CI workflow exists.
+**Status: milestones 1–5 published; cross-milestone fixes are reviewed and authorized for commit and push to main.** The owner selected isolated Debian 12 ARM64 Linux software qualification. The [operating guide](docs/operation.md) covers staged installation, readiness, private paths, lifecycle, and recovery; the [milestone 5 review](engineering/development/milestone-5-review.md) separates native/runtime evidence from unqualified physical Pi, actual systemd activation, and nine firmware-characterization cases. R2 regression CI is published and verified; [hosted evidence](engineering/development/software-release-r2-hosted.md) records exact source/run identities. No release or live deployment exists.
 
 The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The owner authorized publication of the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to `main`. After milestone 3 implementation and review, the owner authorized committing and pushing its reviewed implementation, tests, and supporting documentation to `main`. The owner subsequently authorized milestone 4 in an isolated host/panel test setup, with a stop for review before committing or pushing. After review and fixes, the owner authorized committing and pushing the reviewed milestone 4 setup, tests, and supporting docs to `main`. The owner subsequently authorized milestone 5 using the isolated Debian 12 ARM64 Linux environment, stopping for review before committing or pushing. After review and fixes, the owner authorized committing and pushing the reviewed milestone 5 target qualification, operating guidance, tests, and supporting docs to main, preserving Arduino behavior and independent MIT licensing.
 
@@ -19,7 +19,7 @@ Implemented development capabilities include device discovery and assignment, st
 - [Project contract](CONTRACT.md): scope, independent implementation, MIT licensing, and authorization boundaries.
 - [Implementation plan](IMPLEMENTATION_PLAN.md): source-backed compatibility review, architecture, milestones, risks, and proposed acceptance checks.
 - [Remaining software and release plan](engineering/development/software-release-plan.md): proposed support/CI/stability/artifact/licensing/candidate work, excluding Pi, systemd activation, and Arduino characterization.
-- [R2 CI and regression execution](engineering/development/software-release-r2.md): prepared workflows, explicit payload modes, local validation, and pending hosted execution.
+- [R2 CI and regression execution](engineering/development/software-release-r2.md): published workflows, explicit payload modes, and separate local/hosted validation.
 - [R1 support and release policy](engineering/development/software-release-policy.md): selected first candidate 0.0.1-rc.1, support matrix, CI gates, resource budgets, and publication boundaries; documentation only.
 - [Protocol contract and fixtures](engineering/protocol/README.md): defaults/units, diagnostic metadata, firmware quirks, and original specification vectors.
 - [Engineering index](engineering/README.md): architecture, development, protocol, and licensing records.
@@ -38,7 +38,7 @@ Implemented development capabilities include device discovery and assignment, st
 | `systemd/` | Original optional per-instance service example; no activation. |
 | `engineering/` | Design, development, protocol, and provenance documentation. |
 | `docs/` | Build, integration, staged-install, and operating guidance. |
-| `.github/` | Contribution templates and locally prepared regression workflow; hosted execution pending. |
+| `.github/` | Contribution templates and regression CI; no release/deploy automation. |
 
 ## License and provenance
 
