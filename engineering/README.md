@@ -18,3 +18,7 @@ The milestone review records distinguish implemented/tested scope from planned b
 - [Milestone 5 review](development/milestone-5-review.md): selected isolated Linux target qualification, install/readiness/service checks, operating guidance, and evidence limits.
 
 - [Cross-milestone review](development/cross-milestone-review.md): integrated source/specification/test/operating review after all five published milestones, local fixes, and evidence limits.
+
+- [Remaining software and release plan](development/software-release-plan.md): proposed software validation and release-engineering work after the published milestones; implementation and publication are not authorized.
+
+- [R1 software support and release policy](development/software-release-policy.md): completed policy deliverable for review using 0.0.1-rc.1; no CI/tooling/settings implementation or publication.

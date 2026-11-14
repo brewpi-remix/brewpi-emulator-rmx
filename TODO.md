@@ -16,7 +16,9 @@ Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status des
 - ✅ Complete and review milestone 4 isolated host/panel integration, fix identified issues, and authorize its setup, tests, and supporting docs for commit and push to main.
 - ✅ Complete milestone 5 for the owner-selected isolated Debian 12 ARM64 Linux target and prepare operating procedures; see the [review record](engineering/development/milestone-5-review.md). After review and fixes, the owner authorized its commit and push to main.
 - ▧ Qualify physical Pi operation and actual systemd activation if separately requested; retain all nine unresolved firmware-characterization gates.
-- ▧ Establish CI, branch-protection, and release policies when separately requested.
+- ✅ Save a proposed [remaining software and release plan](engineering/development/software-release-plan.md), with Pi, systemd activation, and Arduino characterization excluded; plan consistency reviewed and corrected, followed by the owner-authorized R1 policy deliverable.
+- ✅ Complete the [R1 software/release policy](engineering/development/software-release-policy.md) for review using 0.0.1-rc.1, with reviewed check-execution/identity gates, resource measurement/budgets, unsigned-first-RC/single-maintainer rules, and outstanding long-run host/evidence assignment recorded. The owner authorized committing and pushing this reviewed documentation to main.
+- ▧ Review and authorize R2–R6 before implementation; CI, policy activation, artifact preparation, and publication remain unimplemented.
 
 The [implementation plan](IMPLEMENTATION_PLAN.md) owns milestone acceptance criteria. Milestones 2 and 3 have native build/test evidence; milestone 4 adds reviewed isolated host/panel integration evidence, and milestone 5 adds selected Linux software qualification and operating guidance. Physical Pi and actual systemd activation remain outstanding.
 

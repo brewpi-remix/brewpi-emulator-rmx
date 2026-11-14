@@ -18,6 +18,8 @@ Implemented development capabilities include device discovery and assignment, st
 
 - [Project contract](CONTRACT.md): scope, independent implementation, MIT licensing, and authorization boundaries.
 - [Implementation plan](IMPLEMENTATION_PLAN.md): source-backed compatibility review, architecture, milestones, risks, and proposed acceptance checks.
+- [Remaining software and release plan](engineering/development/software-release-plan.md): proposed support/CI/stability/artifact/licensing/candidate work, excluding Pi, systemd activation, and Arduino characterization.
+- [R1 support and release policy](engineering/development/software-release-policy.md): selected first candidate 0.0.1-rc.1, support matrix, CI gates, resource budgets, and publication boundaries; documentation only.
 - [Protocol contract and fixtures](engineering/protocol/README.md): defaults/units, diagnostic metadata, firmware quirks, and original specification vectors.
 - [Engineering index](engineering/README.md): architecture, development, protocol, and licensing records.
 - [Operator documentation](docs/README.md): documentation status and planned coverage.
