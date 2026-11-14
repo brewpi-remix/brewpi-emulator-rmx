@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import platform
 import subprocess
+import stat
 
 FILES = {'bin/brewpi-emulator-rmx', 'libexec/brewpi-emulator-rmx/wait-ready.py',
          'share/brewpi-emulator-rmx/systemd/brewpi-emulator@.service',
@@ -29,6 +30,24 @@ def native_arch():
     return {'aarch64': 'arm64', 'arm64': 'arm64', 'x86_64': 'amd64', 'AMD64': 'amd64'}[platform.machine()]
 
 
+def source_identity(manifest):
+    schema=manifest.get('schema')
+    if type(schema) is not int or schema not in [1,2]:raise ValueError('unsupported payload schema')
+    if schema==1:
+        commit=manifest.get('source_commit','')
+        if not isinstance(commit,str) or len(commit)!=40 or any(c not in '0123456789abcdef' for c in commit):
+            raise ValueError('missing exact source commit')
+        if not os.environ.get('RMX_CANDIDATE_COMMIT') or commit!=os.environ['RMX_CANDIDATE_COMMIT'] or os.environ.get('RMX_CANDIDATE_SNAPSHOT'):
+            raise ValueError('commit payload requires an exact commit expectation, not a snapshot')
+        return dict(source_commit=commit)
+    snapshot=manifest.get('source_snapshot_sha256','');base=manifest.get('base_commit','')
+    if manifest.get('source_commit') is not None or not isinstance(snapshot,str) or len(snapshot)!=64 or any(c not in '0123456789abcdef' for c in snapshot) or not isinstance(base,str) or len(base)!=40 or any(c not in '0123456789abcdef' for c in base):
+        raise ValueError('invalid provisional snapshot identity')
+    if not os.environ.get('RMX_CANDIDATE_SNAPSHOT') or snapshot!=os.environ['RMX_CANDIDATE_SNAPSHOT'] or os.environ.get('RMX_CANDIDATE_COMMIT'):
+        raise ValueError('provisional payload requires exact snapshot expectation, not a candidate commit')
+    return dict(source_commit=None,base_commit=base,source_snapshot_sha256=snapshot)
+
+
 class Payload:
     def __init__(self, tree, manifest, architecture=None):
         preflight()
@@ -38,18 +57,24 @@ class Payload:
         self.manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest()
         self.architecture = architecture or native_arch()
         m = self.manifest
-        if type(m.get('schema')) is not int or m.get('schema') != 1 or m.get('candidate_version') != '0.0.1-rc.1':
+        if m.get('candidate_version') != '0.0.1-rc.1':
             raise ValueError('unexpected candidate policy or manifest schema')
         if m.get('architecture') != self.architecture or self.architecture not in MACHINES:
             raise ValueError('payload architecture differs from execution target')
-        if len(m.get('source_commit', '')) != 40 or any(c not in '0123456789abcdef' for c in m['source_commit']):
-            raise ValueError('missing exact source commit')
+        self.source_identity=source_identity(m)
         if not isinstance(m.get('application_version_output'), str) or not m['application_version_output']:
             raise ValueError('missing frozen version expectation')
-        if os.environ.get('RMX_CANDIDATE_COMMIT') and m['source_commit']!=os.environ['RMX_CANDIDATE_COMMIT']:
-            raise ValueError('payload source differs from frozen candidate commit')
         if set(m.get('files', {})) != FILES:
             raise ValueError('incomplete payload inventory')
+        if m['schema']==2 and m.get('file_modes')!={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in FILES}:
+            raise ValueError('incorrect payload file modes')
+        if m['schema']==2:
+            import sys
+            sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'release'))
+            from artifacts import source_record
+            record=source_record(Path(__file__).resolve().parents[2])
+            if record['source_snapshot_sha256']!=m['source_snapshot_sha256'] or record['base_commit']!=m['base_commit'] or m.get('source_commit_role')!='pending-reviewed-commit-binding':
+                raise ValueError('driver/helper source differs from provisional payload identity')
         self.prefix=m.get('install_prefix')
         if self.prefix not in ['/usr/local','/opt/brewpi-emulator-rmx']:
             raise ValueError('unsupported payload install prefix')
@@ -65,14 +90,19 @@ class Payload:
             raise ValueError('application version differs from frozen manifest')
 
     def verify(self, phase, receipt=None):
-        actual = {str(p.relative_to(self.tree)) for p in self.tree.rglob('*') if p.is_file() or p.is_symlink()}
+        actual=set()
+        for path in self.tree.rglob('*'):
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):raise ValueError('nonregular payload input')
+            if path.is_file():actual.add(str(path.relative_to(self.tree)))
         if actual != FILES:
             raise ValueError('payload contains missing or unexpected files')
         for name, expected in self.manifest['files'].items():
             path = self.tree / name
             if any(p.is_symlink() for p in [path, *path.parents]) or not path.is_file() or sha(path) != expected:
                 raise ValueError('payload bytes changed: ' + name)
-        record = dict(phase=phase, mode='packaged-input', manifest_sha256=self.manifest_sha256, source_commit=self.manifest['source_commit'],
+            if self.manifest['schema']==2 and stat.S_IMODE(path.stat().st_mode)!=self.manifest['file_modes'][name]:
+                raise ValueError('payload mode changed: '+name)
+        record = dict(phase=phase, mode='packaged-input', manifest_sha256=self.manifest_sha256, **self.source_identity,
                       candidate_version=self.manifest['candidate_version'], architecture=self.architecture,
                       files=self.manifest['files'])
         if receipt:
@@ -90,6 +120,6 @@ def selected():
         return None
     if mode != 'packaged-input':
         raise ValueError('unknown execution mode')
-    if not os.environ.get('RMX_CANDIDATE_COMMIT'):
-        raise ValueError('packaged-input requires an exact expected candidate commit')
+    if not os.environ.get('RMX_CANDIDATE_COMMIT') and not os.environ.get('RMX_CANDIDATE_SNAPSHOT'):
+        raise ValueError('packaged-input requires an exact expected candidate commit or provisional snapshot')
     return Payload(os.environ['RMX_PAYLOAD_ROOT'], os.environ['RMX_PAYLOAD_MANIFEST'])

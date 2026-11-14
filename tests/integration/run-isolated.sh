@@ -18,7 +18,7 @@ case ${RMX_EXECUTION_MODE:-source-build} in
         payload_root=$(CDPATH= cd -- "${RMX_PAYLOAD_ROOT:?}" && pwd)
         payload_manifest=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "${RMX_PAYLOAD_MANIFEST:?}")
         payload_args=(-v "$payload_root:/payload:ro" -v "$payload_manifest:/payload-manifest.json:ro"
-            -e "RMX_CANDIDATE_COMMIT=${RMX_CANDIDATE_COMMIT:?}" -e RMX_EXECUTION_MODE=packaged-input -e RMX_PAYLOAD_ROOT=/payload -e RMX_PAYLOAD_MANIFEST=/payload-manifest.json) ;;
+            -e "RMX_CANDIDATE_COMMIT=${RMX_CANDIDATE_COMMIT:-}" -e "RMX_CANDIDATE_SNAPSHOT=${RMX_CANDIDATE_SNAPSHOT:-}" -e RMX_EXECUTION_MODE=packaged-input -e RMX_PAYLOAD_ROOT=/payload -e RMX_PAYLOAD_MANIFEST=/payload-manifest.json) ;;
     *) exit 2 ;;
 esac
 mkdir -p -- "$(dirname -- "$evidence")"

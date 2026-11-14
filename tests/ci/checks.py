@@ -129,7 +129,7 @@ class Packaged(unittest.TestCase):
     def save(self):self.path.write_text(json.dumps(self.manifest))
 
     def load(self):
-        with patch('payload.subprocess.check_output',return_value='fixture-only\n'):
+        with patch('payload.subprocess.check_output',return_value='fixture-only\n'),patch.dict(os.environ,RMX_CANDIDATE_COMMIT='a'*40,RMX_CANDIDATE_SNAPSHOT=''):
             return Payload(self.root,self.path,'arm64')
 
     def test_original_fixture(self):self.assertEqual(self.load().verify('end')['mode'],'packaged-input')
@@ -273,7 +273,7 @@ class SavedEvidence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);manifest=root/'manifest.json'
             files={name:'a'*64 for name in FILES}
-            manifest.write_text(json.dumps(dict(source_commit='a'*40,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)))
+            manifest.write_text(json.dumps(dict(schema=1,source_commit='a'*40,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)))
             record=dict(mode='packaged-input',manifest_sha256=sha(manifest),source_commit='a'*40,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)
             phases=['before-integration','restart-1','restart-2','restart-3','after-integration']
             (root/'execution-input.json').write_text(json.dumps(dict(mode='packaged-input',executable='/payload/bin/brewpi-emulator-rmx',sha256='a'*64)))

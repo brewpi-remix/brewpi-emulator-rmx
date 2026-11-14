@@ -57,7 +57,7 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
         self.tmp.cleanup()
 
     def launch(self,evidence,mode='ok'):
-        env=dict({k:v for k,v in os.environ.items() if k not in {'RMX_EXECUTION_MODE','RMX_PAYLOAD_ROOT','RMX_PAYLOAD_MANIFEST','RMX_CANDIDATE_COMMIT'}},PATH=str(self.bin)+os.pathsep+os.environ['PATH'],
+        env=dict({k:v for k,v in os.environ.items() if k not in {'RMX_EXECUTION_MODE','RMX_PAYLOAD_ROOT','RMX_PAYLOAD_MANIFEST','RMX_CANDIDATE_COMMIT','RMX_CANDIDATE_SNAPSHOT'}},PATH=str(self.bin)+os.pathsep+os.environ['PATH'],
                  RMX_TEST_CALLS=str(self.calls),RMX_TEST_MODE=mode,RMX_INTEGRATION_SKIP_BUILD='0')
         return subprocess.run(['bash',str(LAUNCHER),str(self.root),str(self.root),str(evidence)],
                               env=env,capture_output=True,timeout=10)

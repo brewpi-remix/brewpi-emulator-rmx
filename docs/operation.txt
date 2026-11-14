@@ -1,11 +1,11 @@
-BrewPi Emulator Remix: installed development runbook
+BrewPi Emulator Remix: installed provisional candidate runbook
 Copyright 2026 Lee Bussy
 SPDX-License-Identifier: MIT
 
 This is independent MIT software. LICENSE.md and THIRD_PARTY_NOTICES.md
 accompany this file. The full operating, qualification, and provenance guides
 are in the source checkout under docs/ and engineering/. No reference client,
-operating-system library, service activation, or released package is bundled.
+operating-system library, or service activation is bundled.
 
 Run the executable as the same dedicated unprivileged account as the serial
 BrewPi host. Give each instance private runtime and durable state directories.
@@ -25,7 +25,7 @@ store emits W3 and remains erased until E (the panel's factory reset).
 Discover and assign devices after initialization. Firmware numeric defaults,
 partial writes, diagnostics, bugs, and live-versus-saved differences remain
 intentional. Serial n identifies the firmware personality; --version identifies
-the separate development application.
+the separate application candidate.
 
 The installed libexec/brewpi-emulator-rmx/wait-ready.py helper checks that the supplied
 PID exists and an owned PTY has raw terminal flags with --serial PATH --pid PID --timeout 10.
@@ -77,4 +77,4 @@ namespace behavior, and boot ordering remain unqualified.
 The agreed target is an isolated Debian 12 ARM64 Linux container, not physical
 Raspberry Pi hardware. Exact AVR/bus/undefined-memory parity for nine reviewed
 characterization cases remains unresolved. No GPIO, physical serial device,
-USB reset/discovery/flashing, Arduino, release, or live deployment is implied.
+USB reset/discovery/flashing, Arduino, public release, or live deployment is implied.

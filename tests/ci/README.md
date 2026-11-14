@@ -12,6 +12,7 @@ python3 tests/integration/checks.py
 python3 tests/qualification/launcher_checks.py
 python3 tests/qualification/checks.py
 python3 tests/ci/checks.py
+python3 release/checks.py
 python3 tests/ci/native.py build-r2-local debug
 python3 tests/ci/native.py build-r2-local-sanitize sanitize
 ```
@@ -53,3 +54,5 @@ The workflow's eight execution receipts are emitted only after successful checks
 ## Reviewed evidence gates
 
 The [R2 follow-up review](../../engineering/development/software-release-r2-review.md) records stronger gates: canonical source fingerprints and an 8,192-byte maximum receipt, one Linux output emitted after verified native/floor container cleanup, fatal sanitizer findings, exact six-suite CTest XML execution reports, and payload receipts bound to the independently supplied manifest. Source-build runs also require installed/executable hash evidence. Qualification refuses provisioning unless the launcher supplies its disposable-guest marker and /qualification is actually a tmpfs mount; invoke the launcher rather than running prepare.py directly on a host. The extracted project license must equal the reviewed MIT root license, while later notice/provenance acceptance remains separate.
+
+R4 adds original packaging regressions to the existing helper and macOS development lane receipts. Schema 2 provisional package manifests additionally require exact source-snapshot identity and installed file modes; see the [package guide](../../docs/release.md). This local wiring has not yet been published or executed by hosted CI.

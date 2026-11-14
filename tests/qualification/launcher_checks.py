@@ -60,7 +60,7 @@ class LauncherChecks(unittest.TestCase):
         fake=self.root/'docker';fake.write_text(FAKE);fake.chmod(0o755)
         self.calls=self.root/'calls.jsonl'
         self.evidence=self.root/'evidence'
-        self.env=dict({k:v for k,v in os.environ.items() if k not in {'RMX_EXECUTION_MODE','RMX_PAYLOAD_ROOT','RMX_PAYLOAD_MANIFEST','RMX_CANDIDATE_COMMIT'}},PATH=str(self.root)+os.pathsep+os.environ['PATH'],FAKE_CALLS=str(self.calls))
+        self.env=dict({k:v for k,v in os.environ.items() if k not in {'RMX_EXECUTION_MODE','RMX_PAYLOAD_ROOT','RMX_PAYLOAD_MANIFEST','RMX_CANDIDATE_COMMIT','RMX_CANDIDATE_SNAPSHOT'}},PATH=str(self.root)+os.pathsep+os.environ['PATH'],FAKE_CALLS=str(self.calls))
 
     def tearDown(self):
         self.temporary.cleanup()

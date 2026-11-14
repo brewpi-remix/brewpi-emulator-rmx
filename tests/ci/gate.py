@@ -49,7 +49,7 @@ def proof(lane, checks):
             floor=checks[1]
             valid=floor.get('status')=='passed' and floor.get('source_git') is False and floor.get('reference_checkouts') is False and native_proof(floor.get('build'),'release') and floor['build'].get('cmake')=='cmake version 3.16.9' and floor['build'].get('python','').startswith('3.9.25')
     elif lane=='macos-arm64-development':
-        valid=len(checks)==6 and native_proof(checks[0],'debug') and native_proof(checks[1],'sanitize') and checks[2:]==HELPERS
+        valid=len(checks)==2+len(HELPERS) and native_proof(checks[0],'debug') and native_proof(checks[1],'sanitize') and checks[2:]==HELPERS
     else:
         expected={'specification':['specification','original-source-SPDX'],
                   'helper-regressions':HELPERS,
@@ -58,7 +58,7 @@ def proof(lane, checks):
     if not valid:raise ValueError('missing named execution proof: '+lane)
 
 
-HELPERS=['tests/integration/checks.py','tests/qualification/launcher_checks.py','tests/qualification/checks.py','tests/ci/checks.py']
+HELPERS=['tests/integration/checks.py','tests/qualification/launcher_checks.py','tests/qualification/checks.py','tests/ci/checks.py','release/checks.py']
 
 def validate(needs, expected, candidate=None):
     fingerprint=expected.get('source_inputs_sha256','')

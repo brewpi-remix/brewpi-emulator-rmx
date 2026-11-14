@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'ci'))
-from payload import FILES
+from payload import FILES, source_identity
 
 
 INTEGRATION_NAMES=['startup', 'factory initialization', 'discovery and assignment', 'mode b', 'mode f', 'mode o', 'LCD bytes and alternation', 'temperature units', 'default actions retain persistence quirks', 'profile disabled segment and resumption', 'calibration, deactivation, and manual output', 'reset and rediscovery', 'evolving temperatures and control states', 'actual process restart', 'logs and chart', 'maintenance log viewer', 'browser execution']
@@ -33,9 +33,9 @@ def input_evidence(directory, kind):
     if mode!='packaged-input':return
     manifest_bytes=Path(os.environ['RMX_PAYLOAD_MANIFEST']).read_bytes()
     manifest=json.loads(manifest_bytes)
-    expected_identity=dict(manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),source_commit=os.environ['RMX_CANDIDATE_COMMIT'],
+    expected_identity=dict(manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),**source_identity(manifest),
         candidate_version='0.0.1-rc.1',architecture=manifest['architecture'],files=manifest['files'])
-    if manifest.get('source_commit')!=expected_identity['source_commit'] or manifest.get('candidate_version')!='0.0.1-rc.1':
+    if manifest.get('candidate_version')!='0.0.1-rc.1':
         raise ValueError('wrong frozen payload manifest identity')
     def bound(row):
         return row.get('mode')=='packaged-input' and all(row.get(k)==v for k,v in expected_identity.items())

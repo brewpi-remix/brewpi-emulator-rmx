@@ -17,6 +17,7 @@ from source_inputs import inventory as source_inventory
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"ci"))
 from payload import selected, Payload, native_arch, preflight, sha
 from native import save_execution
+from version import version_output
 
 ROOT=Path('/qualification')
 OUT=Path('/evidence')
@@ -136,9 +137,9 @@ def main():
         shared_binary=shared_stage/PREFIX.relative_to('/')/'bin/brewpi-emulator-rmx'
         shared_deps=command(['ldd',str(shared_binary)],'shared-option-libraries.txt')
         assert 'not found' not in shared_deps and 'librmx_protocol' not in shared_deps
-        assert command([str(shared_binary),'--version']).strip()=='brewpi-emulator-rmx 0.1.0 (development)'
+        assert command([str(shared_binary),'--version']).strip()==version_output('/work')
         version=command([str(binary),'--version'],'application-version.txt')
-        assert version.strip()==(payload.manifest['application_version_output'] if payload else 'brewpi-emulator-rmx 0.1.0 (development)')
+        assert version.strip()==(payload.manifest['application_version_output'] if payload else version_output('/work'))
         installed=Payload(PREFIX,os.environ['RMX_PAYLOAD_MANIFEST']) if payload else None
         if installed:installed.verify('before-runtime',OUT/'payload-execution.jsonl')
         installed_hashes={row['path']:sha(PREFIX/row['path']) for row in inventory}

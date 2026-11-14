@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
                 return 0;
             }
             if (arg == "--version") {
-                std::cout << "brewpi-emulator-rmx " RMX_VERSION " (development)\n";
+                std::cout << "brewpi-emulator-rmx " RMX_VERSION "\n";
                 return 0;
             }
             if (i + 1 == argc)
