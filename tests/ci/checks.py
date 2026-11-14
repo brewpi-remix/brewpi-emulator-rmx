@@ -3,6 +3,7 @@
 """Original R2 negative gates. Synthetic inputs are not release artifacts."""
 import base64
 import copy
+import io
 import json
 import os
 from pathlib import Path
@@ -176,6 +177,17 @@ class ReviewGates(unittest.TestCase):
                            env=dict(os.environ,RMX_NEEDS=json.dumps(needs)),check=True)
             with self.assertRaises(ValueError):emit_receipt(dict(raw='x'*8192),output)
             self.assertEqual(len(output.read_text().splitlines()),8)
+
+    def test_failure_locations_omit_external_capture_values(self):
+        from gate import integration_diagnostics
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);folder=root/'integration';folder.mkdir()
+            (folder/'integration-before-launcher-failure.json').write_text(json.dumps(dict(error='File "/work/tests/integration/lab.py", line 12, in prepare\nAssertionError: EXTERNAL_CAPTURE_MUST_STAY_PRIVATE')))
+            output=io.StringIO()
+            with patch('gate.sys.stderr',output):integration_diagnostics(root)
+            self.assertIn('lab.py:12 in prepare',output.getvalue())
+            self.assertNotIn('EXTERNAL_CAPTURE_MUST_STAY_PRIVATE',output.getvalue())
+            self.assertNotIn('/work/',output.getvalue())
 
     def test_native_architecture_proof(self):
         for lane in ['linux-arm64-release','linux-amd64-sanitizers','macos-arm64-development']:

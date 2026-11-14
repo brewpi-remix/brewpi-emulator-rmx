@@ -5,6 +5,7 @@ import base64
 import json
 import hashlib
 import math
+import re
 import os
 from pathlib import Path
 import platform
@@ -98,8 +99,25 @@ def command(args, log, **kwargs):
 def helpers(out):
     paths=HELPERS
     for path in paths:
-        command([sys.executable,ROOT/path],out/(Path(path).parent.name+'-'+Path(path).stem+'.log'))
+        log=out/(Path(path).parent.name+'-'+Path(path).stem+'.log')
+        try:command([sys.executable,ROOT/path],log)
+        except subprocess.CalledProcessError:
+            # These are original stdlib/mock helper diagnostics, never live client captures.
+            print(log.read_text()[-16000:],file=sys.stderr)
+            raise
     return paths
+
+
+def integration_diagnostics(out):
+    # Report original harness locations only, excluding captured response values.
+    for name in ['integration-before-launcher-failure.json','integration-results.json']:
+        path=out/'integration'/name
+        if not path.exists():continue
+        error=json.loads(path.read_text()).get('error') or ''
+        for filename,line,function in re.findall(r'File "([^"]+)", line (\d+), in ([\w<>]+)',error):
+            if '/tests/' in filename:
+                print('Original harness failure location: '+Path(filename).name+':'+line+' in '+function,file=sys.stderr)
+        break
 
 
 def execute(lane, out):
@@ -134,8 +152,12 @@ def execute(lane, out):
         image=os.environ.get('RMX_INTEGRATION_IMAGE','brewpi-emulator-m4-tools:local')
         image_arch=subprocess.check_output(['docker','image','inspect','--format','{{.Architecture}}',image],text=True).strip()
         if image_arch!='arm64':raise ValueError('host-panel guest image must be ARM64')
-        command(['bash',ROOT/'tests/integration/run-isolated.sh',ROOT.parent/'brewpi-script-rmx',
-                 ROOT.parent/'brewpi-www-rmx',out/'integration'],out/'integration-launcher.log')
+        try:
+            command(['bash',ROOT/'tests/integration/run-isolated.sh',ROOT.parent/'brewpi-script-rmx',
+                     ROOT.parent/'brewpi-www-rmx',out/'integration'],out/'integration-launcher.log')
+        except subprocess.CalledProcessError:
+            integration_diagnostics(out)
+            raise
         sys.path.insert(0,str(ROOT/'tests/qualification'))
         from evidence import validate_integration
         validate_integration(out/'integration')

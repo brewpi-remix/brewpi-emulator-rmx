@@ -1,0 +1,19 @@
+# R2 publication and hosted CI
+
+Date: November 14, 2026. The owner authorized committing/pushing reviewed R2 to main and verifying hosted CI, preserving 0.0.1-rc.1, Arduino behavior, and independent MIT licensing. R3, releases/tags, repository-rule activation, deployment, physical Pi qualification, systemd activation, and Arduino characterization remain excluded.
+
+## Published source and attempts
+
+The reviewed R2 work was published as 2f3d427ed929303d1f673f4ed66ca32129a1af1d. Its [first hosted run](https://github.com/brewpi-remix/brewpi-emulator-rmx/actions/runs/43593053320), attempt 1, is retained as a failed/incomplete acceptance attempt. Specification and native amd64 Release/sanitizer lanes passed; the complete nine-context result is not accepted because helper/macOS and host/panel jobs failed. Full final outcomes will be recorded after the run completes, rather than carrying partial passes into another source identity.
+
+Hosted execution exposed an inherited test-setting issue: the workflow's RMX_INTEGRATION_SKIP_BUILD=1 was inherited by a mocked build-failure regression, so it skipped the very build the test intended to fail. The mock now explicitly sets its own build mode, and the regression exercises an ambient skip-build setting. The production integration launcher still uses its explicitly selected tool-image reuse mode.
+
+A separate Linux setup issue was reproduced with an original temporary Git fixture: root in the guest cannot clone a runner-owned source repository without safe-directory configuration reaching Git's nested process. Command-line -c settings alone did not reach the nested upload-pack. The original helper now supplies a temporary protected Git configuration with only the verified read-only checkout and its .git path. No wildcard trust, source/reference edit, host Git configuration change, or reference implementation incorporation occurs. A new original regression checks this scope; the actual cross-owner clone passed in the isolated Debian guest, recorded in ignored runs/r2-hosted/reference-ownership.json. The next hosted run must confirm the full client workflow rather than infer compatibility from that focused reproduction.
+
+Failure diagnostics now print bounded original mock-helper diagnostics and original integration harness filenames/line numbers. External client values, wire captures, screenshots, and package notices are not printed or uploaded by the integration diagnostic path. An original negative test verifies captured values are omitted. The helper inventory is now 49 tests: 13 integration, seven qualification-launcher, six readiness, and 23 CI/payload/review checks; named protocol/native/workflow gates and all nine unresolved characterization cases remain unchanged.
+
+## Verification status
+
+Hosted verification continues against the corrected committed source, with exact run/attempt/job/receipt identities retained under ignored runs/r2-hosted. A later passing source identity must execute all nine contexts itself. No failed, skipped, neutral, cancelled, missing, stale, or mixed-attempt result is accepted. Locally reproduced failure fixes do not establish hosted success. Detailed external evidence remains ephemeral/private, while the workflow uploads original summaries for seven days. Retain the downloaded summaries locally before expiration.
+
+Original source, protocol/default/diagnostic fixtures, firmware identity, selected application candidate 0.0.1-rc.1, root MIT license, and independent authorship remain unchanged. The current executable development label is still reserved for later R4 metadata work; CI publication is not a release candidate publication.

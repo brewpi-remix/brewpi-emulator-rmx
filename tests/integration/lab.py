@@ -13,6 +13,7 @@ import hashlib
 import importlib.metadata
 import subprocess
 import threading
+import tempfile
 import time
 import tty
 import sys
@@ -112,6 +113,20 @@ class Lab:
         return subprocess.Popen(args, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True)
 
+    @staticmethod
+    def clone_reference(source, destination):
+        # The caller verifies the frozen HEAD first. Trust only the two exact
+        # paths of that read-only mounted checkout inside this disposable guest.
+        with tempfile.TemporaryDirectory(prefix='rmx-reference-git-') as temporary:
+            config=Path(temporary)/'gitconfig'
+            for trusted in [source,source+'/.git']:
+                subprocess.run(['git','config','--file',str(config),'--add','safe.directory',trusted],check=True)
+            # Git's nested upload-pack does not retain clone's -c options.
+            # A private protected-config file reaches that child without
+            # changing the host or guest's ordinary global Git configuration.
+            subprocess.run(['git','clone','--no-hardlinks',source,str(destination)],
+                           check=True,env=dict(os.environ,GIT_CONFIG_GLOBAL=str(config)))
+
     def prepare(self):
         preflight()
         self.payload = selected()
@@ -129,8 +144,7 @@ class Lab:
             revision = subprocess.check_output(['git','-c',f'safe.directory={source}',
                 '-C',source,'rev-parse','HEAD'],text=True).strip()
             assert revision == pins[source], (source,revision)
-            subprocess.run(['git', '-c', f'safe.directory={source}', 'clone', '--no-hardlinks',
-                            source, str(LAB/destination)], check=True)
+            self.clone_reference(source,LAB/destination)
         self.mutable_reference_inputs = {'host/settings/tempProfile.csv'}
         for folder in ['host','www']:
             clone=LAB/folder

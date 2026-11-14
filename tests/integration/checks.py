@@ -58,7 +58,7 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
 
     def launch(self,evidence,mode='ok'):
         env=dict({k:v for k,v in os.environ.items() if k not in {'RMX_EXECUTION_MODE','RMX_PAYLOAD_ROOT','RMX_PAYLOAD_MANIFEST','RMX_CANDIDATE_COMMIT'}},PATH=str(self.bin)+os.pathsep+os.environ['PATH'],
-                 RMX_TEST_CALLS=str(self.calls),RMX_TEST_MODE=mode)
+                 RMX_TEST_CALLS=str(self.calls),RMX_TEST_MODE=mode,RMX_INTEGRATION_SKIP_BUILD='0')
         return subprocess.run(['bash',str(LAUNCHER),str(self.root),str(self.root),str(evidence)],
                               env=env,capture_output=True,timeout=10)
 
@@ -73,7 +73,8 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
 
     def test_build_failure_has_failed_report(self):
         evidence=self.root/'build'
-        result=self.launch(evidence,'build-fail')
+        with patch.dict(os.environ,RMX_INTEGRATION_SKIP_BUILD='1'):
+            result=self.launch(evidence,'build-fail')
         self.assertEqual(result.returncode,9)
         self.assertEqual(json.loads((evidence/'integration-results.json').read_text())['status'],'failed')
         self.assertEqual(json.loads((evidence/'launcher-results.json').read_text())['exit_code'],9)
@@ -130,6 +131,15 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
         self.assertEqual(relay_trace.frames(path,'T',2),[dict(State=4),dict(State=0)])
         with path.open('a') as output:output.write('not JSON\n')
         with self.assertRaises(ValueError):relay_trace.records(path)
+
+    def test_reference_clone_trust_is_scoped_to_mounted_checkout(self):
+        with patch('lab.subprocess.run') as run:
+            lab.Lab.clone_reference('/refs/script',Path('/lab/host'))
+        configs=[call.args[0] for call in run.call_args_list if call.args[0][:2]==['git','config']]
+        self.assertEqual([args[-1] for args in configs],['/refs/script','/refs/script/.git'])
+        self.assertTrue(all(args[2]=='--file' and '--global' not in args for args in configs))
+        self.assertEqual(run.call_args.kwargs['env']['GIT_CONFIG_GLOBAL'],configs[0][3])
+        self.assertIn('--no-hardlinks',run.call_args.args[0])
 
     def test_reference_assets_are_audited(self):
         asset=self.root/'panel.png';asset.write_bytes(b'original external asset')
