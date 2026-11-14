@@ -49,3 +49,5 @@ The [milestone 4 provenance record](milestone-4.md) covers original isolated int
 The [milestone 5 provenance record](milestone-5.md) covers original operating/readiness/qualification helpers, generated service configuration, staged install contents, and external system-library inspection. It does not claim physical Pi qualification, a release, or an MIT license for the external tool image/system libraries.
 
 The [cross-milestone review](../development/cross-milestone-review.md) records original host-path/UTF-8 fixes, test evidence gates, shared original helper provenance, saved static validation, and unchanged reference/wire/license boundaries after the five published milestones. No additional third-party component is incorporated.
+
+The [R2 provenance record](software-release-r2.md) covers original CI/payload/evidence helpers, pinned external actions/linter/minimum-tool sources, package hash metadata, local validation, and pending hosted results. No incorporated runtime dependency or reference implementation is added.

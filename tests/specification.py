@@ -5,7 +5,9 @@
 Requires this Git checkout and the prepared sibling reference repositories.
 References are read with git show; no reference code is imported or executed.
 """
-import json,re,subprocess,collections
+import json,re,subprocess,collections,os
+if not __debug__ or os.environ.get("PYTHONOPTIMIZE", "") not in ("", "0"):
+ raise SystemExit("Python assertions must be enabled")
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]; base=root/'engineering/protocol/test-vectors'
 def pairs(xs):

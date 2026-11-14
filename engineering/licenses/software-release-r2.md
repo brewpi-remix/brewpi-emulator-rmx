@@ -1,0 +1,30 @@
+# R2 provenance and external inputs
+
+Date: November 14, 2026. Review scope: local CI/harness work, preserving independent MIT licensing and 0.0.1-rc.1. The [R2 execution record](../development/software-release-r2.md) distinguishes local evidence from pending hosted/native amd64 results and later candidate acceptance. No release contents have been created or audited as accepted artifacts.
+
+## Original material
+
+The workflow, ci helpers/negative tests/reference revision inventory, payload manifest/fixture helper, floor recipe, source audit extensions, explicit launcher modes, evidence gates, and supporting prose were authored independently as original MIT material, copyright 2026 Lee Bussy. Existing helpers reused here belong to this original MIT project. No BrewPi/Fuscus implementation, routine, tests, generated table, assets, or source organization was copied, translated, or adapted. Required reference revisions, tool hashes, ELF identifiers, and interoperability values are factual metadata. The Python requirement lock records upstream archive hashes, with original declaration syntax; it contains no downloaded package code.
+
+Production src, reviewed wire/default/diagnostic JSON fixtures, root license, and historical HANDOFF/SETUP remain unchanged. The CMake edit checks test-interpreter assertions; it changes no application/serial version, protocol behavior, controller mathematics, or runtime dependency. No new incorporated third-party library or bundled runtime component exists.
+
+## External tools and inputs
+
+| Input | Exact selected identity and terms | Role and disposition |
+| --- | --- | --- |
+| [actions/checkout](https://github.com/actions/checkout/tree/11bd71901bbe5b1630ceea73d27597364c9af683) | v4.2.2, 11bd71901bbe5b1630ceea73d27597364c9af683; upstream MIT, dependencies retain their notices. | External hosted checkout tool, persist-credentials=false; no upstream bytes vendored. |
+| [actions/upload-artifact](https://github.com/actions/upload-artifact/tree/ea165f8d65b6e75b540449e92b4886f43607fa02) | v4.6.2, ea165f8d65b6e75b540449e92b4886f43607fa02; upstream MIT, dependencies retain their notices. | External hosted original-summary transfer only, no emulator/release/raw-client upload. |
+| [actionlint](https://github.com/rhysd/actionlint/releases/tag/v1.7.7) | v1.7.7, MIT; official Darwin ARM64 archive SHA256 2693315b9093aeacb4ebd91a993fea54fc215057bf0da2659056b4bc033873db, Linux amd64 archive 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757. | External workflow syntax checker downloaded into a temporary directory; checksums verified against upstream release metadata. No code vendored. |
+| [CMake](https://cmake.org/files/v3.16/) | 3.16.9, BSD-3-Clause project terms plus bundled components' notices; official source archive SHA256 1708361827a5a0de37d55f5c9698004c035abb1de6120a376d5d59a81630191f. | External minimum-tool build only inside disposable image, not an incorporated emulator library or distributed payload. |
+| [CPython](https://www.python.org/downloads/release/python-3925/) | 3.9.25, PSF-2.0 and retained component/history notices; official .tar.xz SHA256 00e07d7c0f2f0cc002432d1ee84d2a40dae404a99303e3f97701c10966c91834. | External minimum-test interpreter, not required by the core executable. |
+| Debian tool images | Existing bookworm-slim immutable index 99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3; Debian and security snapshots 20261113T000000Z; individual package licenses unchanged. | Disposable GCC 12/native and separate host/panel test environment. Actual image identities, installed package versions, loader dependencies, and notices remain ignored execution evidence. No image redistribution. |
+| Existing Python host/browser tools | Existing exact requirements plus [PyPI archive hashes](../../tests/integration/requirements.lock); Playwright Apache-2.0, certifi MPL-2.0, other package/dependency terms unchanged. | External test packages only; pip requires declared hashes, with no vendored wheel/source bytes. See the [milestone 4 inventory](milestone-4.md). |
+| Six reference repositories | Exact [revision inventory](../../tests/ci/references.json), retaining upstream terms and notices. | Separate source-citation inputs and unmodified host/panel clients. Their sources/assets remain outside original source and release trees. Raw captures are not relabeled MIT. |
+
+Action revisions were verified through the official GitHub repository APIs, and the linter archives against the upstream release checksum list. Floor source hashes were computed from the official TLS downloads and frozen before builds; they are input hashes, not signatures. The snapshot's signed package metadata and immutable base identify provisioning inputs; actual candidate architecture-specific dependency hashes, ABI/ISA limits, final package notices, and clean-runtime inspection remain R4/R5 gates. A short CI test image is not an accepted binary distribution or an MIT relicensing of its contents.
+
+## Review disposition
+
+No downloaded action, linter, compiler/runtime library, source archive, wheel, client capture, artwork, notice dump, or test-tool binary is tracked in this change. Generated builds/stages/reports stay ignored. Original-source headers identify MIT/copyright; JSON revision metadata is covered by the adjacent ci README and root license. The root incorporation inventory remains empty; [third-party notices](../../THIRD_PARTY_NOTICES.md) link this external-tool disposition. Owner review remains pending, and no claim of release license completeness is made.
+
+The [R2 follow-up review](../development/software-release-r2-review.md) adds independently authored bounded receipts, deferred wrapper completion, exact native execution evidence, manifest-bound finalization, disposable-guest and MIT-license guards, negative tests, and an original sanitizer canary in ignored evidence. It introduces no additional third-party code/tool or reference-derived material. Optional sanitizer flags make findings fatal; application/firmware versions, normal Release behavior, and the reviewed protocol oracles remain unchanged.

@@ -18,6 +18,9 @@ import tty
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from source_inputs import inventory
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"ci"))
+from payload import selected, sha, preflight
+from native import save_execution, copy_test_log
 
 LAB = Path('/lab')
 EVIDENCE = Path('/evidence')
@@ -99,6 +102,9 @@ class Lab:
         self.session = 0
         self.disposed = False
         self.host_exits = []
+        self.payload = None
+        self.executable = "/lab/build/brewpi-emulator-rmx"
+        self.binary_hash = None
 
     def spawn(self, args, name, cwd=None):
         log = (EVIDENCE / (name+'.log')).open('ab', buffering=0)
@@ -107,6 +113,8 @@ class Lab:
                                 start_new_session=True)
 
     def prepare(self):
+        preflight()
+        self.payload = selected()
         LAB.mkdir(exist_ok=True)
         EVIDENCE.mkdir(exist_ok=True)
         self.source_hashes=inventory(self.source_root)
@@ -153,9 +161,17 @@ logJson = True
         subprocess.run(['cmake', '-S', '/work', '-B', '/lab/build',
                         '-DCMAKE_BUILD_TYPE=Debug'], check=True)
         subprocess.run(['cmake', '--build', '/lab/build', '-j4'], check=True)
-        subprocess.run(['ctest','--test-dir','/lab/build','--output-on-failure'],check=True)
-        shutil.copyfile('/lab/build/Testing/Temporary/LastTest.log',EVIDENCE/'native-tests.log')
+        subprocess.run(['ctest','-T','Test','--output-on-failure'],cwd='/lab/build',check=True)
+        save_execution('/lab/build','debug')
+        copy_test_log('/lab/build',EVIDENCE/'native-tests.log')
         shutil.copytree('/lab/build/test-results',EVIDENCE/'native-test-results',dirs_exist_ok=True)
+        if self.payload:
+            self.executable = str(self.payload.binary)
+            self.payload.verify('before-integration',EVIDENCE/'payload-execution.jsonl')
+        self.binary_hash = sha(self.executable)
+        (EVIDENCE/'execution-input.json').write_text(json.dumps(dict(
+            mode='packaged-input' if self.payload else 'source-build',executable=self.executable,
+            sha256=self.binary_hash,native_driver_scope='separate source-build checks'))+'\n')
         versions = subprocess.check_output(['sh', '-c',
             'python3 --version; php --version; chromium --version; c++ --version; cmake --version; pip freeze'], text=True)
         (EVIDENCE/'tool-versions.txt').write_text(versions)
@@ -168,7 +184,12 @@ logJson = True
             subprocess.run(['php','-m'],stdout=target,check=True)
 
     def start_emulator(self, speed=1, resume=False):
-        args = ['/lab/build/brewpi-emulator-rmx', '--serial', '/lab/emulator-serial',
+        if self.payload:
+            self.payload.verify('restart-'+str(self.session+1),EVIDENCE/'payload-execution.jsonl')
+        assert sha(self.executable)==self.binary_hash,'executable substituted before restart'
+        with (EVIDENCE/'executable-hashes.jsonl').open('a') as output:
+            output.write(json.dumps(dict(phase='restart-'+str(self.session+1),sha256=sha(self.executable)))+'\n')
+        args = [self.executable, '--serial', '/lab/emulator-serial',
                 '--state', '/lab/controller.json', '--checkpoint', '/lab/checkpoint.json',
                 '--speed', str(speed)]
         if resume:
@@ -261,6 +282,14 @@ logJson = True
         attempt('evidence collection',collect)
         attempt('reference integrity',self.audit_references)
         attempt('original source integrity',self.audit_source)
+        if self.payload:
+            attempt('payload integrity',lambda:self.payload.verify('after-integration',EVIDENCE/'payload-execution.jsonl'))
+        if self.binary_hash:
+            def binary_unchanged():
+                assert sha(self.executable)==self.binary_hash,'executable changed during execution'
+                with (EVIDENCE/'executable-hashes.jsonl').open('a') as output:
+                    output.write(json.dumps(dict(phase='after-integration',sha256=sha(self.executable)))+'\n')
+            attempt('executable integrity',binary_unchanged)
         for log in self.logs:
             attempt('log close',log.close)
         (EVIDENCE/'cleanup-results.json').write_text(json.dumps(dict(

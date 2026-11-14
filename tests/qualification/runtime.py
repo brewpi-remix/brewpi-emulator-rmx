@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Original unprivileged Linux qualification through real PTY processes."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import signal
@@ -13,10 +14,22 @@ import time
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from transport import Session, EXE
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'ci'))
+from payload import selected
+payload=selected()
+original_popen=subprocess.Popen
+execution_hashes={str(Path(EXE)):hashlib.sha256(Path(EXE).read_bytes()).hexdigest()}
+def checked_popen(*args,**kwargs):
+    for name,digest in execution_hashes.items():
+        assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==digest,'runtime executable/helper substituted'
+    if payload:payload.verify('runtime-process-start',os.environ['RMX_PAYLOAD_RECEIPT'])
+    return original_popen(*args,**kwargs)
+subprocess.Popen=checked_popen
 
 ROOT=Path('/qualification/runtime')
 OUT=Path('/qualification/results')
-READY='/opt/brewpi-emulator-rmx/libexec/brewpi-emulator-rmx/wait-ready.py'
+READY=str(payload.tree/'libexec/brewpi-emulator-rmx/wait-ready.py') if payload else '/opt/brewpi-emulator-rmx/libexec/brewpi-emulator-rmx/wait-ready.py'
+execution_hashes[READY]=hashlib.sha256(Path(READY).read_bytes()).hexdigest()
 DEFAULTS=json.loads(Path('/work/engineering/protocol/test-vectors/defaults-v1.json').read_text())
 IDENTITY=DEFAULTS['identity']
 

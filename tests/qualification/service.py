@@ -17,6 +17,8 @@ def exercise(unit, out):
     assert config['Service']['User']=='brewpi' and config['Service']['Group']=='brewpi'
     mask=int(config['Service']['UMask'],8)
     start=shlex.split(config['Service']['ExecStart'].replace('%i','chamber1'))
+    prefix=unit.parents[3]
+    assert start[0]==str(prefix/'bin/brewpi-emulator-rmx'),'unit executable differs from installed payload'
     serial=Path(start[start.index('--serial')+1])
     state=Path(start[start.index('--state')+1])
     for path in [serial.parent,state.parent]:
@@ -28,6 +30,7 @@ def exercise(unit, out):
                                  stdout=log,stderr=subprocess.STDOUT,start_new_session=True,umask=mask)
         try:
             post=shlex.split(config['Service']['ExecStartPost'].replace('%i','chamber1').replace('${MAINPID}',str(process.pid)))
+            assert post[0]==str(prefix/'libexec/brewpi-emulator-rmx/wait-ready.py'),'unit helper differs from installed payload'
             ready=subprocess.run(post,user=2001,group=2001,extra_groups=[],capture_output=True,text=True,timeout=15,umask=mask)
             log.write(ready.stdout+ready.stderr);log.flush()
             assert ready.returncode==0,ready.stderr

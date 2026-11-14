@@ -10,6 +10,17 @@ image=${RMX_INTEGRATION_IMAGE:-brewpi-emulator-m4-tools:local}
 script_ref=$(CDPATH= cd -- "$script_ref" && pwd)
 panel_ref=$(CDPATH= cd -- "$panel_ref" && pwd)
 command -v python3 >/dev/null
+python3 -c 'import os; exec("if not __debug__ or os.environ.get(\"PYTHONOPTIMIZE\",\"\") not in (\"\",\"0\"):\n raise SystemExit(\"Python assertions must be enabled\")")'
+payload_args=()
+case ${RMX_EXECUTION_MODE:-source-build} in
+    source-build) [ -z "${RMX_PAYLOAD_ROOT:-}${RMX_PAYLOAD_MANIFEST:-}" ] || exit 2 ;;
+    packaged-input)
+        payload_root=$(CDPATH= cd -- "${RMX_PAYLOAD_ROOT:?}" && pwd)
+        payload_manifest=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "${RMX_PAYLOAD_MANIFEST:?}")
+        payload_args=(-v "$payload_root:/payload:ro" -v "$payload_manifest:/payload-manifest.json:ro"
+            -e "RMX_CANDIDATE_COMMIT=${RMX_CANDIDATE_COMMIT:?}" -e RMX_EXECUTION_MODE=packaged-input -e RMX_PAYLOAD_ROOT=/payload -e RMX_PAYLOAD_MANIFEST=/payload-manifest.json) ;;
+    *) exit 2 ;;
+esac
 mkdir -p -- "$(dirname -- "$evidence")"
 # Reserve atomically. A prior run's result or serial history is never reusable.
 if ! mkdir -- "$evidence"; then
@@ -47,6 +58,6 @@ esac
 image_id=$(docker image inspect --format '{{.Id}}' "$image")
 docker image inspect "$image_id" > "$evidence/image-inspect.json"
 docker run --rm --init --cidfile "$evidence/container.cid" --network none --shm-size 256m --tmpfs /lab:exec \
-    -v "$repo_root:/work:ro" -v "$script_ref:/refs/script:ro" \
+    "${payload_args[@]}" -v "$repo_root:/work:ro" -v "$script_ref:/refs/script:ro" \
     -v "$panel_ref:/refs/panel:ro" -v "$evidence:/evidence" \
     "$image_id" timeout --signal=TERM --kill-after=20 900 python3 -u /work/tests/integration/run.py

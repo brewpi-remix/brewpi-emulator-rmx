@@ -1,0 +1,224 @@
+# Copyright 2026 Lee Bussy
+# SPDX-License-Identifier: MIT
+name: regression
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  specification:
+    name: specification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Prepare separate pinned references
+        run: python3 tests/ci/references.py "$(dirname "$GITHUB_WORKSPACE")"
+      - name: Check workflow syntax with pinned actionlint
+        run: python3 tests/ci/workflow.py
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/gate.py specification runs/ci/specification
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: specification-${{ github.run_attempt }}
+          path: runs/ci/specification/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  helper-regressions:
+    name: helper-regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/gate.py helper-regressions runs/ci/helper-regressions
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: helper-regressions-${{ github.run_attempt }}
+          path: runs/ci/helper-regressions/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  linux-amd64-release:
+    name: linux-amd64-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/linux.py linux-amd64-release
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: linux-amd64-release-${{ github.run_attempt }}
+          path: runs/ci/linux-amd64-release/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  linux-amd64-sanitizers:
+    name: linux-amd64-sanitizers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/linux.py linux-amd64-sanitizers
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: linux-amd64-sanitizers-${{ github.run_attempt }}
+          path: runs/ci/linux-amd64-sanitizers/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  linux-arm64-release:
+    name: linux-arm64-release
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/linux.py linux-arm64-release
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: linux-arm64-release-${{ github.run_attempt }}
+          path: runs/ci/linux-arm64-release/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  linux-arm64-sanitizers:
+    name: linux-arm64-sanitizers
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/linux.py linux-arm64-sanitizers
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: linux-arm64-sanitizers-${{ github.run_attempt }}
+          path: runs/ci/linux-arm64-sanitizers/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  macos-arm64-development:
+    name: macos-arm64-development
+    runs-on: macos-15
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/gate.py macos-arm64-development runs/ci/macos-arm64-development
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: macos-arm64-development-${{ github.run_attempt }}
+          path: runs/ci/macos-arm64-development/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  host-panel-arm64:
+    name: host-panel-arm64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    outputs:
+      receipt: ${{ steps.execute.outputs.receipt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Prepare separate pinned references
+        run: python3 tests/ci/references.py "$(dirname "$GITHUB_WORKSPACE")"
+      - name: Prepare disposable external tool image
+        run: docker build -t brewpi-emulator-m4-tools:local -f tests/integration/Dockerfile tests/integration
+      - name: Execute required lane
+        id: execute
+        env:
+          RMX_INTEGRATION_SKIP_BUILD: '1'
+        run: python3 tests/ci/gate.py host-panel-arm64 runs/ci/host-panel-arm64
+      - name: Retain original summary only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: host-panel-arm64-${{ github.run_attempt }}
+          path: runs/ci/host-panel-arm64/receipt.json
+          retention-days: 7
+          if-no-files-found: error
+  pr-validation:
+    name: pr-validation
+    if: ${{ always() }}
+    needs: [specification, helper-regressions, linux-amd64-release, linux-amd64-sanitizers, linux-arm64-release, linux-arm64-sanitizers, macos-arm64-development, host-panel-arm64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Require all execution receipts from this run and attempt
+        env:
+          RMX_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tests/ci/gate.py pr-validation runs/ci/pr-validation
+      - name: Retain original completion summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: pr-validation-${{ github.run_attempt }}
+          path: runs/ci/pr-validation/receipt.json
+          retention-days: 7
+          if-no-files-found: error

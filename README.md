@@ -19,6 +19,7 @@ Implemented development capabilities include device discovery and assignment, st
 - [Project contract](CONTRACT.md): scope, independent implementation, MIT licensing, and authorization boundaries.
 - [Implementation plan](IMPLEMENTATION_PLAN.md): source-backed compatibility review, architecture, milestones, risks, and proposed acceptance checks.
 - [Remaining software and release plan](engineering/development/software-release-plan.md): proposed support/CI/stability/artifact/licensing/candidate work, excluding Pi, systemd activation, and Arduino characterization.
+- [R2 CI and regression execution](engineering/development/software-release-r2.md): prepared workflows, explicit payload modes, local validation, and pending hosted execution.
 - [R1 support and release policy](engineering/development/software-release-policy.md): selected first candidate 0.0.1-rc.1, support matrix, CI gates, resource budgets, and publication boundaries; documentation only.
 - [Protocol contract and fixtures](engineering/protocol/README.md): defaults/units, diagnostic metadata, firmware quirks, and original specification vectors.
 - [Engineering index](engineering/README.md): architecture, development, protocol, and licensing records.
@@ -37,7 +38,7 @@ Implemented development capabilities include device discovery and assignment, st
 | `systemd/` | Original optional per-instance service example; no activation. |
 | `engineering/` | Design, development, protocol, and provenance documentation. |
 | `docs/` | Build, integration, staged-install, and operating guidance. |
-| `.github/` | Contribution templates; no active CI or publication automation. |
+| `.github/` | Contribution templates and locally prepared regression workflow; hosted execution pending. |
 
 ## License and provenance
 

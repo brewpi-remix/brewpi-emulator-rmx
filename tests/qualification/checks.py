@@ -1,6 +1,9 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
 """Original negative/byte-preservation tests for the operational readiness gate."""
+if not __debug__:
+    raise SystemExit("Python assertions must be enabled")
+
 import importlib.util
 import os
 from pathlib import Path

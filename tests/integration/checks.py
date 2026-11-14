@@ -1,6 +1,9 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
 """Original negative regressions for integration evidence and isolation gates."""
+if not __debug__:
+    raise SystemExit("Python assertions must be enabled")
+
 import hashlib
 import json
 import os
@@ -33,7 +36,7 @@ if args[:2]==['image','inspect']:print('sha256:review-image' if '--format' in ar
 if args[0]=='run':
  evidence=next(args[i+1][:-len(':/evidence')] for i in range(len(args)-1) if args[i]=='-v' and args[i+1].endswith(':/evidence'))
  Path(args[args.index('--cidfile')+1]).write_text('only-this-test-container')
- result=dict(status='passed',workflows=[dict(status='passed')]*17,browser_errors=[])
+ result=dict(status='passed',workflows=[dict(name=name,status='passed') for name in ['startup', 'factory initialization', 'discovery and assignment', 'mode b', 'mode f', 'mode o', 'LCD bytes and alternation', 'temperature units', 'default actions retain persistence quirks', 'profile disabled segment and resumption', 'calibration, deactivation, and manual output', 'reset and rediscovery', 'evolving temperatures and control states', 'actual process restart', 'logs and chart', 'maintenance log viewer', 'browser execution']],browser_errors=[])
  Path(evidence,'integration-results.json').write_text(json.dumps(result))
  if os.environ['RMX_TEST_MODE']!='missing-child':
   Path(evidence,'cleanup-results.json').write_text(json.dumps(dict(status='failed' if os.environ['RMX_TEST_MODE']=='cleanup-fail' else 'passed',errors=[],host_exits=[0])))
@@ -41,6 +44,9 @@ if args[0]=='run':
   Path(evidence,'reference-code-integrity.json').write_text(json.dumps(dict(unchanged=True,checked_files=1)))
   Path(evidence,'native-test-results').mkdir()
   Path(evidence,'native-test-results/milestone3-fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
+  Path(evidence,'native-test-results/execution.json').write_text(json.dumps(dict(status='passed',kind='debug',suites=['milestone3-model', 'milestone3-dynamics', 'milestone3-process', 'milestone2-fixtures', 'milestone2-edges', 'milestone2-pty'],counts=dict(passed=48,unresolved_reference_characterization=9))))
+  Path(evidence,'execution-input.json').write_text(json.dumps(dict(mode='source-build',sha256='test-hash')))
+  Path(evidence,'executable-hashes.jsonl').write_text(''.join(json.dumps(dict(phase=p,sha256='test-hash'))+'\\n' for p in ['restart-1','restart-2','restart-3','after-integration']))
  if os.environ['RMX_TEST_MODE']=='run-fail':sys.exit(7)
 if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-remains':print('only-this-test-container')
 if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit(8)
@@ -51,7 +57,7 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
         self.tmp.cleanup()
 
     def launch(self,evidence,mode='ok'):
-        env=dict(os.environ,PATH=str(self.bin)+os.pathsep+os.environ['PATH'],
+        env=dict({k:v for k,v in os.environ.items() if k not in {'RMX_EXECUTION_MODE','RMX_PAYLOAD_ROOT','RMX_PAYLOAD_MANIFEST','RMX_CANDIDATE_COMMIT'}},PATH=str(self.bin)+os.pathsep+os.environ['PATH'],
                  RMX_TEST_CALLS=str(self.calls),RMX_TEST_MODE=mode)
         return subprocess.run(['bash',str(LAUNCHER),str(self.root),str(self.root),str(evidence)],
                               env=env,capture_output=True,timeout=10)
@@ -137,7 +143,7 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
         self.assertFalse(report['unchanged'])
 
     def test_original_source_changes_are_audited(self):
-        for name in ['CMakeLists.txt','LICENSE.md','THIRD_PARTY_NOTICES.md']:
+        for name in ['CMakeLists.txt','LICENSE.md','THIRD_PARTY_NOTICES.md','AGENTS.md','CONTRACT.md','CONTRIBUTING.md','README.md']:
             (self.root/name).write_text('original test input')
         instance=lab.Lab();instance.source_root=self.root
         instance.source_hashes=lab.inventory(self.root)
