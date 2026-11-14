@@ -11,7 +11,7 @@ script_ref=$(CDPATH= cd -- "$script_ref" && pwd)
 panel_ref=$(CDPATH= cd -- "$panel_ref" && pwd)
 command -v python3 >/dev/null
 python3 -c 'import os; exec("if not __debug__ or os.environ.get(\"PYTHONOPTIMIZE\",\"\") not in (\"\",\"0\"):\n raise SystemExit(\"Python assertions must be enabled\")")'
-payload_args=()
+payload_args=(-e RMX_EXECUTION_MODE=source-build)
 case ${RMX_EXECUTION_MODE:-source-build} in
     source-build) [ -z "${RMX_PAYLOAD_ROOT:-}${RMX_PAYLOAD_MANIFEST:-}" ] || exit 2 ;;
     packaged-input)

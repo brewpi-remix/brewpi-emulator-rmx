@@ -54,7 +54,13 @@ def run(root, build, kind, cmake='cmake', python=sys.executable):
                 [str(Path(cmake).with_name('ctest')) if '/' in cmake else 'ctest', '-T', 'Test', '--output-on-failure']]
     for i, command in enumerate(commands):
         with (build / ('step-%d.log' % i)).open('w') as output:
-            subprocess.run(command, cwd=build, stdout=output, stderr=subprocess.STDOUT, check=True)
+            try:
+                subprocess.run(command, cwd=build, stdout=output, stderr=subprocess.STDOUT, check=True)
+            except subprocess.CalledProcessError:
+                output.flush()
+                # Native tests/builds contain original project diagnostics only.
+                print((build/('step-%d.log' % i)).read_text()[-24000:],file=sys.stderr)
+                raise
     fixtures = validate_build(build)
     report = dict(status='passed', kind=kind, suites=sorted(SUITES), counts=fixtures['counts'],
                   machine=platform.machine(), system=platform.system(), python=subprocess.check_output([python,'-c','import sys; print(sys.version)'],text=True).strip(),
