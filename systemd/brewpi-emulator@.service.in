@@ -1,0 +1,27 @@
+# Copyright 2026 Lee Bussy
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=BrewPi Emulator Remix (%i)
+
+[Service]
+Type=exec
+User=brewpi
+Group=brewpi
+UMask=0077
+RuntimeDirectory=brewpi-emulator/%i
+RuntimeDirectoryMode=0700
+StateDirectory=brewpi-emulator/%i
+StateDirectoryMode=0700
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/brewpi-emulator-rmx --serial /run/brewpi-emulator/%i/serial --state /var/lib/brewpi-emulator/%i/controller.json --speed 1
+ExecStartPost=@CMAKE_INSTALL_FULL_LIBEXECDIR@/brewpi-emulator-rmx/wait-ready.py --serial /run/brewpi-emulator/%i/serial --pid ${MAINPID} --timeout 10
+TimeoutStartSec=15
+TimeoutStopSec=15
+KillSignal=SIGTERM
+Restart=no
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -13,8 +13,9 @@ Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status des
 - ✅ Review milestone 2 and authorize its commit and push to main; milestone 3 was subsequently authorized for local implementation/validation.
 - ✅ Implement milestone 3 controller behavior, independent thermal model, clock, scenarios, and checkpoint resume; execute all 48 source-defined reviewed cases.
 - ✅ Review milestone 3, fix identified issues, and authorize its commit and push to main.
-- ✅ Complete and review milestone 4 isolated host/panel integration, fix identified issues, and authorize its setup, tests, and supporting docs for commit and push to main; milestone 5 remains unapproved.
-- ▧ Qualify the agreed Raspberry Pi/Linux target and document operating procedures.
+- ✅ Complete and review milestone 4 isolated host/panel integration, fix identified issues, and authorize its setup, tests, and supporting docs for commit and push to main.
+- ✅ Complete milestone 5 for the owner-selected isolated Debian 12 ARM64 Linux target and prepare operating procedures; see the [review record](engineering/development/milestone-5-review.md). After review and fixes, the owner authorized its commit and push to main.
+- ▧ Qualify physical Pi operation and actual systemd activation if separately requested; retain all nine unresolved firmware-characterization gates.
 - ▧ Establish CI, branch-protection, and release policies when separately requested.
 
-The [implementation plan](IMPLEMENTATION_PLAN.md) owns milestone acceptance criteria. Milestones 2 and 3 have native build/test evidence; milestone 4 adds reviewed isolated host/panel integration evidence, while Pi qualification remains outstanding.
+The [implementation plan](IMPLEMENTATION_PLAN.md) owns milestone acceptance criteria. Milestones 2 and 3 have native build/test evidence; milestone 4 adds reviewed isolated host/panel integration evidence, and milestone 5 adds selected Linux software qualification and operating guidance. Physical Pi and actual systemd activation remain outstanding.

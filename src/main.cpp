@@ -20,6 +20,10 @@
 #include <termios.h>
 #include <unistd.h>
 
+#ifndef RMX_VERSION
+#define RMX_VERSION "development"
+#endif
+
 namespace {
 volatile std::sig_atomic_t stopping = 0;
 void stop(int) {
@@ -125,7 +129,7 @@ int main(int argc, char** argv) {
                 return 0;
             }
             if (arg == "--version") {
-                std::cout << "brewpi-emulator-rmx milestone-3-review\n";
+                std::cout << "brewpi-emulator-rmx " RMX_VERSION " (development)\n";
                 return 0;
             }
             if (i + 1 == argc)

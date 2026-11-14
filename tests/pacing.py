@@ -36,9 +36,11 @@ def run():
                 # Normal queries still work during autonomous simulation.
                 s.write(b'n')
                 s.expect('N')
+                # Clock advancement ends before process/sanitizer teardown.
+                stop_requested=time.monotonic()
             finally:
                 s.close()
-            elapsed=time.monotonic()-start
+            elapsed=stop_requested-start
             snapshot=json.loads(checkpoint.read_text())
             plant=snapshot['engine']['plant']
             simulated=plant['age_ms']/1000

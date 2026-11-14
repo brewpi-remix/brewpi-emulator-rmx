@@ -1,0 +1,76 @@
+BrewPi Emulator Remix: installed development runbook
+Copyright 2026 Lee Bussy
+SPDX-License-Identifier: MIT
+
+This is independent MIT software. LICENSE.md and THIRD_PARTY_NOTICES.md
+accompany this file. The full operating, qualification, and provenance guides
+are in the source checkout under docs/ and engineering/. No reference client,
+operating-system library, service activation, or released package is bundled.
+
+Run the executable as the same dedicated unprivileged account as the serial
+BrewPi host. Give each instance private runtime and durable state directories.
+Create those directories as that account and restrict them to mode 0700.
+umask does not tighten existing paths. Use a fresh staging directory; install
+does not remove stale files. Keep the install prefix used at CMake configure
+time, since the service example contains those generated absolute paths.
+Example, after choosing private paths:
+
+  umask 077
+  brewpi-emulator-rmx --serial /PRIVATE/run/serial \
+    --state /PRIVATE/state/controller.json --speed 1
+
+The host uses that explicit serial path, altport=None, and optionally
+startupDelay=0. Its web panel communicates with the host socket. A new absent
+store emits W3 and remains erased until E (the panel's factory reset).
+Discover and assign devices after initialization. Firmware numeric defaults,
+partial writes, diagnostics, bugs, and live-versus-saved differences remain
+intentional. Serial n identifies the firmware personality; --version identifies
+the separate development application.
+
+The installed libexec/brewpi-emulator-rmx/wait-ready.py helper checks that the supplied
+PID exists and an owned PTY has raw terminal flags with --serial PATH --pid PID --timeout 10.
+It neither reads nor writes serial bytes, so W3 remains available to the host.
+Supply the actual emulator PID and a trusted private endpoint; the helper
+does not authenticate their relationship or isolate other same-account code.
+A successful check does not initialize controller configuration.
+
+Speed 1 is ordinary wall pacing, 0 pauses scheduled simulated time, and 10/60
+are measured accelerated workloads on the qualified Linux container. Host
+profiles, chart timestamps, and serial-token waits remain wall time. Partial
+input can intentionally wait about one second; slow readers defer input and
+controller work while queued replies remain ordered. Do not assume a universal
+one-second bound for firmware blocking/bus/characterization cases.
+
+SIGINT/SIGTERM performs normal shutdown and removes only the unchanged owned
+serial symlink. Saved settings/slots survive; a normal new process starts a
+fresh physical scenario. R resets controller state while retaining its running
+physical plant. E has its smaller firmware reset scope. Client reconnect is not
+a USB reset. After emulator process replacement, stop and reopen/restart the
+host against the new PTY; an existing open descriptor still names the old PTY.
+Automatic host reconnect or a dependent host unit is not supplied.
+
+For continuation, use --checkpoint PATH from startup. Stop the host, finish
+partial commands, and drain output before signaling the emulator. Resume with
+--resume PATH and the same saved state file; stopped time is not added.
+--speed may override resumed pacing. --scenario cannot override resumed history.
+A corrupt/mismatched checkpoint or undrained/incomplete stream fails outside
+serial and must not silently replace the prior checkpoint or roll back the
+saved store. Choose recovery explicitly; no automatic older-snapshot fallback
+is provided.
+
+SIGKILL creates no new checkpoint and can leave a stale symlink. Confirm the
+old process is gone and the instance's private locks are free, then remove only
+that owned symlink. Do not unlink its PTY character target or another instance's
+paths. Runtime belongs outside persistent state; state must not live in /run.
+
+The share/brewpi-emulator-rmx/systemd service example uses configured install
+paths, the brewpi account, private runtime/state directories, and a readiness
+post-check. It is not installed into the live unit directory or enabled. Its
+syntax and command lifecycle were checked in the selected Debian 12 ARM64
+container, which does not run systemd as PID 1; actual manager activation,
+namespace behavior, and boot ordering remain unqualified.
+
+The agreed target is an isolated Debian 12 ARM64 Linux container, not physical
+Raspberry Pi hardware. Exact AVR/bus/undefined-memory parity for nine reviewed
+characterization cases remains unresolved. No GPIO, physical serial device,
+USB reset/discovery/flashing, Arduino, release, or live deployment is implied.

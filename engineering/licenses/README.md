@@ -45,3 +45,5 @@ Use an individual record here when a real dependency/artifact is selected, with 
 Keep this record current when dependencies are introduced. Do not assert that a release is license-complete before inspecting its actual contents; no release exists at this stage.
 
 The [milestone 4 provenance record](milestone-4.md) covers original isolated integration helpers and the separate external host/panel, browser, package, and tool environment; raw client-produced captures remain ignored.
+
+The [milestone 5 provenance record](milestone-5.md) covers original operating/readiness/qualification helpers, generated service configuration, staged install contents, and external system-library inspection. It does not claim physical Pi qualification, a release, or an MIT license for the external tool image/system libraries.

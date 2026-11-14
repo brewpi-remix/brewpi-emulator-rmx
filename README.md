@@ -2,9 +2,9 @@
 
 BrewPi Emulator Remix (`brewpi-emulator-rmx`) is an independent native C++ Linux emulator under development for hardware-free integration testing of BrewPi Remix. It exposes a stable pseudo-terminal serial path and models a fermentation chamber containing a carboy with five US gallons of beer, responding to the existing host and web panel.
 
-**Status: milestones 1–3 published; milestone 4 isolated host/panel integration reviewed and authorized for commit and push to main.** Original C++17 now includes autonomous control/filtering, energy dynamics, paced/pause clocks, LCD updates, and coherent checkpoint resume, with six test suites. Original opt-in integration tooling now runs the pinned external host and panel in a disposable container. No installer, CI workflow, release, or Pi qualification exists. See the [milestone 3 review](engineering/development/milestone-3-review.md) and [build/run guide](docs/milestone-3.md) for tested commands and limits.
+**Status: milestones 1–4 published; milestone 5 qualification and operating guidance reviewed and authorized for commit and push to main.** The owner selected isolated Debian 12 ARM64 Linux software qualification. The [operating guide](docs/operation.md) covers staged installation, readiness, private paths, lifecycle, and recovery; the [milestone 5 review](engineering/development/milestone-5-review.md) separates native/runtime evidence from unqualified physical Pi, actual systemd activation, and nine firmware-characterization cases. No release, live deployment, or CI workflow exists.
 
-The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The owner authorized publication of the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to `main`. After milestone 3 implementation and review, the owner authorized committing and pushing its reviewed implementation, tests, and supporting documentation to `main`. The owner subsequently authorized milestone 4 in an isolated host/panel test setup, with a stop for review before committing or pushing. After review and fixes, the owner authorized committing and pushing the reviewed milestone 4 setup, tests, and supporting docs to `main`. Milestone 5 remains unapproved.
+The public repository is [brewpi-remix/brewpi-emulator-rmx](https://github.com/brewpi-remix/brewpi-emulator-rmx). The local repository is initialized on `main`, with `origin` set to `https://github.com/brewpi-remix/brewpi-emulator-rmx.git`. The owner authorized publication of the reviewed milestone 2 implementation, tests, fixtures, and supporting documentation to `main`. After milestone 3 implementation and review, the owner authorized committing and pushing its reviewed implementation, tests, and supporting documentation to `main`. The owner subsequently authorized milestone 4 in an isolated host/panel test setup, with a stop for review before committing or pushing. After review and fixes, the owner authorized committing and pushing the reviewed milestone 4 setup, tests, and supporting docs to `main`. The owner subsequently authorized milestone 5 using the isolated Debian 12 ARM64 Linux environment, stopping for review before committing or pushing. After review and fixes, the owner authorized committing and pushing the reviewed milestone 5 target qualification, operating guidance, tests, and supporting docs to main, preserving Arduino behavior and independent MIT licensing.
 
 ## Project direction
 
@@ -31,10 +31,10 @@ Implemented development capabilities include device discovery and assignment, st
 | `tests/` | Independent protocol, model arithmetic, controller/thermal/clock, regression, and real PTY/process tests. |
 | `cmake/` | Future build configuration helpers. |
 | `config/` | Original active-fermentation and daily-room scenario examples. |
-| `scripts/` | Future development and validation helpers. |
-| `systemd/` | Future optional Linux service templates. |
+| `scripts/` | Original nonconsuming endpoint-readiness helper. |
+| `systemd/` | Original optional per-instance service example; no activation. |
 | `engineering/` | Design, development, protocol, and provenance documentation. |
-| `docs/` | Development build/run guidance and future integration/operator documentation. |
+| `docs/` | Build, integration, staged-install, and operating guidance. |
 | `.github/` | Contribution templates; no active CI or publication automation. |
 
 ## License and provenance
