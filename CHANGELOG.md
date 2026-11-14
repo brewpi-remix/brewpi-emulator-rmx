@@ -28,5 +28,9 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Status
 
-- Milestone 2 is published on main. Milestone 3 controller/thermal/clock work is reviewed and authorized for commit and push to main. Actual host/panel integration and Pi qualification remain outstanding.
+- Milestone 2 is published on main. Milestone 3 controller/thermal/clock work is published on main. Milestone 4 isolated host/panel integration is reviewed and authorized for commit and push to main; Pi qualification remains outstanding.
 - The published main baseline contains reviewed milestone 1 artifacts. No software release, CI, package, deployment, or device operation is included in milestone 2.
+
+### Integration evidence
+
+- Original milestone 4 isolated real host/panel launcher, pinned external tool environment, browser/socket/serial checks, and interface-specific review/provenance documentation. The reviewed work is authorized for commit and push to main; milestone 5 remains unapproved.

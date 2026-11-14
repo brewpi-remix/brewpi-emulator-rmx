@@ -12,3 +12,5 @@ The [project contract](../CONTRACT.md) governs scope and independent MIT impleme
 The milestone review records distinguish implemented/tested scope from planned behavior and unqualified reference outcomes.
 
 - [Milestone 3 review](development/milestone-3-review.md): controller behavior, independent physical model, clock/checkpoint implementation, and local evidence/provenance.
+
+- [Milestone 4 review](development/milestone-4-review.md): isolated real host/panel workflows, interface-specific evidence, original integration tooling, and external-client provenance.

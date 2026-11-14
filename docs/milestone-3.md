@@ -1,6 +1,6 @@
 # Milestone 3 development operation
 
-Milestone 3 adds the controller/filter/thermal loop and clock to the reviewed transport/registry/persistence foundation. This is a development implementation for review, not a release or physical-controller qualification. All 48 source-defined reviewed cases pass; the nine reference-characterization cases remain unresolved. Existing host/panel integration is milestone 4 and has not been run.
+Milestone 3 adds the controller/filter/thermal loop and clock to the reviewed transport/registry/persistence foundation. This is a development implementation for review, not a release or physical-controller qualification. All 48 source-defined reviewed cases pass; the nine reference-characterization cases remain unresolved. Existing host/panel integration is recorded separately in the [milestone 4 guide](milestone-4.md).
 
 ## Build and validate
 
