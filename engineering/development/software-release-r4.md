@@ -1,5 +1,7 @@
 # Provisional R4 local review record
 
+The owner subsequently authorized R4 source publication and hosted CI verification. The [publication record](software-release-r4-hosted.md) owns the exact commit association and hosted results; the review-time dispositions below remain historical. R3 remains unstarted.
+
 ## Current reviewed local candidate
 
 Date: November 14, 2026. Reviewer: Codex (automated technical review); owner review remains pending. The owner authorized fixes while preserving 0.0.1-rc.1, Arduino behavior, and independent MIT licensing, without R3, commits, or pushes. This section supersedes the initial preparation disposition retained below.
