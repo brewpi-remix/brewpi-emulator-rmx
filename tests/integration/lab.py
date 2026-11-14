@@ -126,6 +126,10 @@ class Lab:
             # changing the host or guest's ordinary global Git configuration.
             subprocess.run(['git','clone','--no-hardlinks',source,str(destination)],
                            check=True,env=dict(os.environ,GIT_CONFIG_GLOBAL=str(config)))
+        # The pinned host queries active_branch during startup. A private clone
+        # of a detached frozen ref needs ordinary branch metadata, with the
+        # exact same HEAD and tracked bytes; the read-only source is untouched.
+        subprocess.run(['git','-C',str(destination),'checkout','-B','main','HEAD'],check=True)
 
     def prepare(self):
         preflight()

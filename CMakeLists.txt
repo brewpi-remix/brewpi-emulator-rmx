@@ -38,6 +38,13 @@ if(BUILD_TESTING)
   set_tests_properties(milestone2-edges PROPERTIES TIMEOUT 60)
   add_test(NAME milestone2-pty COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/transport.py $<TARGET_FILE:brewpi-emulator-rmx>)
   set_tests_properties(milestone2-pty PROPERTIES TIMEOUT 60)
+  if(RMX_SANITIZERS)
+    # Native hosted ARM64 instrumentation is substantially slower than Release.
+    # This bounds each whole test suite; protocol/process assertions retain
+    # their own unchanged deadlines and all sanitizer findings remain fatal.
+    set_tests_properties(milestone3-model milestone3-dynamics milestone3-process
+      milestone2-fixtures milestone2-edges milestone2-pty PROPERTIES TIMEOUT 300)
+  endif()
 endif()
 
 # Original install tree; service remains an example until explicitly installed.

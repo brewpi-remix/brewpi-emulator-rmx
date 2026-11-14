@@ -138,8 +138,10 @@ if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit
         configs=[call.args[0] for call in run.call_args_list if call.args[0][:2]==['git','config']]
         self.assertEqual([args[-1] for args in configs],['/refs/script','/refs/script/.git'])
         self.assertTrue(all(args[2]=='--file' and '--global' not in args for args in configs))
-        self.assertEqual(run.call_args.kwargs['env']['GIT_CONFIG_GLOBAL'],configs[0][3])
-        self.assertIn('--no-hardlinks',run.call_args.args[0])
+        clone=next(call for call in run.call_args_list if call.args[0][:2]==['git','clone'])
+        self.assertEqual(clone.kwargs['env']['GIT_CONFIG_GLOBAL'],configs[0][3])
+        self.assertIn('--no-hardlinks',clone.args[0])
+        self.assertEqual(run.call_args.args[0],['git','-C','/lab/host','checkout','-B','main','HEAD'])
 
     def test_reference_assets_are_audited(self):
         asset=self.root/'panel.png';asset.write_bytes(b'original external asset')

@@ -75,7 +75,7 @@ def main():
             command(['chown','-R','2001:2001',str(build)])
             try:
                 command(['runuser','-u','brewpi','--','ctest','-T','Test','--output-on-failure'],
-                        'ctest-'+kind+'.log',timeout=300,cwd=build)
+                        'ctest-'+kind+'.log',timeout=(600 if kind=='sanitize' else 300),cwd=build)
                 save_execution(build,kind)
             finally:
                 if (build/'test-results').exists():
