@@ -19,3 +19,5 @@ Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status des
 - ▧ Establish CI, branch-protection, and release policies when separately requested.
 
 The [implementation plan](IMPLEMENTATION_PLAN.md) owns milestone acceptance criteria. Milestones 2 and 3 have native build/test evidence; milestone 4 adds reviewed isolated host/panel integration evidence, and milestone 5 adds selected Linux software qualification and operating guidance. Physical Pi and actual systemd activation remain outstanding.
+
+The owner authorized a [cross-milestone review](engineering/development/cross-milestone-review.md) and fixes after publication of all five milestones, without committing or pushing. After review, the owner authorized committing and pushing the reviewed cross-milestone fixes, tests, and supporting docs to main, preserving Arduino behavior and independent MIT licensing. Physical and unresolved artifact qualification remain separate gates.

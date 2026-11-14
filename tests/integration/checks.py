@@ -29,12 +29,21 @@ from pathlib import Path
 args=sys.argv[1:]
 with open(os.environ['RMX_TEST_CALLS'],'a') as out:out.write(json.dumps(args)+'\\n')
 if args[0]=='build' and os.environ['RMX_TEST_MODE']=='build-fail':sys.exit(9)
-if args[:2]==['image','inspect']:print('[]')
+if args[:2]==['image','inspect']:print('sha256:review-image' if '--format' in args else '[]')
 if args[0]=='run':
  evidence=next(args[i+1][:-len(':/evidence')] for i in range(len(args)-1) if args[i]=='-v' and args[i+1].endswith(':/evidence'))
  Path(args[args.index('--cidfile')+1]).write_text('only-this-test-container')
- Path(evidence,'integration-results.json').write_text('{"status":"passed"}')
+ result=dict(status='passed',workflows=[dict(status='passed')]*17,browser_errors=[])
+ Path(evidence,'integration-results.json').write_text(json.dumps(result))
+ if os.environ['RMX_TEST_MODE']!='missing-child':
+  Path(evidence,'cleanup-results.json').write_text(json.dumps(dict(status='failed' if os.environ['RMX_TEST_MODE']=='cleanup-fail' else 'passed',errors=[],host_exits=[0])))
+  Path(evidence,'source-integrity.json').write_text(json.dumps(dict(status='passed',unchanged=True,files=1)))
+  Path(evidence,'reference-code-integrity.json').write_text(json.dumps(dict(unchanged=True,checked_files=1)))
+  Path(evidence,'native-test-results').mkdir()
+  Path(evidence,'native-test-results/milestone3-fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
  if os.environ['RMX_TEST_MODE']=='run-fail':sys.exit(7)
+if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-remains':print('only-this-test-container')
+if args[0]=='ps' and os.environ['RMX_TEST_MODE']=='cleanup-unavailable':sys.exit(8)
 ''')
         fake.chmod(0o755)
 
@@ -80,6 +89,30 @@ if args[0]=='run':
         self.assertIn('900',args)
         self.assertEqual(sum(arg.endswith(':ro') for arg in args),3)
 
+    def test_zero_exit_requires_complete_child_evidence(self):
+        for mode in ['missing-child','cleanup-fail']:
+            with self.subTest(mode=mode):
+                evidence=self.root/mode
+                self.assertNotEqual(self.launch(evidence,mode).returncode,0)
+                self.assertEqual(json.loads((evidence/'integration-results.json').read_text())['status'],'failed')
+
+    def test_container_removal_must_be_verified(self):
+        for mode in ['cleanup-remains','cleanup-unavailable']:
+            with self.subTest(mode=mode):
+                evidence=self.root/mode
+                self.assertNotEqual(self.launch(evidence,mode).returncode,0)
+                self.assertFalse(json.loads((evidence/'launcher-results.json').read_text())['cleanup_verified'])
+                self.assertEqual(json.loads((evidence/'integration-results.json').read_text())['status'],'failed')
+
+    def test_success_uses_resolved_image_and_verified_cleanup(self):
+        evidence=self.root/'success'
+        result=self.launch(evidence)
+        self.assertEqual(result.returncode,0,result.stderr.decode())
+        calls=[json.loads(row) for row in self.calls.read_text().splitlines()]
+        args=next(call for call in calls if call[0]=='run')
+        self.assertIn('sha256:review-image',args)
+        self.assertTrue(json.loads((evidence/'launcher-results.json').read_text())['cleanup_verified'])
+
     def test_complete_trace_records_and_session_scoping(self):
         path=self.root/'trace.jsonl'
         def row(session,data):
@@ -103,6 +136,17 @@ if args[0]=='run':
         report=json.loads((self.root/'reference-code-integrity.json').read_text())
         self.assertFalse(report['unchanged'])
 
+    def test_original_source_changes_are_audited(self):
+        for name in ['CMakeLists.txt','LICENSE.md','THIRD_PARTY_NOTICES.md']:
+            (self.root/name).write_text('original test input')
+        instance=lab.Lab();instance.source_root=self.root
+        instance.source_hashes=lab.inventory(self.root)
+        with patch.object(lab,'EVIDENCE',self.root):
+            instance.audit_source()
+            (self.root/'CMakeLists.txt').write_text('changed test input')
+            with self.assertRaises(AssertionError):instance.audit_source()
+        self.assertFalse(json.loads((self.root/'source-integrity.json').read_text())['unchanged'])
+
     def test_relay_failure_still_stops_processes_and_audits(self):
         instance=lab.Lab()
         calls=[]
@@ -117,10 +161,11 @@ if args[0]=='run':
         instance.stop_host=lambda:calls.append('host')
         instance.stop_process=lambda proc:calls.append('process')
         instance.audit_references=lambda:calls.append('audit')
+        instance.audit_source=lambda:calls.append('source-audit')
         with patch.object(lab,'LAB',self.root/'absent'),patch.object(lab,'EVIDENCE',self.root):
             with self.assertRaises(AssertionError):instance.close()
             instance.close() # Idempotent; no second attempt to close descriptors.
-        self.assertEqual(calls,['host','process','process','audit'])
+        self.assertEqual(calls,['host','process','process','audit','source-audit'])
         self.assertEqual(json.loads((self.root/'cleanup-results.json').read_text())['status'],'failed')
 
     def test_termination_cannot_leave_an_apparent_pass(self):

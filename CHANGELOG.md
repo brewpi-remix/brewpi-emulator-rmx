@@ -6,6 +6,8 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Added
 
+- Cross-milestone review and original regressions for scenario/output path collisions, strict local-JSON UTF-8, integration evidence completeness/cleanup/image identity, source-input auditing, and reproducible static specification checks. Reviewed and authorized for commit and push to main; no release or deployment.
+
 - Milestone 5 selected Debian 12 ARM64 qualification, original nonconsuming readiness helper, optional service example, CMake install staging, installed standalone runbook, and operating/review/provenance documentation. Reviewed and authorized for commit and push to main; no release or deployment.
 
 - Milestone 3 original controller/filter/peak/LCD behavior, independent thermal/probe/fermentation model, paced clock/pause, checkpoint resume, scenario examples, and six-suite local validation. All 48 source-defined reviewed cases now execute; nine characterization cases remain unresolved. Reviewed and authorized for commit and push to main.

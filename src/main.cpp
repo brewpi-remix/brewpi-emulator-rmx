@@ -29,6 +29,12 @@ volatile std::sig_atomic_t stopping = 0;
 void stop(int) {
     stopping = 1;
 }
+bool same_file(const std::filesystem::path& a, const std::filesystem::path& b) {
+    if (std::filesystem::weakly_canonical(a) == std::filesystem::weakly_canonical(b))
+        return true;
+    std::error_code ec;
+    return std::filesystem::equivalent(a, b, ec) && !ec;
+}
 class Pty {
     std::filesystem::path link;
     int master = -1, slave = -1, owner = -1;
@@ -156,6 +162,13 @@ int main(int argc, char** argv) {
         }
         if (!resume_path.empty() && !scenario_path.empty())
             throw std::runtime_error("scenario override is incompatible with checkpoint resume");
+        if (!scenario_path.empty()) {
+            for (const auto& writable : {serial, store, checkpoint_path}) {
+                if (!writable.empty() && (same_file(scenario_path, writable) ||
+                                          same_file(scenario_path, writable + ".lock")))
+                    throw std::runtime_error("scenario input overlaps a runtime output path");
+            }
+        }
         rmx::Storage storage(store);
         std::unique_ptr<rmx::Storage> checkpoint_file;
         if (!checkpoint_path.empty())

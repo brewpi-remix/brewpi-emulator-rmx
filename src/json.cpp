@@ -168,7 +168,29 @@ class Reader {
             if (c < 32)
                 fail();
             if (c != '\\') {
-                out += char(c);
+                if (c < 128)
+                    out += char(c);
+                else {
+                    unsigned count = c >= 0xc2 && c <= 0xdf   ? 1
+                                     : c >= 0xe0 && c <= 0xef ? 2
+                                     : c >= 0xf0 && c <= 0xf4 ? 3
+                                                              : 0;
+                    if (!count)
+                        fail();
+                    unsigned cp = c & (0x7fU >> (count + 1));
+                    for (unsigned i = 0; i < count; ++i) {
+                        if (pos == s.size())
+                            fail();
+                        unsigned char next = static_cast<unsigned char>(s[pos++]);
+                        if ((next & 0xc0) != 0x80)
+                            fail();
+                        cp = (cp << 6) | (next & 0x3f);
+                    }
+                    unsigned minimum = count == 1 ? 0x80 : count == 2 ? 0x800 : 0x10000;
+                    if (cp < minimum || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+                        fail();
+                    utf8(out, cp);
+                }
                 continue;
             }
             if (pos == s.size())

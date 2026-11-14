@@ -123,6 +123,16 @@ def run(executable):
             reply = json.loads(d.p.stdout.readline())
             assert 'error' in reply
         checks.append('local codec rejects duplicate keys, invalid number, lone surrogate, and excess nesting')
+        # Local JSON is UTF-8; the wire protocol deliberately remains a byte stream.
+        for data in [b'\x80',b'\xc0\xaf',b'\xc2 ',b'\xe2\x82',b'\xed\xa0\x80',b'\xf4\x90\x80\x80',b'\xf5\x80\x80\x80']:
+            reply=subprocess.run([executable],input=b'{"op":"boot","unused":"'+data+b'"}\n',capture_output=True,timeout=5)
+            assert reply.returncode==0 and 'error' in json.loads(reply.stdout),data
+        for text in ['café','😀','\u0800','\U0010ffff']:
+            request=json.dumps(dict(op='boot',unused=text),ensure_ascii=False).encode()+b'\n'
+            reply=subprocess.run([executable],input=request,capture_output=True,timeout=5)
+            assert reply.returncode==0 and 'error' not in json.loads(reply.stdout),text
+        checks.append('local JSON rejects invalid/overlong/surrogate/out-of-range UTF-8 and accepts valid multibyte Unicode')
+
     finally:
         d.close()
     out = Path('test-results')

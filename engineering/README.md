@@ -16,3 +16,5 @@ The milestone review records distinguish implemented/tested scope from planned b
 - [Milestone 4 review](development/milestone-4-review.md): isolated real host/panel workflows, interface-specific evidence, original integration tooling, and external-client provenance.
 
 - [Milestone 5 review](development/milestone-5-review.md): selected isolated Linux target qualification, install/readiness/service checks, operating guidance, and evidence limits.
+
+- [Cross-milestone review](development/cross-milestone-review.md): integrated source/specification/test/operating review after all five published milestones, local fixes, and evidence limits.

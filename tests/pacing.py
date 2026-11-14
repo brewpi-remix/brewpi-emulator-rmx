@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Exercise real-process pacing, pause, checkpoint resume, and environment errors."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -91,6 +92,19 @@ def run():
         finally:s.close()
         assert not Path(str(scenario)+'.lock').exists()
         checks.append('scenario input is read without creating adjacent locks or modifying input data')
+        original=scenario.read_bytes()
+        linked=root/'scenario-hardlink.json';os.link(scenario,linked)
+        symlink=root/'scenario-link.json';symlink.symlink_to(scenario)
+        for target in [scenario,root/'scenario'/'..'/'scenario.json',linked,symlink]:
+            result=subprocess.run([EXE,'--serial',str(root/'collision-serial'),
+                '--state',str(root/'collision-store.json'),'--scenario',str(scenario),
+                '--checkpoint',str(target),'--speed','0'],capture_output=True,timeout=5)
+            assert result.returncode!=0 and b'scenario input overlaps' in result.stderr
+            assert scenario.read_bytes()==original and linked.read_bytes()==original
+            assert not (root/'collision-serial').is_symlink()
+            assert not Path(str(target)+'.lock').exists()
+        checks.append('scenario/checkpoint direct, normalized, hardlink, and symlink collisions fail before locks, PTY publication, or input replacement')
+
     result=dict(status='passed',platform=sys.platform,checks=checks)
     out=Path('test-results');out.mkdir(exist_ok=True)
     (out/'milestone3-process.json').write_text(json.dumps(result,indent=2)+'\n')

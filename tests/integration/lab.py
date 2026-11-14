@@ -15,6 +15,9 @@ import subprocess
 import threading
 import time
 import tty
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from source_inputs import inventory
 
 LAB = Path('/lab')
 EVIDENCE = Path('/evidence')
@@ -91,6 +94,8 @@ class Lab:
         self.host = self.php = self.emulator = self.tap = None
         self.logs = []
         self.code_hashes = {}
+        self.source_root=Path('/work')
+        self.source_hashes={}
         self.session = 0
         self.disposed = False
         self.host_exits = []
@@ -104,6 +109,8 @@ class Lab:
     def prepare(self):
         LAB.mkdir(exist_ok=True)
         EVIDENCE.mkdir(exist_ok=True)
+        self.source_hashes=inventory(self.source_root)
+        (EVIDENCE/'source-inventory.json').write_text(json.dumps(self.source_hashes,indent=2)+'\n')
         with (EVIDENCE/'helper-checks.log').open('w') as output:
             subprocess.run(['python3','/work/tests/integration/checks.py'],check=True,
                            stdout=output,stderr=subprocess.STDOUT)
@@ -218,6 +225,12 @@ logJson = True
         if changed:
             raise AssertionError('reference files changed: '+repr(changed))
 
+    def audit_source(self):
+        unchanged=bool(self.source_hashes) and inventory(self.source_root)==self.source_hashes
+        (EVIDENCE/'source-integrity.json').write_text(json.dumps(dict(
+            status='passed' if unchanged else 'failed',files=len(self.source_hashes),unchanged=unchanged),indent=2)+'\n')
+        assert unchanged,'original source inputs changed or no baseline was recorded'
+
     def close(self):
         if self.disposed:
             return
@@ -247,6 +260,7 @@ logJson = True
                     shutil.copytree(LAB/source,EVIDENCE/destination,dirs_exist_ok=True)
         attempt('evidence collection',collect)
         attempt('reference integrity',self.audit_references)
+        attempt('original source integrity',self.audit_source)
         for log in self.logs:
             attempt('log close',log.close)
         (EVIDENCE/'cleanup-results.json').write_text(json.dumps(dict(

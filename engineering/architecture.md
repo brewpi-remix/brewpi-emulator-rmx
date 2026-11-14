@@ -1,6 +1,6 @@
 # Architecture
 
-Status: milestones 1–3 are published; milestone 4 isolated host/panel integration is reviewed and authorized for commit and push to main. The [implementation plan](../IMPLEMENTATION_PLAN.md) owns design details and acceptance criteria.
+Status: milestones 1–5 are published. The cross-milestone fixes are reviewed and authorized for commit and push to main. The [implementation plan](../IMPLEMENTATION_PLAN.md) owns design details and acceptance criteria.
 
 | Boundary | Planned responsibility |
 | --- | --- |

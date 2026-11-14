@@ -49,14 +49,18 @@ a USB reset. After emulator process replacement, stop and reopen/restart the
 host against the new PTY; an existing open descriptor still names the old PTY.
 Automatic host reconnect or a dependent host unit is not supplied.
 
+Scenario inputs must not alias runtime outputs or their lock paths. Startup
+rejects these collisions before creating locks or publishing the PTY.
+
 For continuation, use --checkpoint PATH from startup. Stop the host, finish
 partial commands, and drain output before signaling the emulator. Resume with
 --resume PATH and the same saved state file; stopped time is not added.
 --speed may override resumed pacing. --scenario cannot override resumed history.
 A corrupt/mismatched checkpoint or undrained/incomplete stream fails outside
-serial and must not silently replace the prior checkpoint or roll back the
-saved store. Choose recovery explicitly; no automatic older-snapshot fallback
-is provided.
+serial. Failure before atomic replacement preserves the old checkpoint. A
+filesystem error after rename may leave the new file with uncertain durability;
+inspect the error and file instead of assuming that old bytes survived. There
+is no automatic rollback of the saved store or older-snapshot fallback.
 
 SIGKILL creates no new checkpoint and can leave a stale symlink. Confirm the
 old process is gone and the instance's private locks are free, then remove only

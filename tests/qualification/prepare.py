@@ -12,6 +12,8 @@ import subprocess
 import sys
 import traceback
 from service import exercise
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from source_inputs import inventory as source_inventory
 
 ROOT=Path('/qualification')
 OUT=Path('/evidence')
@@ -27,21 +29,13 @@ def command(args,name=None,**kwargs):
     return result.stdout
 
 
-def source_inventory():
-    root=Path('/work')
-    paths=[root/name for name in ['CMakeLists.txt','LICENSE.md','THIRD_PARTY_NOTICES.md']]
-    for folder in ['src','tests','scripts','systemd','config','docs','engineering','cmake']:
-        paths.extend(p for p in (root/folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
-    return {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
-
-
 def main():
     checks=[]
     try:
         release=Path('/etc/os-release').read_text()
         assert 'VERSION_ID="12"' in release and 'ID=debian' in release
         assert platform.machine()=='aarch64'
-        before=source_inventory()
+        before=source_inventory(Path('/work'))
         (OUT/'source-inventory.json').write_text(json.dumps(before,indent=2)+'\n')
         ROOT.mkdir(exist_ok=True)
         command(['groupadd','--gid','2001','brewpi'])
@@ -135,7 +129,7 @@ def main():
             'import os,sys\ntry:os.open(sys.argv[1],os.O_RDWR|os.O_NOCTTY|os.O_NONBLOCK)\nexcept PermissionError:print("denied")\nelse:raise SystemExit("unexpected access")',str(private/'serial.lock')])
         assert test.strip()=='denied'
         checks.append(dict(name='foreign-account isolation',status='passed'))
-        after=source_inventory()
+        after=source_inventory(Path('/work'))
         integrity=dict(status='passed' if after==before else 'failed',files=len(before),unchanged=after==before)
         (OUT/'source-integrity.json').write_text(json.dumps(integrity,indent=2)+'\n')
         assert after==before,'source inputs changed during qualification'
