@@ -6,6 +6,8 @@ Use the tested commands in the [build/run guide](../../docs/milestone-3.md). The
 
 ## Tools and layout
 
+The proposed [Add LCD implementation plan](<Add LCD.md>) covers a Unicode terminal screen using the proper degree symbol, an optional Python/Tkinter graphical LCD, automatic fallback, and adversarial review dispositions. The owner subsequently authorized implementation and repeated adversarial review, stopping before committing or pushing; the [LCD review](lcd-review.md) records actual results and the independent MIT/runtime boundary. Existing saved candidates remain separate.
+
 The foundation is C++17, CMake, a system compiler, the C++ standard library, and POSIX APIs. Python's standard library drives the six native suites, with no third-party JSON/controller runtime library. The separate opt-in milestone 4 fixture uses external host/browser dependencies declared in its requirements file and disposable test image. Actual exercised tool/image versions are recorded in the milestone provenance records, including [milestone 5](../licenses/milestone-5.md). Source belongs in src, independent tests in tests, future build helpers in cmake, future configuration/scenarios in config, and optional service templates in systemd. Generated binaries/reports/state belong in ignored directories. Follow root formatting files.
 
 ## Validation and provenance

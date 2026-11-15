@@ -6,6 +6,7 @@ Requires this Git checkout and the prepared sibling reference repositories.
 References are read with git show; no reference code is imported or executed.
 """
 import json,re,subprocess,collections,os
+from urllib.parse import unquote
 if not __debug__ or os.environ.get("PYTHONOPTIMIZE", "") not in ("", "0"):
  raise SystemExit("Python assertions must be enabled")
 from pathlib import Path
@@ -91,6 +92,8 @@ for f in files:
  if f.suffix!='.md':continue
  txt=b.decode()
  for url in re.findall(r'\]\(([^)]+)\)',txt):
+  # CommonMark angle-bracket destinations permit spaces in filenames.
+  if url.startswith('<') and url.endswith('>'):url=url[1:-1]
   if url.startswith('https://github.com/brewpi-remix/') and '/blob/' in url:
    mat=re.fullmatch(r'https://github.com/brewpi-remix/([^/]+)/blob/([a-f0-9]{40})/([^#]+)(?:#L(\d+)(?:-L\d+)?)?',url);assert mat,url
    repo,rev,path,line=mat.groups();key=(repo,rev,path)
@@ -98,7 +101,7 @@ for f in files:
    if line:assert int(line)<=len(cache[key].splitlines()),url
    source+=1
   elif not re.match(r'\w+://',url):
-   target,_,anchor=url.partition('#');dest=(f.parent/target).resolve() if target else f;assert dest.exists(),(f,url);local+=1
+   target,_,anchor=url.partition('#');target=unquote(target);dest=(f.parent/target).resolve() if target else f;assert dest.exists(),(f,url);local+=1
    if anchor:
     headings=[];seen=collections.Counter()
     for h in re.findall(r'^#+ (.+)$',dest.read_text(),re.M):

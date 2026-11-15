@@ -27,6 +27,18 @@ partial writes, diagnostics, bugs, and live-versus-saved differences remain
 intentional. Serial n identifies the firmware personality; --version identifies
 the separate application candidate.
 
+The optional --lcd terminal displays the retained 20x4 controller screen using
+the proper Unicode degree symbol. --lcd gui or --lcd auto tries an optional
+Python 3.9+/Tk 8.6+ graphical LCD, then automatically falls back to the terminal
+or to headless execution when no usable terminal exists. No option (or --lcd off)
+keeps headless behavior and requires no Python runtime. The console needs a
+foreground UTF-8 terminal of at least 23 columns by 7 rows. Closing the GUI requests
+normal emulator shutdown, including the configured checkpoint decision. No viewer reads serial or changes settings/checkpoints.
+The default six-file install excludes the optional lcd-viewer component; that
+explicit component adds libexec/brewpi-emulator-rmx/lcd-viewer.py. It contains no
+Python, Tk, font, or system library bytes. See docs/operation.md in the source for
+component staging, dependencies, display coalescing, and diagnostic limitations.
+
 The installed libexec/brewpi-emulator-rmx/wait-ready.py helper checks that the supplied
 PID exists and an owned PTY has raw terminal flags with --serial PATH --pid PID --timeout 10.
 It neither reads nor writes serial bytes, so W3 remains available to the host.

@@ -1,6 +1,7 @@
 // Copyright 2026 Lee Bussy
 // SPDX-License-Identifier: MIT
 #include "engine.hpp"
+#include "lcd.hpp"
 #include "storage.hpp"
 
 #include <cerrno>
@@ -121,7 +122,7 @@ int main(int argc, char** argv) {
     try {
         std::string serial = "/run/brewpi-emulator/chamber1/serial",
                     store = "/var/lib/brewpi-emulator/chamber1/controller.json";
-        std::string scenario_path, resume_path, checkpoint_path;
+        std::string scenario_path, resume_path, checkpoint_path, lcd_mode = "off";
         double speed = 1, pacing_fraction = 0;
         bool speed_supplied = false;
         for (int i = 1; i < argc; ++i) {
@@ -130,6 +131,8 @@ int main(int argc, char** argv) {
                 std::cout << "Usage: brewpi-emulator-rmx [--serial PATH] [--state PATH] "
                              "[--scenario PATH]\n"
                              "       [--speed FACTOR] [--resume PATH] [--checkpoint PATH]\n"
+                             "       [--lcd off|terminal|gui|auto]\n"
+                             "LCD gui/auto falls back to a Unicode terminal, then headless.\n"
                              "Speed 1 is real time; 0 pauses simulated time. Checkpoints save on "
                              "clean shutdown.\n";
                 return 0;
@@ -151,7 +154,11 @@ int main(int argc, char** argv) {
                 resume_path = val;
             else if (arg == "--checkpoint")
                 checkpoint_path = val;
-            else if (arg == "--speed") {
+            else if (arg == "--lcd") {
+                if (val != "off" && val != "terminal" && val != "gui" && val != "auto")
+                    throw std::runtime_error("invalid LCD mode: " + val);
+                lcd_mode = val;
+            } else if (arg == "--speed") {
                 size_t used = 0;
                 speed = std::stod(val, &used);
                 if (used != val.size() || !std::isfinite(speed) || speed < 0 || speed > 1000)
@@ -222,6 +229,7 @@ int main(int argc, char** argv) {
         std::signal(SIGTERM, stop);
         std::signal(SIGPIPE, SIG_IGN);
         std::cerr << "serial=" << serial << " slave=" << pty.slave_path() << "\n";
+        rmx::LocalLcd lcd(lcd_mode, engine.lcd_rows());
         using Clock = std::chrono::steady_clock;
         auto deadline = Clock::now() + std::chrono::seconds(1);
         size_t sent = 0;
@@ -288,6 +296,9 @@ int main(int argc, char** argv) {
                 engine.read_timeout();
                 deadline = Clock::now() + std::chrono::seconds(1);
             }
+            lcd.tick(engine.lcd_rows());
+            if (lcd.shutdown_requested())
+                stopping = 1;
         }
         if (checkpoint_file) {
             if (sent != pending.size())

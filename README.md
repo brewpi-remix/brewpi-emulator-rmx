@@ -12,7 +12,7 @@ The emulator will independently implement the observed communications and releva
 
 When a question arises, Arduino firmware action/reaction is authoritative, including bugs. The [behavioral contract](engineering/protocol/behavioral-contract.md) and [findings register](engineering/protocol/firmware-findings.md) replace earlier proposed improvements with firmware-faithful expectations. Undefined/hardware-dependent cases are explicit characterization obligations, not invented passing results.
 
-Implemented development capabilities include device discovery and assignment, stable virtual sensor identities, reactive beer/chamber/room temperatures, fermentation heat, heater/cooler behavior, persistent settings, repeatable scenarios, and optional accelerated simulation time. Host fermentation profiles and chart timestamps continue to use wall time.
+Implemented development capabilities include device discovery and assignment, stable virtual sensor identities, reactive beer/chamber/room temperatures, fermentation heat, heater/cooler behavior, persistent settings, repeatable scenarios, and optional accelerated simulation time. Host fermentation profiles and chart timestamps continue to use wall time. The owner-authorized local LCD addition provides an opt-in Unicode terminal panel and optional Python/Tkinter window with automatic fallback; see the [LCD operating guide](docs/operation.md#optional-local-lcd) and [review](engineering/development/lcd-review.md). It is separate from saved release candidates; the owner authorized publication of the reviewed LCD implementation and supporting tests/docs without changing those artifacts.
 
 ## Start here
 
@@ -35,7 +35,7 @@ Implemented development capabilities include device discovery and assignment, st
 | `tests/` | Independent protocol, model arithmetic, controller/thermal/clock, regression, and real PTY/process tests. |
 | `cmake/` | Future build configuration helpers. |
 | `config/` | Original active-fermentation and daily-room scenario examples. |
-| `scripts/` | Original nonconsuming endpoint-readiness helper. |
+| `scripts/` | Original nonconsuming endpoint-readiness helper and optional Python graphical LCD helper. |
 | `systemd/` | Original optional per-instance service example; no activation. |
 | `engineering/` | Design, development, protocol, and provenance documentation. |
 | `docs/` | Build, integration, staged-install, and operating guidance. |

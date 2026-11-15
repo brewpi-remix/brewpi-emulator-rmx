@@ -47,6 +47,9 @@ class Engine {
     void update_sensors();
     void detect_peaks();
     Json checkpoint() const;
+    std::array<std::string, 4> lcd_rows() const {
+        return screen;
+    }
     void restore_checkpoint(const Json& snapshot);
     uint16_t seconds() const {
         return uint16_t(controller_ms / 1000);

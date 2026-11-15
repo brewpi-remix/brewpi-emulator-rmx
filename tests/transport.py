@@ -261,3 +261,6 @@ def run():
 
 if __name__ == '__main__':
     run()
+    if len(sys.argv) > 2:
+        from lcd_tests import run as run_lcd
+        run_lcd(EXE, sys.argv[2])

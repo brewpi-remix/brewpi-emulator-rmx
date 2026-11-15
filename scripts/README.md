@@ -1,5 +1,7 @@
 # Development scripts
 
+The original MIT [lcd-viewer.py](lcd-viewer.py) helper draws a read-only, twenty-column/four-row Unicode LCD using optional Python 3.9+/Tk 8.6+. The emulator launches it over a private inherited descriptor; it never opens a serial device, loads firmware code/assets, or changes controller state. CMake copies a development helper adjacent to the executable and supplies a separate optional lcd-viewer install component. Do not invoke it with an arbitrary serial descriptor. See the [LCD operating guide](../docs/operation.md#optional-local-lcd) and [review/provenance record](../engineering/development/lcd-review.md).
+
 The original MIT [wait-ready.py](wait-ready.py) helper checks that a positive PID exists and an owned character endpoint has raw terminal flags without reading, writing, consuming startup diagnostics, or changing termios settings. It requires Python 3 and reports failures outside the serial protocol. A process/endpoint readiness result does not initialize the controller or establish firmware parity.
 
 See the [operating guide](../docs/operation.md) for invocation and private-directory assumptions. Six original stdlib checks in [qualification/checks.py](../tests/qualification/checks.py) cover nonconsumption and invalid endpoint/process arguments; target runtime checks also exercise the installed helper and service commands. No installation or activation is performed on the user's host.
