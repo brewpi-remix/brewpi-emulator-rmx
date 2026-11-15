@@ -2,15 +2,53 @@
 
 This development executable is an independently authored MIT replacement for the selected Arduino controller's serial behavior. It models external brewing equipment without connecting physical sensors, GPIO, USB reset circuitry, or an Arduino. Firmware behavior, including documented bugs, is defined by the [behavioral contract](../engineering/protocol/behavioral-contract.md). The [milestone 5 review](../engineering/development/milestone-5-review.md) records qualification of the owner-selected isolated Debian 12 ARM64 Linux environment; physical Raspberry Pi, Arduino-artifact parity for unresolved cases, and actual systemd boot activation are separate evidence boundaries.
 
-## Build, test, and stage
+## Dependencies
 
-The core needs a C++17 compiler, CMake 3.16+, Make or another CMake generator, and standard C++/POSIX system facilities. The six native suites need Python 3.9+ and its standard library. The optional readiness helper also needs Python 3; the emulator does not link to Python. Actual host/panel integration has separate external dependencies and is described in the [integration guide](milestone-4.md).
+### Build and test dependencies
+
+Building from source needs a C++17 compiler, CMake 3.16+, Make or another supported build tool such as Ninja, and the C++/POSIX development headers and libraries. CMake configures the build and stages the installation; it is not linked into the emulator. The default CMake configuration enables BUILD_TESTING and requires Python 3.9+ with its standard library even if you do not subsequently run CTest. The six native suites need no Tcl/Tk. Opt-in real graphical LCD tests additionally need the GUI runtime below; host/panel integration has separate external test dependencies described in the [integration guide](milestone-4.md).
+
+To build only the executable without requiring a Python test interpreter, configure with -DBUILD_TESTING=OFF. This does not remove the optional helpers' own runtime requirements when you choose to use them.
+
+### Installed runtime dependencies
+
+A compatible prebuilt executable needs the operating system's loader and C/C++ runtime libraries for its architecture and ABI. For the recorded Debian 12/GCC 12 baseline, these include libc6, libstdc++6, and libgcc-s1; use the artifact's recorded runtime/library requirements rather than assuming any Linux system is compatible. The install tree does not bundle these system libraries.
+
+| Installed feature | Additional runtime requirements |
+| --- | --- |
+| Core executable, headless (--lcd off or no LCD option) | No Python, Tcl/Tk, compiler, CMake, Make, or Ninja is required. |
+| Unicode terminal LCD (--lcd terminal) | A foreground controlling terminal, UTF-8 locale, a single-cell ° glyph, and at least 23 columns by 7 rows. Python and Tcl/Tk are unnecessary. |
+| Optional graphical LCD (--lcd gui or --lcd auto) | The original lcd-viewer helper, python3 on PATH resolving to Python 3.9+, working tkinter and its compiled _tkinter binding, a compatible Tcl/Tk installation with Tk 8.6+, and a local graphical session with a degree-capable font. |
+| Optional wait-ready.py readiness helper | Python 3 and its standard library; Tcl/Tk is unnecessary. Installing the helper file does not make Python a requirement for running the core executable directly. |
+| Optional systemd service example | systemd and the readiness helper's Python 3 runtime, because ExecStartPost invokes wait-ready.py. This remains true for the example's headless emulator mode; no Tcl/Tk is needed unless a GUI is separately requested. |
+
+CMake is supplied by Kitware, but the installed emulator uses no Kitware runtime library, service, account, or network connection. Build dependencies belong on the machine building/staging the source; a machine running a compatible prebuilt executable needs only its selected runtime features. Existing BrewPi host/panel applications have their own independently supplied dependencies.
+
+### Checking the optional GUI runtime
+
+Python distributions may supply tkinter/_tkinter separately. Install the Tk binding and matching Tcl/Tk runtime for the same interpreter selected by python3 on PATH; installing them for a different Python version will not make that interpreter's GUI work. Run the following in the graphical session where the emulator will run:
+
+```sh
+python3 -c 'import sys, tkinter; print(sys.executable); print("Tk", tkinter.TkVersion)'
+python3 -m tkinter
+```
+
+The first command should import successfully and report Tk 8.6 or later. The second should open a Tk demonstration window. A missing binding/toolkit or unavailable desktop causes --lcd gui/auto to fall back to the terminal, then headless mode when no suitable terminal exists. Neither the Python interpreter nor Tcl/Tk is bundled by the optional lcd-viewer component; see [component staging](#optional-local-lcd).
+
+## Build, test, and stage
 
 ```sh
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
 cmake --build build-release -j 4
 (cd build-release && ctest --output-on-failure)
 DESTDIR="$PWD/stage" cmake --install build-release
+```
+
+For a source build without the Python-based tests:
+
+```sh
+cmake -S . -B build-core -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake --build build-core -j 4
 ```
 
 Use a fresh stage directory for each inspection; install does not remove stale files from an older staging tree. Keep the configured install prefix unchanged at installation time because the service paths are generated at configure time. The internal original protocol library is linked statically even if BUILD_SHARED_LIBS is set, so the executable has no uninstalled project-library dependency. Staging writes only below stage. Inspect install_manifest.txt and the staged tree before an explicitly authorized deployment. The tree contains the executable, original readiness helper, optional generated service example, original MIT license/notices, and the standalone operation.txt runbook. No reference host/panel, reference implementation, test dependencies, or system libraries are installed. There is no release package, automatic installer, service activation, or firmware flasher. The CLI --version identifies the development application; serial n retains the selected firmware identity and is unrelated to that application version.

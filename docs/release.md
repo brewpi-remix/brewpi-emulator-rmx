@@ -16,7 +16,13 @@ The source archive is brewpi-emulator-rmx-0.0.1-rc.1-source.tar.gz. Binary archi
 
 Extract into a fresh directory and inspect the manifest before choosing an installation prefix. The top-level archive directory is not the installation prefix. The service example embeds /usr/local paths, so relocating the extracted tree does not relocate those commands. There is no package manager, auto-installer, service activation, or live-host modification. Use the [operating guide](operation.md) and included standalone runbook for explicit private runtime/state paths and safe lifecycle behavior.
 
-All source/native tests run from the extracted source without Git or reference checkouts after declared prerequisites are installed. Static source-citation checks require Git and the prepared external references separately. Build tools are C++17/GCC 12 on Debian 12, CMake 3.16 or later, and Python 3.9 or later for original tests/helpers; the emulator itself has no Python dependency.
+### Build dependencies versus installed runtime
+
+Building the source archive needs a C++17 compiler (GCC 12 for the recorded Debian 12 baseline), CMake 3.16+, Make or another supported build tool, and the C++/POSIX development headers/libraries. The default BUILD_TESTING=ON configuration and native suites additionally need Python 3.9+ with its standard library; a core-only source build can use -DBUILD_TESTING=OFF. Standard native tests do not require Tcl/Tk. Static source-citation checks additionally require Git and the prepared external references; ordinary native tests do not.
+
+Running a compatible extracted executable does not require a compiler, CMake, Make, Ninja, or any Kitware service/library. It needs its recorded Linux architecture/ABI, operating-system loader, and C/C++ runtime libraries, including libc6, libstdc++6, and libgcc-s1 on the Debian 12 baseline. Python 3 is needed only when invoking the included wait-ready.py helper or using the service example that invokes it. The core executable itself is not linked to Python.
+
+The saved six-file R4 archives predate the later optional LCD addition and do not contain its GUI helper; newer source documentation does not retroactively add that feature to saved artifacts. For an LCD-capable build from current source, headless and Unicode terminal operation need no Python/Tcl/Tk, while the optional graphical LCD needs Python 3.9+, working tkinter/_tkinter, compatible Tcl/Tk with Tk 8.6+, a local desktop/font, and the separately selected lcd-viewer component. See the [runtime dependency matrix](operation.md#installed-runtime-dependencies) and [GUI runtime checks](operation.md#checking-the-optional-gui-runtime). These documentation clarifications do not rebuild, replace, or change any saved package.
 
 ## Local construction and validation
 

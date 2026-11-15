@@ -7,6 +7,20 @@ accompany this file. The full operating, qualification, and provenance guides
 are in the source checkout under docs/ and engineering/. No reference client,
 operating-system library, or service activation is bundled.
 
+Build and test dependencies:
+
+- Building from source needs a C++17 compiler, CMake 3.16+, Make or Ninja, and C++/POSIX development headers/libraries. CMake is a build/staging tool, not an emulator runtime library.
+- The default BUILD_TESTING=ON configuration and the six native suites need Python 3.9+ with its standard library. Configure with -DBUILD_TESTING=OFF to build the executable without a Python test interpreter. Standard native tests do not need Tcl/Tk; opt-in GUI tests do.
+
+Installed runtime dependencies:
+
+- A compatible prebuilt executable needs its operating-system loader and C/C++ runtime libraries. The recorded Debian 12/GCC 12 baseline includes libc6, libstdc++6, and libgcc-s1; check the artifact's architecture and ABI requirements. No compiler, CMake, Make, or Ninja is needed to run that executable.
+- Headless operation and the Unicode terminal LCD need no Python or Tcl/Tk. The terminal LCD needs a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 7 rows.
+- The optional graphical LCD needs lcd-viewer.py, python3 on PATH selecting Python 3.9+, working tkinter and its compiled _tkinter binding, compatible Tcl/Tk with Tk 8.6+, and a local graphical session/font. Python and Tcl/Tk are supplied separately; the lcd-viewer install component contains only the original helper. Use python3 -m tkinter to check the same interpreter's GUI setup.
+- The optional wait-ready.py helper needs Python 3 and its standard library, without Tcl/Tk. The service example also needs Python 3 because ExecStartPost invokes this helper, even though its emulator runs headless. Merely installing the helper does not require Python for direct execution of the core binary.
+
+The installed emulator needs no Kitware library, service, account, or network connection. CMake is the Kitware-supplied build tool only. Existing BrewPi host/panel applications have their own separate dependencies.
+
 Run the executable as the same dedicated unprivileged account as the serial
 BrewPi host. Give each instance private runtime and durable state directories.
 Create those directories as that account and restrict them to mode 0700.
