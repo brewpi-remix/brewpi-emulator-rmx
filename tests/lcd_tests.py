@@ -121,12 +121,13 @@ def decoder_checks():
     spec = importlib.util.spec_from_file_location('lcd_viewer', ROOT / 'scripts/lcd-viewer.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    good = dict(version=1, type='frame', sequence=1,
+    good = dict(version=2, type='frame', sequence=1,
+                dim=False, door=False, status='Ready', session='test', epoch=0,
                 rows=['Mode   Beer Const.  ', 'Beer   20.0  20.0 °C',
                       'Fridge 19.5  19.0 °C', 'Cooling for    03m12'])
     assert module.decode(json.dumps(good).encode()) == good
-    bad = [b'', b'x' * 4097, b'\xff', b'{}', b'{"version":1,"version":1,"type":"heartbeat"}']
-    for patch in [dict(version=True), dict(version=2), dict(sequence=0),
+    bad = [b'', b'x' * 4097, b'\xff', b'{}', b'{"version":2,"version":2,"type":"heartbeat"}']
+    for patch in [dict(version=True), dict(version=3), dict(sequence=0),
                   dict(sequence=True), dict(sequence=2**53), dict(rows=[' ' * 19] * 4),
                   dict(rows=['\x1b' + ' ' * 19] * 4), dict(rows=['界' * 20] * 4), dict(extra=1)]:
         bad.append(json.dumps(dict(good, **patch)).encode())
@@ -160,7 +161,7 @@ except OSError: pass
 if mode=='ignore':
  signal.signal(signal.SIGTERM,signal.SIG_IGN)
 if mode=='error':
- s.send(b'{"version":1,"type":"error"}')
+ s.send(b'{"version":2,"type":"error"}')
  raise SystemExit()
 if mode=='oversize':
  s.send(b'x'*4097)
@@ -169,19 +170,19 @@ if mode=='bad':
  s.send(b'{"version":true,"type":"ready"}')
  time.sleep(10)
 if mode=='flood':
- for _ in range(32):s.send(b'{"version":1,"type":"ready"}')
+ for _ in range(32):s.send(b'{"version":2,"type":"ready"}')
  time.sleep(10)
 if mode in ('startup','ignore'):
  time.sleep(30)
  raise SystemExit()
-s.send(b'{"version":1,"type":"ready"}')
+s.send(b'{"version":2,"type":"ready"}')
 if mode=='hang':
  time.sleep(30)
  raise SystemExit()
 if mode=='blocked':
  end=time.monotonic()+20
  while time.monotonic()<end:
-  s.send(b'{"version":1,"type":"progress"}')
+  s.send(b'{"version":2,"type":"progress"}')
   time.sleep(1)
  raise SystemExit()
 seen=False
@@ -195,12 +196,12 @@ while time.monotonic()<end:
    seen=True
  except socket.timeout:pass
  if time.monotonic()>=next_progress:
-  s.send(b'{"version":1,"type":"progress"}')
+  s.send(b'{"version":2,"type":"progress"}')
   next_progress=time.monotonic()+1
  if mode=='close' and seen:break
  if mode in ('user-close','close-exit') and seen:
   time.sleep(.3)
-  if mode=='user-close':s.send(b'{"version":1,"type":"close"}')
+  if mode=='user-close':s.send(b'{"version":2,"type":"close"}')
   raise SystemExit(10 if mode=='close-exit' else 0)
 ''')
     script.chmod(0o755)
@@ -247,7 +248,7 @@ def run(exe, core):
             fcntl.ioctl(p.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 6, 22, 0, 0))
             wait_for(lambda: b'23 columns' in p.console()[start:])
             assert b'\x1b' not in p.buffer[start:]
-            fcntl.ioctl(p.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 7, 23, 0, 0))
+            fcntl.ioctl(p.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 8, 23, 0, 0))
             start = len(p.buffer)
             wait_for(lambda: b'\xc2\xb0C' in p.console()[start:])
             assert p.command(b'n').startswith(b'N:')

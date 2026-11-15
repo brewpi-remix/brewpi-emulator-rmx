@@ -22,8 +22,8 @@ errors = []
 def send(unit, sequence):
     rows = ['Mode   Beer Const.  ', f'Beer   20.0  20.0 °{unit}',
             f'Fridge 19.5  19.0 °{unit}', 'Cooling for    03m12']
-    a.send(json.dumps(dict(version=1, type='frame', sequence=sequence, rows=rows)).encode())
-    a.send(b'{"version":1,"type":"heartbeat"}')
+    a.send(json.dumps(dict(version=2, type='frame', sequence=sequence, rows=rows, dim=False, door=False, status='Ready', session='test', epoch=0)).encode())
+    a.send(b'{"version":2,"type":"heartbeat"}')
 
 def check(name, unit):
     try:
@@ -44,9 +44,9 @@ def check(name, unit):
 
 viewer.root.after(100, lambda: send('C', 1))
 viewer.root.after(300, lambda: check('normal-c', 'C'))
-viewer.root.after(400, lambda: viewer.root.geometry('480x152'))
+viewer.root.after(400, lambda: viewer.root.geometry('560x360'))
 viewer.root.after(600, lambda: check('minimum-c', 'C'))
-viewer.root.after(700, lambda: viewer.root.geometry('960x320'))
+viewer.root.after(700, lambda: viewer.root.geometry('960x500'))
 viewer.root.after(800, lambda: send('F', 2))
 viewer.root.after(1000, lambda: check('large-f', 'F'))
 viewer.root.after(1100, viewer.root.destroy)
@@ -66,7 +66,7 @@ process = subprocess.Popen([sys.executable, '-I', str(root/'scripts/lcd-viewer.p
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 b.close(); a.settimeout(5)
 try:
-    assert json.loads(a.recv(4097)) == dict(version=1, type='ready')
+    assert json.loads(a.recv(4097)) == dict(version=2, type='ready')
     a.close()
     stdout, stderr = process.communicate(timeout=12)
     assert process.returncode == 0 and not stderr, (stdout, stderr)

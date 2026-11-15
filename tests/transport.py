@@ -264,3 +264,11 @@ if __name__ == '__main__':
     if len(sys.argv) > 2:
         from lcd_tests import run as run_lcd
         run_lcd(EXE, sys.argv[2])
+
+    if len(sys.argv) > 3:
+        subprocess.run([sys.argv[3]], check=True, timeout=30)
+        for helper in ('controls_process.py', 'controls_ipc.py'):
+            subprocess.run([sys.executable, str(Path(__file__).with_name(helper)), EXE],
+                           check=True, timeout=20)
+        subprocess.run([sys.executable, str(Path(__file__).with_name('controls_close_race.py')), EXE, '2'],
+                       check=True, timeout=20)

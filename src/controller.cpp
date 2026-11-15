@@ -634,6 +634,7 @@ void Engine::restore_checkpoint(const Json& j) {
     copy.screen_state = j.at("screen_state").integer();
     copy.screen_room = j.at("screen_room").boolean();
     copy.save_callback = save_callback;
+    copy.local_cancel();
     *this = std::move(copy);
 }
 } // namespace rmx

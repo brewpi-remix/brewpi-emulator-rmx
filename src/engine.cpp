@@ -410,7 +410,10 @@ void Engine::pair() {
     if (token_key.empty() || token_value.empty())
         return;
     if (command == 'j') {
+        auto before = local_dependencies();
         setting(token_key, token_value);
+        if (before != local_dependencies())
+            local_cancel();
         return;
     }
     char name = token_key[0];
@@ -532,6 +535,7 @@ void Engine::byte(unsigned char c) {
         frame('L', lcd());
         return;
     case 'S':
+        local_cancel();
         mode('o');
         settings["beerSet"] = -32767;
         settings["fridgeSet"] = -32767;
@@ -541,6 +545,7 @@ void Engine::byte(unsigned char c) {
         diagnostic('I', 14);
         return;
     case 'C':
+        local_cancel();
         defaults(false, true);
         apply_filter_constants();
         stationary_display();
@@ -548,6 +553,7 @@ void Engine::byte(unsigned char c) {
         diagnostic('I', 13);
         return;
     case 'E':
+        local_cancel();
         defaults(true, true);
         slots = {};
         targets.clear();
@@ -565,6 +571,7 @@ void Engine::byte(unsigned char c) {
         diagnostic('I', 15);
         return;
     case 'R':
+        local_cancel();
         restart_requested = true;
         return;
     case 'A':
@@ -851,7 +858,7 @@ void Engine::discover() {
 }
 std::string Engine::lcd() const {
     std::string rows = "[";
-    for (auto& row : screen) {
+    for (auto& row : local_rows()) {
         if (rows.size() > 1)
             rows += ',';
         rows += wire_string(row);
@@ -887,6 +894,7 @@ void Engine::boot() {
     render_display();
 }
 void Engine::restart() {
+    local_cancel();
     phase = Phase::dispatch;
     restart_requested = false;
     alarm = false;

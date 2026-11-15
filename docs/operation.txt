@@ -15,7 +15,7 @@ Build and test dependencies:
 Installed runtime dependencies:
 
 - A compatible prebuilt executable needs its operating-system loader and C/C++ runtime libraries. The recorded Debian 12/GCC 12 baseline includes libc6, libstdc++6, and libgcc-s1; check the artifact's architecture and ABI requirements. No compiler, CMake, Make, or Ninja is needed to run that executable.
-- Headless operation and the Unicode terminal LCD need no Python or Tcl/Tk. The terminal LCD needs a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 7 rows.
+- Headless operation and the Unicode terminal LCD need no Python or Tcl/Tk. The terminal LCD needs a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 8 rows for interactive controls.
 - The optional graphical LCD needs lcd-viewer.py, python3 on PATH selecting Python 3.9+, working tkinter and its compiled _tkinter binding, compatible Tcl/Tk with Tk 8.6+, and a local graphical session/font. Python and Tcl/Tk are supplied separately; the lcd-viewer install component contains only the original helper. Use python3 -m tkinter to check the same interpreter's GUI setup.
 - The optional wait-ready.py helper needs Python 3 and its standard library, without Tcl/Tk. The service example also needs Python 3 because ExecStartPost invokes this helper, even though its emulator runs headless. Merely installing the helper does not require Python for direct execution of the core binary.
 
@@ -41,13 +41,10 @@ partial writes, diagnostics, bugs, and live-versus-saved differences remain
 intentional. Serial n identifies the firmware personality; --version identifies
 the separate application candidate.
 
-The optional --lcd terminal displays the retained 20x4 controller screen using
-the proper Unicode degree symbol. --lcd gui or --lcd auto tries an optional
-Python 3.9+/Tk 8.6+ graphical LCD, then automatically falls back to the terminal
-or to headless execution when no usable terminal exists. No option (or --lcd off)
-keeps headless behavior and requires no Python runtime. The console needs a
-foreground UTF-8 terminal of at least 23 columns by 7 rows. Closing the GUI requests
-normal emulator shutdown, including the configured checkpoint decision. No viewer reads serial or changes settings/checkpoints.
+The optional --lcd terminal displays the retained 20x4 controller screen using the proper Unicode degree symbol. --lcd gui or --lcd auto tries an optional Python 3.9+/Tk 8.6+ graphical LCD, then automatically falls back to the terminal or to headless execution when no usable terminal exists. No option (or --lcd off) keeps headless behavior and requires no Python runtime. The console needs a foreground UTF-8 terminal of at least 23 columns by 8 rows for interactive controls. Closing the GUI requests normal emulator shutdown, including the configured checkpoint decision. Viewers never open controller serial; local control intents are validated and committed by the C++ engine, while drafts are excluded from checkpoints.
+
+Current development controls use one rewritten command/status line: cw, ccw, press, door open, door close, and help. Enter submits a command; only press represents the pushbutton. Acknowledgments last 750 wall milliseconds without scrolling, and new typing restores the prompt immediately. GUI controls provide the corresponding knob, keyboard actions, and door button. Every deliberate turn/press wakes and acts; LCD text dims after more than 60 wall seconds unless --lcd-keep-on is supplied. Menu drafts expire after ten wall seconds, never save merely by browsing, and do not pause controller work. Unrotated targets retain exact precision, local confirmation enforces bounds, and serial behavior remains unchanged. Invalid/overlong terminal input is rejected through its terminator, and owned input modes are restored on handled exit/suspension. Unsupported terminal types remain read-only. These are source-development additions, not a replacement frozen candidate or a new release.
+
 The default six-file install excludes the optional lcd-viewer component; that
 explicit component adds libexec/brewpi-emulator-rmx/lcd-viewer.py. It contains no
 Python, Tk, font, or system library bytes. See docs/operation.md in the source for

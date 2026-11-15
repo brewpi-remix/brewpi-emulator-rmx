@@ -26,7 +26,10 @@
 #endif
 
 namespace {
-volatile std::sig_atomic_t stopping = 0;
+volatile std::sig_atomic_t stopping = 0, suspending = 0;
+void suspend_request(int) {
+    suspending = 1;
+}
 void stop(int) {
     stopping = 1;
 }
@@ -124,14 +127,14 @@ int main(int argc, char** argv) {
                     store = "/var/lib/brewpi-emulator/chamber1/controller.json";
         std::string scenario_path, resume_path, checkpoint_path, lcd_mode = "off";
         double speed = 1, pacing_fraction = 0;
-        bool speed_supplied = false;
+        bool speed_supplied = false, lcd_keep_on = false;
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--help") {
                 std::cout << "Usage: brewpi-emulator-rmx [--serial PATH] [--state PATH] "
                              "[--scenario PATH]\n"
                              "       [--speed FACTOR] [--resume PATH] [--checkpoint PATH]\n"
-                             "       [--lcd off|terminal|gui|auto]\n"
+                             "       [--lcd off|terminal|gui|auto] [--lcd-keep-on]\n"
                              "LCD gui/auto falls back to a Unicode terminal, then headless.\n"
                              "Speed 1 is real time; 0 pauses simulated time. Checkpoints save on "
                              "clean shutdown.\n";
@@ -140,6 +143,10 @@ int main(int argc, char** argv) {
             if (arg == "--version") {
                 std::cout << "brewpi-emulator-rmx " RMX_VERSION "\n";
                 return 0;
+            }
+            if (arg == "--lcd-keep-on") {
+                lcd_keep_on = true;
+                continue;
             }
             if (i + 1 == argc)
                 throw std::runtime_error("incomplete option: " + arg);
@@ -228,8 +235,10 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, stop);
         std::signal(SIGTERM, stop);
         std::signal(SIGPIPE, SIG_IGN);
+        if (lcd_mode != "off")
+            std::signal(SIGTSTP, suspend_request);
         std::cerr << "serial=" << serial << " slave=" << pty.slave_path() << "\n";
-        rmx::LocalLcd lcd(lcd_mode, engine.lcd_rows());
+        rmx::LocalLcd lcd(lcd_mode, engine.lcd_rows(), &engine, lcd_keep_on);
         using Clock = std::chrono::steady_clock;
         auto deadline = Clock::now() + std::chrono::seconds(1);
         size_t sent = 0;
@@ -246,6 +255,12 @@ int main(int argc, char** argv) {
                 engine.advance_ms(simulated, pending.size() - sent < 65536);
         };
         while (!stopping) {
+            if (suspending) {
+                lcd.suspend();
+                suspending = 0;
+                // SIGSTOP guarantees a stop even for an orphaned process group.
+                raise(SIGSTOP);
+            }
             advance_wall();
             if (engine.restarting())
                 engine.restart();
@@ -296,7 +311,7 @@ int main(int argc, char** argv) {
                 engine.read_timeout();
                 deadline = Clock::now() + std::chrono::seconds(1);
             }
-            lcd.tick(engine.lcd_rows());
+            lcd.tick(engine.lcd_rows(), pending.size() - sent < 65536);
             if (lcd.shutdown_requested())
                 stopping = 1;
         }

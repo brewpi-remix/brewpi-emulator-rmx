@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include "lcd.hpp"
 
+#include "engine.hpp"
 #include "json.hpp"
 
 #include <algorithm>
@@ -133,20 +134,122 @@ std::string python_path() {
     return {};
 }
 std::string message(const char* type) {
-    return Json(Json::Object{{"version", 1}, {"type", type}}).dump();
+    return Json(Json::Object{{"version", 2}, {"type", type}}).dump();
 }
 } // namespace
 struct LocalLcd::Impl {
-    enum class State { headless, starting, gui, terminal };
+    enum class State { headless, starting, gui, settling, terminal };
     State state = State::headless;
     int tty = -1, channel = -1, diagnostic_fd = -1;
     pid_t child = -1;
-    bool terminating = false, killed = false, ansi = false, region = false;
+    bool terminating = false, term_sent = false, killed = false, ansi = false, region = false;
     bool small_reported = false, replacement_reported = false, suspended = false;
     bool shutdown_requested = false;
     unsigned width = 0, height = 0;
     uint64_t sequence = 0;
+    std::exception_ptr controller_failure;
+    Engine* engine = nullptr;
+    bool writable = true, keep_on = false, dim = false, shown_dim = false;
+    bool raw_input = false, dropping = false, last_cr = false, discard_input = false;
+    termios saved_tty{};
+    std::string input, status = "cw ccw press help", shown_status;
+    Time acknowledged{}, activity = Clock::now();
+    std::string pending_failure;
+    Time settle_at{};
+    std::string session = std::to_string(Clock::now().time_since_epoch().count());
+    uint64_t last_action = 0, shown_epoch = 0;
+    bool shown_door = false;
     LcdRows latest{}, shown{};
+    uint64_t wall_ms() const {
+        return uint64_t(
+            std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch())
+                .count());
+    }
+    void restore_input() noexcept {
+        if (raw_input) {
+            SignalMask mask;
+            if (mask.valid) {
+                int result;
+                do {
+                    result = tcsetattr(tty, TCSANOW, &saved_tty);
+                } while (result < 0 && errno == EINTR);
+                if (result == 0)
+                    raw_input = false;
+            }
+            discard_input = true;
+        }
+    }
+    void cancel() {
+        if (engine)
+            engine->local_cancel();
+        input.clear();
+        dropping = false;
+        last_cr = false;
+    }
+    void action(const std::string& command) {
+        activity = Clock::now();
+        try {
+            status = engine ? engine->local_action(command, wall_ms(), writable) : "Read-only LCD";
+        } catch (...) {
+            controller_failure = std::current_exception();
+            throw;
+        }
+        acknowledged = Clock::now() + 750ms;
+    }
+    void terminal_input(Time now) {
+        if (!raw_input) {
+            if (tcgetattr(tty, &saved_tty) != 0)
+                throw std::runtime_error("cannot read terminal modes");
+            auto edited = saved_tty;
+            edited.c_lflag &= tcflag_t(~(ICANON | ECHO | ECHONL));
+            edited.c_iflag &= tcflag_t(~(ICRNL | INLCR | IGNCR | IXON));
+            edited.c_cc[VMIN] = 0;
+            edited.c_cc[VTIME] = 0;
+            if (tcsetattr(tty, TCSANOW, &edited) != 0)
+                throw std::runtime_error("cannot enable command input");
+            raw_input = true;
+            // Only discard input after ownership returns to this foreground job.
+            // Never drain a background shell's terminal input.
+            if (discard_input && tcflush(tty, TCIFLUSH) != 0)
+                throw std::runtime_error("cannot discard suspended control input");
+            discard_input = false;
+        }
+        char buffer[256];
+        ssize_t n = read(tty, buffer, sizeof buffer);
+        if (n < 0 && errno != EAGAIN && errno != EINTR)
+            throw std::runtime_error("terminal input failed");
+        for (ssize_t i = 0; i < n; ++i) {
+            unsigned char c = static_cast<unsigned char>(buffer[i]);
+            activity = now;
+            if (c == '\n' && last_cr) {
+                last_cr = false;
+                continue;
+            }
+            last_cr = c == '\r';
+            if (c == '\r' || c == '\n') {
+                if (dropping) {
+                    status = "Line rejected";
+                    acknowledged = now + 750ms;
+                } else if (!input.empty())
+                    action(input);
+                input.clear();
+                dropping = false;
+            } else if (!dropping) {
+                acknowledged = Time{};
+                if (c == 127 || c == 8) {
+                    if (!input.empty())
+                        input.pop_back();
+                } else if (c == 21)
+                    input.clear();
+                else if (c >= 32 && c <= 126 && input.size() < 80)
+                    input += char(c);
+                else {
+                    dropping = true;
+                    input.clear();
+                }
+            }
+        }
+    }
     std::string terminal_output;
     size_t written = 0;
     Time next_frame{}, heartbeat{}, progress{}, started{}, terminate_at{}, output_progress{},
@@ -160,7 +263,7 @@ struct LocalLcd::Impl {
         // Never set O_NONBLOCK on the caller's shared stderr description.
         diagnostic_fd = open("/proc/self/fd/2", O_WRONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
 #endif
-        tty = open("/dev/tty", O_WRONLY | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
+        tty = open("/dev/tty", O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
         bool replaced;
         latest = unicode_lcd(rows, replaced);
         replacement_reported = replaced;
@@ -199,6 +302,7 @@ struct LocalLcd::Impl {
         }
     }
     void terminal() {
+        discard_input = true;
         state = State::headless;
         if (!foreground(tty)) {
             note("no foreground controlling terminal; continuing headless");
@@ -213,6 +317,8 @@ struct LocalLcd::Impl {
         ansi = name == "xterm" || name.rfind("xterm-", 0) == 0 || name == "screen" ||
                name.rfind("screen-", 0) == 0 || name == "tmux" || name.rfind("tmux-", 0) == 0 ||
                name == "vt100" || name == "vt220";
+        if (!ansi && engine)
+            note("terminal controls require ANSI cursor rewriting; read-only display");
         state = State::terminal;
         next_frame = Time{};
         shown = {};
@@ -220,15 +326,48 @@ struct LocalLcd::Impl {
     void terminate_child() {
         close_fd(channel);
         if (child > 0 && !terminating) {
-            kill(child, SIGTERM);
+            // A closed channel can precede waitpid's reserved exit status.
+            // Do not replace that status with SIGTERM during interpreter exit.
             terminating = true;
-            terminate_at = Clock::now() + 2s;
+            terminate_at = Clock::now() + 250ms;
         }
     }
+    void request_shutdown() {
+        cancel();
+        shutdown_requested = true;
+        state = State::headless;
+        close_fd(channel);
+    }
+    bool queued_close() {
+        // On a channel error, retain explicit close intent but never replay actions.
+        for (int i = 0; i < 6; ++i) {
+            char data[4097];
+            ssize_t count = recv(channel, data, sizeof data, 0);
+            if (count <= 0)
+                break;
+            try {
+                if (count <= 4096) {
+                    auto j = Json::parse(std::string(data, size_t(count)));
+                    if (j.object().size() == 2 && j.at("version").integer() == 2 &&
+                        j.at("type").string() == "close")
+                        return true;
+                }
+            } catch (const std::exception&) {
+            }
+        }
+        return false;
+    }
     void fallback(const std::string& reason) {
-        note(reason + "; falling back to terminal");
+        cancel();
+        pending_failure = reason;
         terminate_child();
-        terminal();
+        if (child > 0) {
+            state = State::settling;
+            settle_at = Clock::now() + 250ms;
+        } else {
+            note(reason + "; falling back to terminal");
+            terminal();
+        }
     }
     void launch() {
         std::string helper = helper_path(), python = python_path();
@@ -326,13 +465,15 @@ struct LocalLcd::Impl {
             // A deliberate window close is distinct from a crash or lost GUI.
             // Exit 10 also covers close intent racing with process reaping.
             if (result > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 10) {
-                shutdown_requested = true;
-                state = State::headless;
-                close_fd(channel);
+                request_shutdown();
             }
             if (state == State::starting || state == State::gui)
                 fallback("graphical window closed or viewer exited");
-        } else if (terminating && !killed && now >= terminate_at) {
+        } else if (terminating && !term_sent && now >= terminate_at) {
+            kill(child, SIGTERM);
+            term_sent = true;
+            terminate_at = now + 2s;
+        } else if (terminating && term_sent && !killed && now >= terminate_at) {
             kill(child, SIGKILL);
             killed = true;
         }
@@ -356,13 +497,35 @@ struct LocalLcd::Impl {
             if (count <= 0 || count > 4096)
                 throw std::runtime_error("invalid GUI message size");
             Json j = Json::parse(std::string(data, size_t(count)));
-            if (j.object().size() != 2 || j.at("version").number() != 1)
+            if (j.at("version").integer() != 2)
                 throw std::runtime_error("invalid GUI message schema");
             std::string type = j.at("type").string();
-            if (type == "close") {
-                shutdown_requested = true;
-                state = State::headless;
-                close_fd(channel);
+            if (type == "action" && engine && state == State::gui) {
+                if (j.object().size() != 6 || j.at("session").string() != session ||
+                    j.at("id").number() != double(last_action + 1))
+                    throw std::runtime_error("invalid or duplicate GUI action");
+                auto id = ++last_action;
+                if (j.at("epoch").number() != double(engine->local_revision())) {
+                    status = "State changed; retry";
+                } else {
+                    auto command = j.at("command").string();
+                    if (command != "cw" && command != "ccw" && command != "press" &&
+                        command != "door open" && command != "door close")
+                        throw std::runtime_error("invalid GUI command");
+                    action(command);
+                }
+                if (!send_message(Json(Json::Object{{"version", 2},
+                                                    {"type", "ack"},
+                                                    {"session", session},
+                                                    {"id", double(id)},
+                                                    {"epoch", double(engine->local_revision())},
+                                                    {"status", status}})
+                                      .dump()))
+                    throw std::runtime_error("GUI acknowledgment blocked; edit canceled");
+            } else if (j.object().size() != 2) {
+                throw std::runtime_error("invalid GUI lifecycle schema");
+            } else if (type == "close") {
+                request_shutdown();
                 return;
             } else if (type == "ready" && state == State::starting) {
                 state = State::gui;
@@ -382,26 +545,43 @@ struct LocalLcd::Impl {
             send_message(message("heartbeat"));
             heartbeat = now + 1s;
         }
-        if (state == State::gui && now >= next_frame && latest != shown) {
+        if (engine)
+            latest = unicode_lcd(engine->lcd_rows(), replacement_reported);
+        uint64_t epoch = engine ? engine->local_revision() : 0;
+        bool door = engine && engine->local_door();
+        if (state == State::gui && now >= next_frame &&
+            (latest != shown || dim != shown_dim || epoch != shown_epoch || door != shown_door ||
+             status != shown_status)) {
             next_frame = now + 100ms;
             Json::Array rows;
             for (const auto& row : latest)
                 rows.emplace_back(row);
-            auto bytes = Json(Json::Object{{"version", 1},
+            auto bytes = Json(Json::Object{{"version", 2},
                                            {"type", "frame"},
                                            {"sequence", double(++sequence)},
-                                           {"rows", rows}})
+                                           {"rows", rows},
+                                           {"dim", dim},
+                                           {"door", door},
+                                           {"status", status},
+                                           {"session", session},
+                                           {"epoch", double(epoch)}})
                              .dump();
             if (bytes.size() > 4096)
                 throw std::runtime_error("oversized GUI frame");
             if (send_message(bytes)) {
                 shown = latest;
+                shown_dim = dim;
+                shown_epoch = epoch;
+                shown_door = door;
+                shown_status = status;
                 next_frame = now + 100ms;
             }
         }
     }
     void terminal_tick(Time now) {
         if (!foreground(tty)) {
+            restore_input();
+            cancel();
             suspended = true;
             return;
         }
@@ -421,15 +601,28 @@ struct LocalLcd::Impl {
             suspended = false;
             next_frame = Time{};
         }
-        if (width < 23 || height < 7) {
+        if (width < 23 || height < (ansi && engine ? 8u : 7u)) {
+            restore_input();
+            cancel();
             if (!small_reported) {
-                note("terminal needs at least 23 columns and 7 rows; display suspended");
+                note("terminal needs at least 23 columns and 8 rows for controls; display "
+                     "suspended");
                 small_reported = true;
             }
             return;
         }
         small_reported = false;
-        if (terminal_output.empty() && latest != shown && now >= next_frame) {
+        if (ansi && engine)
+            terminal_input(now);
+        dim = !keep_on && now - activity > 60s;
+        if (engine)
+            latest = unicode_lcd(engine->lcd_rows(), replacement_reported);
+        std::string prompt = acknowledged > now ? status : "> " + input;
+        if (dropping)
+            prompt = "Line too long/invalid";
+        if (terminal_output.empty() &&
+            (latest != shown || dim != shown_dim || (ansi && engine && prompt != shown_status)) &&
+            now >= next_frame) {
             std::string frame;
             if (ansi && region)
                 frame = "\r\x1b[6A";
@@ -451,12 +644,18 @@ struct LocalLcd::Impl {
             };
             line("+--------------------+");
             for (const auto& row : latest)
-                line("|" + row + "|");
+                line(std::string(dim && ansi ? "\x1b[2m" : "") + "|" + row + "|" +
+                     (dim && ansi ? "\x1b[0m" : ""));
             line("+--------------------+");
+            if (ansi && engine)
+                frame += "\r\x1b[2K" + prompt.substr(0, width - 1);
+
             terminal_output = std::move(frame);
             written = 0;
             output_progress = now;
             shown = latest;
+            shown_dim = dim;
+            shown_status = prompt;
             next_frame = now + (ansi ? 100ms : 1000ms);
             region = true;
         }
@@ -480,6 +679,9 @@ struct LocalLcd::Impl {
     }
     void tick(const LcdRows& raw) {
         Time now = Clock::now();
+        if (engine)
+            engine->local_tick(wall_ms());
+        dim = !keep_on && now - activity > 60s;
         if (state == State::headless) {
             reap(now);
             return;
@@ -496,24 +698,37 @@ struct LocalLcd::Impl {
             // Consume queued close intent before observing child exit. The
             // reserved status still covers backpressure or a failed send.
             reap(now);
+            if (state == State::settling && (child < 0 || now >= settle_at)) {
+                note(pending_failure + "; falling back to terminal");
+                terminal();
+            }
             if (state == State::terminal)
                 terminal_tick(now);
         } catch (const std::exception& e) {
-            if (state == State::starting || state == State::gui)
-                fallback(e.what());
-            else {
+            if (controller_failure)
+                std::rethrow_exception(controller_failure);
+            if (state == State::starting || state == State::gui) {
+                if (queued_close())
+                    request_shutdown();
+                else
+                    fallback(e.what());
+            } else {
                 note(std::string(e.what()) + "; continuing headless");
+                restore_input();
+                cancel();
                 state = State::headless;
                 terminal_output.clear();
             }
         }
     }
     ~Impl() {
+        restore_input();
+        cancel();
         state = State::headless;
         terminate_child();
         // Engine checkpoint decisions have already completed before this RAII
         // cleanup. Poll in short slices; never advance simulated time here.
-        Time deadline = Clock::now() + 2s;
+        Time deadline = Clock::now() + 2500ms;
         while (child > 0 && Clock::now() < deadline) {
             reap(Clock::now());
             if (child > 0)
@@ -533,8 +748,10 @@ struct LocalLcd::Impl {
         close_fd(diagnostic_fd);
     }
 };
-LocalLcd::LocalLcd(const std::string& mode, const LcdRows& initial) {
+LocalLcd::LocalLcd(const std::string& mode, const LcdRows& initial, Engine* engine, bool keep_on) {
     impl = std::make_unique<Impl>();
+    impl->engine = engine;
+    impl->keep_on = keep_on;
     try {
         impl->start(mode, initial);
     } catch (const std::exception& e) {
@@ -546,12 +763,24 @@ LocalLcd::~LocalLcd() = default;
 bool LocalLcd::shutdown_requested() const noexcept {
     return impl && impl->shutdown_requested;
 }
-void LocalLcd::tick(const LcdRows& rows) noexcept {
+void LocalLcd::suspend() noexcept {
     if (!impl)
         return;
+    impl->restore_input();
+    impl->cancel();
+    impl->suspended = true;
+}
+void LocalLcd::tick(const LcdRows& rows, bool writable) {
+    if (!impl)
+        return;
+    impl->writable = writable;
     try {
         impl->tick(rows);
     } catch (...) {
+        if (impl->controller_failure)
+            std::rethrow_exception(impl->controller_failure);
+        impl->restore_input();
+        impl->cancel();
         impl->note("display unavailable; continuing headless");
         impl->terminate_child();
         impl->state = Impl::State::headless;

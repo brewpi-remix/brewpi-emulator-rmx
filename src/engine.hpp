@@ -48,14 +48,36 @@ class Engine {
     void detect_peaks();
     Json checkpoint() const;
     std::array<std::string, 4> lcd_rows() const {
-        return screen;
+        return local_rows();
     }
+    // Local physical-action boundary, separate from serial parsing and EEPROM.
+    std::string local_action(const std::string& action, uint64_t wall_ms, bool writable = true);
+    void local_tick(uint64_t wall_ms);
+    void local_cancel();
+    uint64_t local_revision() const {
+        return local_epoch;
+    }
+    bool local_door() const {
+        return plant.door_open();
+    }
+    std::array<std::string, 4> local_rows() const;
     void restore_checkpoint(const Json& snapshot);
     uint16_t seconds() const {
         return uint16_t(controller_ms / 1000);
     }
 
   private:
+    uint64_t local_epoch = 0;
+    struct LocalMenu {
+        enum Page { idle, setting, mode, beer, fridge } page = idle;
+        int index = 0, proposed_mode = 0, target = 0, low = 0, high = 0;
+        bool rotated = false;
+        uint64_t changed = 0, now = 0;
+    } menu;
+    std::array<int, 5> local_dependencies() const;
+    std::string local_temperature(bool beer);
+    int local_tenth(int tenth) const;
+    int local_to_tenths(int raw) const;
     enum class Phase { dispatch, brace, key, value };
     Sink output;
     std::function<void(const Json&)> save_callback;
