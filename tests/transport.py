@@ -267,8 +267,11 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 3:
         subprocess.run([sys.argv[3]], check=True, timeout=30)
+        # These helpers aggregate several private process lifecycles. Native
+        # ARM64 sanitizers need more than 20 seconds for the whole helper;
+        # individual protocol and shutdown assertions keep their deadlines.
         for helper in ('controls_process.py', 'controls_ipc.py'):
             subprocess.run([sys.executable, str(Path(__file__).with_name(helper)), EXE],
-                           check=True, timeout=20)
+                           check=True, timeout=60)
         subprocess.run([sys.executable, str(Path(__file__).with_name('controls_close_race.py')), EXE, '2'],
-                       check=True, timeout=20)
+                       check=True, timeout=60)
