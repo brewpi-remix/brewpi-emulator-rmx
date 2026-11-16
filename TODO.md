@@ -22,7 +22,7 @@ Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status des
 - ✅ Complete the [R3 software qualification](engineering/development/software-release-r3-final-review.md), retaining original workload identities and the documented controls carry-forward.
 - ✅ Complete [final R4 technical acceptance](engineering/development/software-release-r4-final.md), including exact committed-source association and native x86-64 package qualification; the owner subsequently authorized reviewed supporting work for publication with R5.
 - ✅ Complete [R5 actual-artifact provenance/component/license acceptance](engineering/licenses/software-release-r5.md), including mandatory separate notices and GNU corresponding-source companions; the qualified archives and original MIT code remain unchanged.
-- ▧ Complete R6 candidate dossier and owner handoff; tagging/publication require separate authorization.
+- ✅ Assemble the [R6 rc.1 dossier and handoff](engineering/development/software-release-rc1-dossier.md), retain evidence, and complete iterative assessment for owner review; no commit, push, tag, or publication is authorized.
 
 The [implementation plan](IMPLEMENTATION_PLAN.md) owns milestone acceptance criteria. Milestones 2 and 3 have native build/test evidence; milestone 4 adds reviewed isolated host/panel integration evidence, and milestone 5 adds selected Linux software qualification and operating guidance. Physical Pi and actual systemd activation remain outstanding.
 

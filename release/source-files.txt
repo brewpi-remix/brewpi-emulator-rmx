@@ -34,6 +34,8 @@ docs/milestone-3.md
 docs/milestone-4.md
 docs/operation.md
 docs/operation.txt
+docs/rc1-guide.md
+docs/rc1-release-notes.md
 docs/release.md
 engineering/README.md
 engineering/architecture.md
@@ -67,6 +69,8 @@ engineering/development/software-release-r4-final.md
 engineering/development/software-release-r4-hosted.md
 engineering/development/software-release-r4.md
 engineering/development/software-release-r5-review.md
+engineering/development/software-release-r6-review.md
+engineering/development/software-release-rc1-dossier.md
 engineering/licenses/README.md
 engineering/licenses/lcd.md
 engineering/licenses/milestone-1.md
@@ -103,6 +107,10 @@ release/r5-glibc-source-readme.md
 release/r5-notice-index.md
 release/r5_audit.py
 release/r5_checks.py
+release/r6-inputs.json
+release/r6_assemble.py
+release/r6_checks.py
+release/r6_handoff.py
 release/runtime.Dockerfile
 release/runtime.py
 release/source-files.txt

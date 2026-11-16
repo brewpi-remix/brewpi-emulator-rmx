@@ -247,6 +247,7 @@ def load_tests(loader, tests, pattern):
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/qualification'))
     tests.addTests(loader.loadTestsFromName('r4_review_checks'))
     tests.addTests(loader.loadTestsFromName('r5_checks'))
+    tests.addTests(loader.loadTestsFromName('r6_checks'))
     tests.addTests(loader.loadTestsFromName('native_package_checks'))
     return tests
 

@@ -31,3 +31,5 @@ The [rotary controls plan](rotary-controls-plan.md) and [execution prompt](rotar
 The [final R4 technical acceptance](software-release-r4-final.md) records the committed-source package set, exact source association, minimum-tool evidence, and complete native x86-64 package workflows. It stops for review before committing or pushing. R5/R6 and physical/service/Arduino exclusions remain separate.
 
 The [R5 assessment](software-release-r5-review.md) and [artifact provenance](../licenses/software-release-r5.md) record the complete five-archive distribution closure and unchanged qualified emulator bytes. The current R5 instruction authorizes iterative review/fixes and commit/push of the reviewed support; historical R4 stops above retain their original scope. R6 and release publication remain separate.
+
+The [R6 dossier](software-release-rc1-dossier.md) and [assessment](software-release-r6-review.md) assemble the exact rc.1 source/artifact/evidence handoff, retain private evidence outside short CI retention, and stop for owner review before any commit, push, tag, or publication.

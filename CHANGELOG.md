@@ -6,6 +6,8 @@ No release has been made. Dates use the project owner's America/Chicago calendar
 
 ### Added
 
+- Unsigned 0.0.1-rc.1 release-candidate dossier, portable notes/guide, explicit evidence retention/recovery verification, and adversarial assessment for owner review. Candidate source/packages remain unchanged; no tag or software release is published.
+
 - Cross-milestone review and original regressions for scenario/output path collisions, strict local-JSON UTF-8, integration evidence completeness/cleanup/image identity, source-input auditing, and reproducible static specification checks. Reviewed and authorized for commit and push to main; no release or deployment.
 
 - Milestone 5 selected Debian 12 ARM64 qualification, original nonconsuming readiness helper, optional service example, CMake install staging, installed standalone runbook, and operating/review/provenance documentation. Reviewed and authorized for commit and push to main; no release or deployment.

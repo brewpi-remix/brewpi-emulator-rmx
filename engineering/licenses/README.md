@@ -53,3 +53,5 @@ The [cross-milestone review](../development/cross-milestone-review.md) records o
 The [R2 provenance record](software-release-r2.md) covers original CI/payload/evidence helpers, pinned external actions/linter/minimum-tool sources, package hash metadata, local validation, and pending hosted results. No incorporated runtime dependency or reference implementation is added.
 
 The [R5 actual-artifact audit](software-release-r5.md) inventories the qualified original MIT source, compiled GNU contributions, mandatory external notice/source companions, and required external runtime files. Original code remains MIT; external legal/source material retains its own terms and is excluded from the original source allowlist.
+
+The [R6 dossier](../development/software-release-rc1-dossier.md) records original MIT handoff/retention helpers and prose. Retained external GNU sources/notices, client captures/screenshots, and tool outputs keep their existing origin/terms in private ignored evidence and are never added to the original source allowlist or proposed public handoff payload. No dependency or emulator/license behavior changes in R6.

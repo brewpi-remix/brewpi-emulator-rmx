@@ -7,3 +7,5 @@ Start with the [dependency separation](operation.md#dependencies): source build/
 The [milestone 5 review](../engineering/development/milestone-5-review.md) records owner-selected isolated Debian 12 ARM64 qualification. Physical Pi operation, actual systemd activation, and nine exact-firmware characterization cases remain unqualified. The [milestone 3 guide](milestone-3.md) details scenario/clock semantics; the [milestone 4 guide](milestone-4.md) records the isolated real host/panel fixture and its distinct application evidence.
 
 The [cross-milestone review](../engineering/development/cross-milestone-review.md) records later source/test/evidence fixes and separates current verification from historical milestone runs.
+
+The unsigned 0.0.1-rc.1 [candidate notes](rc1-release-notes.md), [portable guide](rc1-guide.md), and [R6 dossier](../engineering/development/software-release-rc1-dossier.md) identify current Linux qualification, preserved older workload identities, complete licensing companions, and owner-review/publication boundaries. The exact archived standalone runbook remains unchanged.
