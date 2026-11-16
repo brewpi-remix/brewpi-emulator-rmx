@@ -10,7 +10,7 @@ cmake --build build -j2
 (cd build && ctest --output-on-failure)
 ```
 
-Set -DBUILD_TESTING=OFF to build without the Python test interpreter. The built executable is build/brewpi-emulator-rmx; CMake copies the viewer beside it for local use. Running CTest from the build directory works throughout the supported CMake range.
+Set `-DBUILD_TESTING=OFF` to build without the Python test interpreter. The built executable is `build/brewpi-emulator-rmx`; CMake copies the viewer beside it for local use. Running CTest from the build directory works throughout the supported CMake range.
 
 For a staged installation:
 
@@ -35,17 +35,17 @@ python3 tests/integration/checks.py
 python3 tests/qualification/checks.py
 ```
 
-The specification checker, python3 tests/specification.py, validates fixture metadata, links, whitespace, and pinned behavioral citations. It needs a Git checkout and the separately prepared sibling reference repositories in tests/ci/references.json. It reads reference source as evidence; it does not import it into the implementation. See [development tests](../tests/README.md) for optional controls and external-client tests.
+The specification checker, `python3 tests/specification.py`, validates fixture metadata, links, whitespace, and pinned behavioral citations. It needs a Git checkout and the separately prepared sibling reference repositories in `tests/ci/references.json`. It reads reference source as evidence; it does not import it into the implementation. See [development tests](../tests/README.md) for optional controls and external-client tests.
 
 ## Source layout
 
 | Directory | Responsibility |
 | --- | --- |
-| src/ | Original JSON/state handling, serial controller engine, thermal model, local controls, LCD, and POSIX process entry point. |
-| config/ | Independently authored physical scenario examples. |
-| scripts/ | Readiness and graphical LCD helpers. |
-| tests/ | Native and helper regression tests plus isolated external-client checks. |
-| release/ | Archive, payload, build, and component-inspection utilities. |
-| engineering/protocol/ | Current behavioral reference and original fixture data. |
+| `src/` | Original JSON/state handling, serial controller engine, thermal model, local controls, LCD, and POSIX process entry point. |
+| `config/` | Independently authored physical scenario examples. |
+| `scripts/` | Readiness and graphical LCD helpers. |
+| `tests/` | Native and helper regression tests plus isolated external-client checks. |
+| `release/` | Archive, payload, build, and component-inspection utilities. |
+| `engineering/protocol/` | Current behavioral reference and original fixture data. |
 
 Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and the [independent-authorship contract](../CONTRACT.md). Existing firmware bugs are interoperability requirements. Local GUI validation does not tighten serial acceptance. Undefined outcomes remain disclosed compatibility limits, not fabricated passing tests.

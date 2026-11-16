@@ -2,22 +2,22 @@
 
 ## Installation
 
-Binary archives support amd64 and ARM64 Linux with the Debian 12 runtime baseline. Use uname -m to identify your machine: x86_64 selects amd64; aarch64 selects ARM64. Compatible operating-system loader and C/C++ libraries are required, including libc6, libstdc++6, and libgcc-s1. A prebuilt executable needs no compiler or CMake.
+Binary archives support amd64 and ARM64 Linux with the Debian 12 runtime baseline. Use `uname -m` to identify your machine: `x86_64` selects amd64; `aarch64` selects ARM64. Compatible operating-system loader and C/C++ libraries are required, including `libc6`, `libstdc++6`, and `libgcc-s1`. A prebuilt executable needs no compiler or CMake.
 
-Download the matching binary archive, SHA256SUMS, and the required license/source companions described in [package contents](release.md). From the download directory, verify the listed files with sha256sum --ignore-missing --check SHA256SUMS. Every file must match its listed hash. Obtain missing companion files before treating the complete distribution as verified. The ignore-missing option skips unselected release files; confirm that every archive being used reports OK and obtain the required companions separately. Checksums detect changed bytes; they are not signatures.
+Download the matching binary archive, `SHA256SUMS`, and the required license/source companions described in [package contents](release.md). From the download directory, verify the listed files with `sha256sum --ignore-missing --check SHA256SUMS`. Every file must match its listed hash. Obtain missing companion files before treating the complete distribution as verified. The `ignore-missing` option skips unselected release files; confirm that every archive being used reports `OK` and obtain the required companions separately. Checksums detect changed bytes; they are not signatures.
 
-Extract into a new directory, replacing ARCHIVE.tar.gz with the downloaded binary archive:
+Extract into a new directory, replacing `ARCHIVE.tar.gz` with the downloaded binary archive:
 
 ```sh
 mkdir package
 tar -xzf ARCHIVE.tar.gz -C package
 ```
 
-The archive's named top-level directory contains bin/, libexec/, and share/. Keep that layout together so the graphical helper can be found. Run its bin/brewpi-emulator-rmx directly, or add that bin directory to PATH. The archive contains no installer or automatic service activation. For source builds and staged installation, see [development](development.md).
+The archive's named top-level directory contains `bin/`, `libexec/`, and `share/`. Keep that layout together so the graphical helper can be found. Run its `bin/brewpi-emulator-rmx` directly, or add that bin directory to `PATH`. The archive contains no installer or automatic service activation. For source builds and staged installation, see [development](development.md).
 
 ## Start an instance
 
-Run as an unprivileged user. The BrewPi host needs access to the same PTY namespace and paths; using the same account avoids permission changes. Give every instance its own runtime and state directories. Set existing directory permissions explicitly; umask affects newly created paths only.
+Run as an unprivileged user. The BrewPi host needs access to the same PTY namespace and paths; using the same account avoids permission changes. Give every instance its own runtime and state directories. Set existing directory permissions explicitly; `umask` affects newly created paths only.
 
 ```sh
 umask 077
@@ -27,21 +27,21 @@ brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
   --state "$HOME/.local/state/brewpi-emulator/controller.json" --speed 1
 ```
 
-The serial path is a symlink to an allocated PTY. It must not already exist. Keep durable controller state outside temporary runtime storage such as /run. Do not use a scenario input as an output or lock path; aliases through symlinks or hardlinks are rejected too.
+The serial path is a symlink to an allocated PTY. It must not already exist. Keep durable controller state outside temporary runtime storage such as `/run`. Do not use a scenario input as an output or lock path; aliases through symlinks or hardlinks are rejected too.
 
 ## Connect BrewPi Remix
 
-Configure the host's port as the exact --serial path, altport=None, and optionally startupDelay=0. The web panel communicates through the host's socket. Do not run another serial reader while the host owns the port; that can consume its responses.
+Configure the host's `port` as the exact `--serial` path, `altport=None`, and optionally `startupDelay=0`. The web panel communicates through the host's socket. Do not run another serial reader while the host owns the `port`; that can consume its responses.
 
-A new absent state file represents erased controller configuration. The W3 startup warning is expected. Use the panel's factory reset, which sends E, then discover and assign virtual probes and outputs. Initialization does not create automatic assignments. The virtual hardware inventory and controller defaults are in the [protocol reference](../engineering/protocol/README.md).
+A new absent state file represents erased controller configuration. The `W3` startup warning is expected. Use the panel's factory reset, which sends `E`, then discover and assign virtual probes and outputs. Initialization does not create automatic assignments. The virtual hardware inventory and controller defaults are in the [protocol reference](../engineering/protocol/README.md).
 
 The default physical assignments are:
 
 | Discovered address or pin | Physical role |
 | --- | --- |
-| 28A10100000001E6 | Beer probe. |
-| 28A1010000000204 | Chamber/fridge probe. |
-| 28A101000000035A | Room/ambient probe. |
+| `28A10100000001E6` | Beer probe. |
+| `28A1010000000204` | Chamber/fridge probe. |
+| `28A101000000035A` | Room/ambient probe. |
 | Pin 5 | Heater, 25 W. |
 | Pin 6 | Cooler, 60 W of heat removal. |
 | Pin 2 | Light output; no added heat by default. |
@@ -55,55 +55,55 @@ After replacing the emulator process, reopen or restart the host against the new
 
 | Option | Meaning |
 | --- | --- |
-| --serial PATH | Published PTY symlink. Default: /run/brewpi-emulator/chamber1/serial. |
-| --state PATH | Persistent controller store. Default: /var/lib/brewpi-emulator/chamber1/controller.json. |
-| --scenario PATH | Read a JSON physical scenario at startup. Mutually exclusive with --resume. |
-| --speed FACTOR | Wall-time pacing factor from 0 through 1000. Default: 1. Zero pauses scheduled simulated time. |
-| --checkpoint PATH | Write a coherent continuation snapshot during clean shutdown. |
-| --resume PATH | Start from a checkpoint. Use its matching saved controller state. |
-| --lcd off | Headless operation; also the default when --lcd is omitted. |
-| --lcd terminal | Unicode terminal LCD with local controls. |
-| --lcd gui or --lcd auto | Try the graphical LCD, then fall back to terminal or headless operation. |
-| --lcd-keep-on | Disable local LCD dimming. |
-| --help | Print command-line usage. |
-| --version | Print application version. Serial n identifies the emulated firmware separately. |
+| `--serial PATH` | Published PTY symlink. Default: `/run/brewpi-emulator/chamber1/serial`. |
+| `--state PATH` | Persistent controller store. Default: `/var/lib/brewpi-emulator/chamber1/controller.json`. |
+| `--scenario PATH` | Read a JSON physical scenario at startup. Mutually exclusive with `--resume`. |
+| `--speed FACTOR` | Wall-time pacing factor from 0 through 1000. Default: 1. Zero pauses scheduled simulated time. |
+| `--checkpoint PATH` | Write a coherent continuation snapshot during clean shutdown. |
+| `--resume PATH` | Start from a checkpoint. Use its matching saved controller state. |
+| `--lcd off` | Headless operation; also the default when `--lcd` is omitted. |
+| `--lcd terminal` | Unicode terminal LCD with local controls. |
+| `--lcd gui` or `--lcd auto` | Try the graphical LCD, then fall back to terminal or headless operation. |
+| `--lcd-keep-on` | Disable local LCD dimming. |
+| `--help` | Print command-line usage. |
+| `--version` | Print application version. Serial `n` identifies the emulated firmware separately. |
 
 ## Optional local LCD
 
 The local LCD shows the twenty-column, four-row controller screen. The terminal presentation requires a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 8 rows. Unsupported terminals display a read-only screen. Headless and terminal operation need no Python or Tcl/Tk.
 
-The graphical LCD requires the installed lcd-viewer.py helper, python3 on PATH selecting Python 3.9 or later, working tkinter/_tkinter, Tcl/Tk 8.6 or later, and a local graphical session. Check that interpreter's setup with python3 -m tkinter. Python, Tcl/Tk, fonts, and desktop software are supplied separately. GUI failure falls back to the terminal, then headless mode. Closing the GUI requests normal emulator shutdown.
+The graphical LCD requires the installed `lcd-viewer.py` helper, `python3` on `PATH` selecting Python 3.9 or later, working `tkinter`/`_tkinter`, Tcl/Tk 8.6 or later, and a local graphical session. Check that interpreter's setup with `python3 -m tkinter`. Python, Tcl/Tk, fonts, and desktop software are supplied separately. GUI failure falls back to the terminal, then headless mode. Closing the GUI requests normal emulator shutdown.
 
 ## Local rotary and door controls
 
-In an interactive terminal, type a command and press Enter:
+In an interactive terminal, type a command and press `Enter`:
 
 | Command | Action |
 | --- | --- |
-| cw | Turn the knob clockwise. |
-| ccw | Turn the knob counterclockwise. |
-| press | Press the knob/pushbutton. |
-| door open | Open the modeled physical door. |
-| door close | Close it. |
-| help | Display command help. |
+| `cw` | Turn the knob clockwise. |
+| `ccw` | Turn the knob counterclockwise. |
+| `press` | Press the knob/pushbutton. |
+| `door open` | Open the modeled physical door. |
+| `door close` | Close it. |
+| `help` | Display command help. |
 
-Enter submits text; only press represents a pushbutton action. The GUI provides knob and door controls. Focus the knob and use Left/Right to turn and Return/Space to press; the door button is also keyboard accessible. Press opens the menu; turn to browse or edit, and press to confirm. Browsing does not save settings. Drafts expire after ten wall seconds, and background controller work continues while the menu is open. Local confirmation applies bounds without tightening serial command acceptance. Door input affects controller behavior only through the configured devices and modeled plant.
+`Enter` submits text; only `press` represents a pushbutton action. The GUI provides knob and door controls. Focus the knob and use `Left`/`Right` to turn and `Return`/`Space` to press; the door button is also keyboard accessible. Press opens the menu; turn to browse or edit, and press to confirm. Browsing does not save settings. Drafts expire after ten wall seconds, and background controller work continues while the menu is open. Local confirmation applies bounds without tightening serial command acceptance. Door input affects controller behavior only through the configured devices and modeled plant.
 
-Text dims after more than sixty wall seconds without interaction. A deliberate turn or press wakes the screen and performs the action. --lcd-keep-on disables dimming. The terminal prompt stays readable. Local controls use private IPC and do not open another serial reader. Uncommitted menu drafts are excluded from checkpoints.
+Text dims after more than sixty wall seconds without interaction. A deliberate turn or press wakes the screen and performs the action. `--lcd-keep-on` disables dimming. The terminal prompt stays readable. Local controls use private IPC and do not open another serial reader. Uncommitted menu drafts are excluded from checkpoints.
 
 ## Scenarios and simulation time
 
-The source tree provides config/active-fermentation.json for fermentation heat and config/room-cycle.json for a daily room cycle. Binary users can create a JSON scenario using the configuration guide and pass its path with --scenario. See [scenario fields](../config/README.md) for the supported physical parameters. Scenario files are read without modification.
+The source tree provides `config/active-fermentation.json` for fermentation heat and `config/room-cycle.json` for a daily room cycle. Binary users can create a JSON scenario using the configuration guide and pass its path with `--scenario`. See [scenario fields](../config/README.md) for the supported physical parameters. Scenario files are read without modification.
 
---speed 1 uses real-time pacing. Factors such as 10 or 60 accelerate simulated physics and controller time without changing controller thresholds or the integration step. Zero pauses scheduled simulation while synchronous commands and wall-clock token deadlines continue. Host fermentation profiles, CSV dates, and chart timestamps remain wall-clock based; acceleration does not accelerate the host's profile schedule.
+`--speed 1` uses real-time pacing. Factors such as 10 or 60 accelerate simulated physics and controller time without changing controller thresholds or the integration step. Zero pauses scheduled simulation while synchronous commands and wall-clock token deadlines continue. Host fermentation profiles, CSV dates, and chart timestamps remain wall-clock based; acceleration does not accelerate the host's profile schedule.
 
 The serial parser follows firmware framing and partial-input behavior rather than a general strict JSON API. Incomplete tokens can wait about one wall second. A slow reader defers input/controller work while replies remain queued in order. Drain existing output before expecting another command's response.
 
 ## Stop, restart, and checkpoints
 
-Use Ctrl-C or SIGTERM for clean shutdown. The process removes only its unchanged owned serial symlink. Firmware-saved settings and device slots survive. A normal new process starts a fresh physical scenario; the serial R command restarts controller state while keeping the running plant, and E initializes controller configuration. Live values need not equal saved values after every command.
+Use `Ctrl-C` or `SIGTERM` for clean shutdown. The process removes only its unchanged owned serial symlink. Firmware-saved settings and device slots survive. A normal new process starts a fresh physical scenario; the serial `R` command restarts controller state while keeping the running plant, and `E` initializes controller configuration. Live values need not equal saved values after every command.
 
-For continuation, provide --checkpoint from startup:
+For continuation, provide `--checkpoint` from startup:
 
 ```sh
 brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
@@ -120,7 +120,7 @@ brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
   --checkpoint "$HOME/.local/state/brewpi-emulator/checkpoint.json"
 ```
 
-Stopped time is not added. --speed can override resumed pacing; --scenario cannot replace resumed history. Native snapshots require matching saved state and compatible formats/runtime assumptions; arbitrary cross-version or cross-ABI migration is not provided.
+Stopped time is not added. `--speed` can override resumed pacing; `--scenario` cannot replace resumed history. Native snapshots require matching saved state and compatible formats/runtime assumptions; arbitrary cross-version or cross-ABI migration is not provided.
 
 A corrupt snapshot, state mismatch, incomplete command, or queued output prevents a checkpoint/resume operation and produces a local error rather than a fabricated Arduino reply. Failure before file replacement preserves the previous checkpoint. An error after rename can leave new bytes with uncertain durability; inspect the error and file before retrying. There is no automatic rollback or older-snapshot fallback.
 
@@ -128,13 +128,13 @@ A corrupt snapshot, state mismatch, incomplete command, or queued output prevent
 
 | Symptom | Check |
 | --- | --- |
-| Permission denied | Use private directories writable by the emulator account and accessible to the host. Default /run and /var/lib paths need provisioning; the home-directory example avoids that. |
-| Serial path exists or is locked | Check for a running instance. After SIGKILL, a stale symlink can remain. Verify the process is gone and instance locks are free, then remove only that instance's symlink. Never delete the PTY character target or another process's paths. |
+| Permission denied | Use private directories writable by the emulator account and accessible to the host. Default `/run` and `/var/lib` paths need provisioning; the home-directory example avoids that. |
+| Serial path exists or is locked | Check for a running instance. After `SIGKILL`, a stale symlink can remain. Verify the process is gone and instance locks are free, then remove only that instance's symlink. Never delete the PTY character target or another process's paths. |
 | Host stops receiving after a restart | Reopen/restart the host against the newly published PTY. |
-| No devices or W3 | Initialize through factory reset, then discover and assign the virtual hardware. |
+| No devices or `W3` | Initialize through factory reset, then discover and assign the virtual hardware. |
 | A setting changes after restart | Firmware live values and saved values differ by design. Check the command's persistence behavior in the protocol reference. |
-| GUI does not open | Check python3 -m tkinter, the helper path, and the graphical session; terminal/headless fallback remains available. |
-| Terminal controls do not respond | Bring the process to the foreground and check terminal size/encoding. Enter submits a command; press is the pushbutton action. |
+| GUI does not open | Check `python3 -m tkinter`, the helper path, and the graphical session; terminal/headless fallback remains available. |
+| Terminal controls do not respond | Bring the process to the foreground and check terminal size/encoding. `Enter` submits a command; `press` is the pushbutton action. |
 | Checkpoint fails | Drain serial output, complete partial commands, and use the matching state file. Inspect local errors before replacing data. |
 | Replies appear delayed | Check queued output and partial tokens. Do not add a competing serial reader. |
 
@@ -149,6 +149,6 @@ Use the actual emulator PID and installed helper path. This checks a live PID an
 
 ## Service example and limits
 
-The inert per-instance systemd example is installed under share/brewpi-emulator-rmx/systemd. It assumes a brewpi account, private runtime/state directories, shared PTY visibility, and Python for its readiness post-check. Installation does not enable the service or copy it into the live unit directory. It does not automatically resume checkpoints or restart the BrewPi host. Actual service activation, boot ordering, physical Pi operation, USB/GPIO behavior, and undefined Arduino memory/bus outcomes are outside the software support claim.
+The inert per-instance systemd example is installed under `share/brewpi-emulator-rmx/systemd`. It assumes a `brewpi` account, private runtime/state directories, shared PTY visibility, and Python for its readiness post-check. Installation does not enable the service or copy it into the live unit directory. It does not automatically resume checkpoints or restart the BrewPi host. Actual service activation, boot ordering, physical Pi operation, USB/GPIO behavior, and undefined Arduino memory/bus outcomes are outside the software support claim.
 
 Original work is MIT. Retain [license and component notices](../THIRD_PARTY_NOTICES.md) and the required GNU source companions when distributing binaries.

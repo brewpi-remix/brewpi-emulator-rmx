@@ -18,7 +18,7 @@ brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
   --state "$HOME/.local/state/brewpi-emulator/controller.json" --lcd terminal
 ```
 
-Set the BrewPi host's port to that serial path and altport to None. Use the panel's factory reset to initialize a new controller store, then discover and assign the virtual devices. Keep the emulator running while the host uses it. Both processes need access to the same PTY and private paths; using the same unprivileged account is simplest.
+Set the BrewPi host's `port` to that serial path and `altport` to `None`. Use the panel's factory reset to initialize a new controller store, then discover and assign the virtual devices. Keep the emulator running while the host uses it. Both processes need access to the same PTY and private paths; using the same unprivileged account is simplest.
 
 ## Documentation
 

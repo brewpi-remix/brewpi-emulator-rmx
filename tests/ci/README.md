@@ -1,6 +1,6 @@
 # Regression CI
 
-The [workflow](../../.github/workflows/regression.yml) runs static specification/link/provenance checks, helper regressions, native Linux amd64/ARM64 Release and sanitizer suites, macOS ARM64 development checks, and isolated ARM64 host/panel integration. The completion validator requires executed receipts from every lane and verifies source/run identity; skipped or missing jobs do not pass.
+The [workflow](../../.github/workflows/regression.yml) runs static specification/link/provenance checks, helper regressions, native Linux amd64/ARM64 Release and sanitizer suites, `macOS` ARM64 development checks, and isolated ARM64 host/panel integration. The completion validator requires executed receipts from every lane and verifies source/run identity; skipped or missing jobs do not pass.
 
 [references.py](references.py) prepares separate pinned compatibility references listed in [references.json](references.json). Native CTest builds require neither Git nor those references; specification citation checks and real-client integration do.
 

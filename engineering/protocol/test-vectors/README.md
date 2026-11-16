@@ -6,6 +6,6 @@ These independently authored MIT JSON files specify the controller personality, 
 - [diagnostics-v1.json](diagnostics-v1.json): 43 type/ID signatures and argument expectations.
 - [protocol-v1.json](protocol-v1.json): 48 deterministic source-defined cases and nine unresolved reference-characterization cases.
 
-Fixture metadata describes specification artifacts, not execution receipts. Run the native suites to obtain current execution results. Unresolved cases have no invented exact output and do not count as passing. Byte expectations preserve CRLF framing, CP437 LCD values, malformed/partial input, diagnostic placement, and firmware quirks.
+Fixture metadata describes specification artifacts, not execution receipts. Run the native suites to obtain current execution results. Unresolved cases have no invented exact output and do not count as passing. Byte expectations preserve `CRLF` framing, CP437 LCD values, malformed/partial input, diagnostic placement, and firmware quirks.
 
 The original [fixture matcher](../../../tests/fixtures.py) validates ordered replies/diagnostics and native engine state through a test-only driver. Public PTY tests exercise the shipped process separately. See the [wire contract](../behavioral-contract.md) and [development guide](../../../docs/development.md).
