@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "spdx_license_identifier": "MIT",
+  "copyright": "2026 Lee Bussy",
+  "candidate_version": "0.0.1-rc.1",
+  "candidate_source_commit": "38769c168428898a39e1c30e94607faf46f2e551",
+  "candidate_source_snapshot_sha256": "019a7742a8bce8b37a80e61c6f3274046a99eab884f810feea1655cf402cec48",
+  "architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "normal": {
+    "wall_seconds": 86400,
+    "speed": 1,
+    "client": "pinned real host; sole PTY owner",
+    "profile": "original wall-clock disabled/resumed segments",
+    "seed": 91,
+    "profile_points_seconds": [
+      [
+        -60,
+        22
+      ],
+      [
+        3600,
+        22
+      ],
+      [
+        3601,
+        null
+      ],
+      [
+        7200,
+        null
+      ],
+      [
+        7201,
+        22
+      ],
+      [
+        21600,
+        22
+      ],
+      [
+        21601,
+        18
+      ],
+      [
+        36000,
+        18
+      ],
+      [
+        36001,
+        22
+      ],
+      [
+        50400,
+        22
+      ],
+      [
+        50401,
+        18
+      ],
+      [
+        64800,
+        18
+      ],
+      [
+        64801,
+        22
+      ],
+      [
+        79200,
+        22
+      ],
+      [
+        79201,
+        null
+      ],
+      [
+        82800,
+        null
+      ],
+      [
+        82801,
+        20
+      ],
+      [
+        90000,
+        20
+      ]
+    ]
+  },
+  "accelerated": {
+    "wall_seconds": 21600,
+    "speed": 60,
+    "client": "original sole PTY client",
+    "targets_c": [
+      22,
+      18
+    ],
+    "target_period_wall_seconds": 1800,
+    "seed": 91
+  },
+  "resource_sample_period_seconds": 0.5,
+  "resource_sample_max_gap_seconds": 1,
+  "heartbeat_max_gap_seconds": 5,
+  "warmup_wall_seconds": 1800,
+  "steady_window_wall_seconds": 3600,
+  "peak_rss_limit_kib": 131072,
+  "steady_rss_growth_limit_kib": 8192,
+  "lifecycle_minimum_cycles": 100,
+  "wire_segment_bytes": 1048576,
+  "wire_retained_segments": 8,
+  "pilots_qualify": false,
+  "unresolved_arduino_cases": 9,
+  "execution_status": "prepared_requires_pilots_before_acceptance",
+  "payload_manifest_sha256_by_architecture": {
+    "arm64": "19fb235540c0a6b932f215ddbf3fed18b64baa2f0790c498df94b5c06c7a5b22",
+    "amd64": "74014296b938b6014f5976637d549ba8ea433451b836e7fbf1f701499936212c"
+  },
+  "scenario": {
+    "random_seed": 91,
+    "noise_amplitude_c": 0.15,
+    "probe_lag_seconds": 5,
+    "fermentation_enabled": true,
+    "room_daily_amplitude_c": 2
+  },
+  "pilot_normal_profile_points_seconds": [
+    [
+      -60,
+      null
+    ],
+    [
+      20,
+      null
+    ],
+    [
+      21,
+      22
+    ],
+    [
+      120,
+      22
+    ]
+  ]
+}
