@@ -158,7 +158,7 @@ def snapshot(root, output):
         safe_name(name);p=root/name
         if not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]):raise ValueError('nonregular source input')
         if name not in tracked:
-            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/release.md','engineering/licenses/software-release-r4.md','engineering/development/candidate-controls-integration.md','engineering/development/candidate-controls-results.md','engineering/development/candidate-controls-review.md']):
+            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/release.md','engineering/licenses/software-release-r4.md','engineering/development/candidate-controls-integration.md','engineering/development/candidate-controls-results.md','engineering/development/candidate-controls-review.md','engineering/development/software-release-r4-final.md','engineering/licenses/software-release-r5.md','engineering/development/software-release-r5-review.md','tests/qualification/native_package.py','tests/qualification/native_package_checks.py']):
                 raise ValueError('undeclared new original input: '+name)
             new.append(name)
         if p.stat().st_mode&0o6000:raise ValueError('privileged source mode')

@@ -51,3 +51,5 @@ The [milestone 5 provenance record](milestone-5.md) covers original operating/re
 The [cross-milestone review](../development/cross-milestone-review.md) records original host-path/UTF-8 fixes, test evidence gates, shared original helper provenance, saved static validation, and unchanged reference/wire/license boundaries after the five published milestones. No additional third-party component is incorporated.
 
 The [R2 provenance record](software-release-r2.md) covers original CI/payload/evidence helpers, pinned external actions/linter/minimum-tool sources, package hash metadata, local validation, and pending hosted results. No incorporated runtime dependency or reference implementation is added.
+
+The [R5 actual-artifact audit](software-release-r5.md) inventories the qualified original MIT source, compiled GNU contributions, mandatory external notice/source companions, and required external runtime files. Original code remains MIT; external legal/source material retains its own terms and is excluded from the original source allowlist.

@@ -18,7 +18,11 @@ Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status des
 - ▧ Qualify physical Pi operation and actual systemd activation if separately requested; retain all nine unresolved firmware-characterization gates.
 - ✅ Save a proposed [remaining software and release plan](engineering/development/software-release-plan.md), with Pi, systemd activation, and Arduino characterization excluded; plan consistency reviewed and corrected, followed by the owner-authorized R1 policy deliverable.
 - ✅ Complete the [R1 software/release policy](engineering/development/software-release-policy.md) for review using 0.0.1-rc.1, with reviewed check-execution/identity gates, resource measurement/budgets, unsigned-first-RC/single-maintainer rules, and outstanding long-run host/evidence assignment recorded. The owner authorized committing and pushing this reviewed documentation to main.
-- ▧ Review and authorize R2–R6 before implementation; CI, policy activation, artifact preparation, and publication remain unimplemented.
+- ✅ Complete R2 regression execution and hosted CI; the reviewed controls integration is published at f717d36 with all nine hosted jobs passing.
+- ✅ Complete the [R3 software qualification](engineering/development/software-release-r3-final-review.md), retaining original workload identities and the documented controls carry-forward.
+- ✅ Complete [final R4 technical acceptance](engineering/development/software-release-r4-final.md), including exact committed-source association and native x86-64 package qualification; the owner subsequently authorized reviewed supporting work for publication with R5.
+- ✅ Complete [R5 actual-artifact provenance/component/license acceptance](engineering/licenses/software-release-r5.md), including mandatory separate notices and GNU corresponding-source companions; the qualified archives and original MIT code remain unchanged.
+- ▧ Complete R6 candidate dossier and owner handoff; tagging/publication require separate authorization.
 
 The [implementation plan](IMPLEMENTATION_PLAN.md) owns milestone acceptance criteria. Milestones 2 and 3 have native build/test evidence; milestone 4 adds reviewed isolated host/panel integration evidence, and milestone 5 adds selected Linux software qualification and operating guidance. Physical Pi and actual systemd activation remain outstanding.
 

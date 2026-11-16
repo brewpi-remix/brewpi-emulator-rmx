@@ -1,6 +1,6 @@
 # Copyright 2026 Lee Bussy
-# SPDX-License-Identifier: MIT
 # Explicit original project input allowlist; review additions before packaging.
+# SPDX-License-Identifier: MIT
 .clang-format
 .editorconfig
 .gitattributes
@@ -63,8 +63,10 @@ engineering/development/software-release-r3-arm-review.md
 engineering/development/software-release-r3-final-review.md
 engineering/development/software-release-r3-x86-recovery.md
 engineering/development/software-release-r3.md
+engineering/development/software-release-r4-final.md
 engineering/development/software-release-r4-hosted.md
 engineering/development/software-release-r4.md
+engineering/development/software-release-r5-review.md
 engineering/licenses/README.md
 engineering/licenses/lcd.md
 engineering/licenses/milestone-1.md
@@ -76,6 +78,7 @@ engineering/licenses/rotary-controls.md
 engineering/licenses/software-release-r2.md
 engineering/licenses/software-release-r3.md
 engineering/licenses/software-release-r4.md
+engineering/licenses/software-release-r5.md
 engineering/protocol/README.md
 engineering/protocol/behavioral-contract.md
 engineering/protocol/bugs-and-edge-cases.md
@@ -90,9 +93,16 @@ engineering/protocol/test-vectors/diagnostics-v1.json
 engineering/protocol/test-vectors/protocol-v1.json
 release/README.md
 release/artifacts.py
+release/audit_binary.py
 release/build.Dockerfile
 release/checks.py
 release/local.py
+release/r4_review.py
+release/r4_review_checks.py
+release/r5-glibc-source-readme.md
+release/r5-notice-index.md
+release/r5_audit.py
+release/r5_checks.py
 release/runtime.Dockerfile
 release/runtime.py
 release/source-files.txt
@@ -160,6 +170,8 @@ tests/qualification/README.md
 tests/qualification/checks.py
 tests/qualification/evidence.py
 tests/qualification/launcher_checks.py
+tests/qualification/native_package.py
+tests/qualification/native_package_checks.py
 tests/qualification/prepare.py
 tests/qualification/run-isolated.sh
 tests/qualification/runtime.py

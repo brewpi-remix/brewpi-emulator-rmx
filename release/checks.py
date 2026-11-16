@@ -242,4 +242,13 @@ class ControlsQualificationEvidence(unittest.TestCase):
                 with self.assertRaises(ValueError):input_evidence(root,'qualification')
 
 
+def load_tests(loader, tests, pattern):
+    # Keep the new boundary/evidence negatives in the existing CI helper lane.
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/qualification'))
+    tests.addTests(loader.loadTestsFromName('r4_review_checks'))
+    tests.addTests(loader.loadTestsFromName('r5_checks'))
+    tests.addTests(loader.loadTestsFromName('native_package_checks'))
+    return tests
+
+
 if __name__=='__main__':unittest.main()
