@@ -8,6 +8,9 @@ from pathlib import Path
 import platform
 import subprocess
 import stat
+from version import application_version, checked_version
+
+ROOT=Path(__file__).resolve().parents[2]
 
 FILES = {'bin/brewpi-emulator-rmx', 'libexec/brewpi-emulator-rmx/wait-ready.py',
          'share/brewpi-emulator-rmx/systemd/brewpi-emulator@.service',
@@ -57,21 +60,22 @@ def source_identity(manifest):
 
 
 class Payload:
-    def __init__(self, tree, manifest, architecture=None):
+    def __init__(self, tree, manifest, architecture=None, expected_version=None):
         preflight()
         self.tree = Path(tree).resolve()
         manifest_bytes=Path(manifest).read_bytes()
         self.manifest = json.loads(manifest_bytes)
         self.manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest()
         self.architecture = architecture or native_arch()
+        expected_version=checked_version(expected_version if expected_version is not None else application_version(ROOT))
         m = self.manifest
-        if m.get('candidate_version') != '0.0.1-rc.1':
+        if m.get('candidate_version') != expected_version:
             raise ValueError('unexpected candidate policy or manifest schema')
         if m.get('architecture') != self.architecture or self.architecture not in MACHINES:
             raise ValueError('payload architecture differs from execution target')
         self.source_identity=source_identity(m)
-        if not isinstance(m.get('application_version_output'), str) or not m['application_version_output']:
-            raise ValueError('missing frozen version expectation')
+        if m.get('application_version_output')!='brewpi-emulator-rmx '+expected_version:
+            raise ValueError('CLI version expectation differs from candidate version')
         files=payload_files(m)
         if set(m.get('files', {})) != files:
             raise ValueError('incomplete payload inventory')
@@ -81,7 +85,7 @@ class Payload:
             import sys
             sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'release'))
             from artifacts import source_record, verify_original_files
-            record=source_record(Path(__file__).resolve().parents[2])
+            record=source_record(ROOT,expected_version=expected_version)
             if record['source_snapshot_sha256']!=m['source_snapshot_sha256'] or record['base_commit']!=m['base_commit'] or m.get('source_commit_role')!='pending-reviewed-commit-binding':
                 raise ValueError('driver/helper source differs from provisional payload identity')
             verify_original_files(m,record)

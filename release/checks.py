@@ -10,7 +10,7 @@ import tempfile
 import tarfile
 import unittest
 from unittest.mock import patch
-from artifacts import archive, unpack, canonical, source_record, source_names, verify_original_files
+from artifacts import archive, unpack, canonical, source_record, source_names, verify_original_files, VERSION as CURRENT_VERSION, STEM
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/ci'))
 from payload import source_identity
@@ -80,17 +80,43 @@ class Archives(unittest.TestCase):
 
 
 class Identity(unittest.TestCase):
+    def test_archived_version_requires_explicit_expectation_and_matches_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);(root/'cmake').mkdir()
+            name='cmake/version.cmake'
+            text='set(RMX_VERSION_MAJOR 0)\nset(RMX_VERSION_MINOR 0)\nset(RMX_VERSION_PATCH 1)\nset(RMX_VERSION_PRERELEASE "rc.1")\n'
+            (root/name).write_text(text)
+            files={name:dict(sha256=hashlib.sha256(text.encode()).hexdigest(),mode=0o644)}
+            content=dict(schema=1,spdx_license_identifier='MIT',version='0.0.1-rc.1',base_commit='a'*40,source_commit=None,identity_role='uncommitted-provisional-snapshot',source_date_epoch=1,files=files)
+            def save():
+                record=dict(content,source_snapshot_sha256=hashlib.sha256(canonical(content)).hexdigest())
+                (root/'SOURCE.json').write_bytes(canonical(record))
+            save()
+            with self.assertRaises(ValueError):source_record(root)
+            self.assertEqual(source_record(root,expected_version='0.0.1-rc.1')['version'],'0.0.1-rc.1')
+            content['version']=CURRENT_VERSION;save()
+            with self.assertRaisesRegex(ValueError,'archived application metadata'):source_record(root)
+
     def test_snapshot_identity_and_changed_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'original.txt').write_bytes(b'original snapshot\n')
-            files={'original.txt':dict(sha256=hashlib.sha256((root/'original.txt').read_bytes()).hexdigest(),mode=0o644)}
-            content=dict(schema=1,spdx_license_identifier='MIT',version='0.0.1-rc.1',base_commit='a'*40,source_commit=None,identity_role='uncommitted-provisional-snapshot',source_date_epoch=1,files=files)
+            (root/'cmake').mkdir();(root/'cmake/version.cmake').write_bytes((Path(__file__).resolve().parents[1]/'cmake/version.cmake').read_bytes())
+            files={name:dict(sha256=hashlib.sha256((root/name).read_bytes()).hexdigest(),mode=0o644) for name in ['original.txt','cmake/version.cmake']}
+            content=dict(schema=1,spdx_license_identifier='MIT',version=CURRENT_VERSION,base_commit='a'*40,source_commit=None,identity_role='uncommitted-provisional-snapshot',source_date_epoch=1,files=files)
             record=dict(content,source_snapshot_sha256=hashlib.sha256(canonical(content)).hexdigest())
             (root/'SOURCE.json').write_bytes(canonical(record));source_record(root)
             (root/'original.txt').write_bytes(b'changed')
             with self.assertRaises(ValueError):source_record(root)
             (root/'original.txt').write_bytes(b'original snapshot\n');(root/'unexpected').write_text('extra')
             with self.assertRaises(ValueError):source_record(root)
+
+    def test_rehashed_snapshot_cannot_omit_version_authority(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            content=dict(schema=1,spdx_license_identifier='MIT',version=CURRENT_VERSION,base_commit='a'*40,source_commit=None,identity_role='uncommitted-provisional-snapshot',source_date_epoch=1,files={})
+            record=dict(content,source_snapshot_sha256=hashlib.sha256(canonical(content)).hexdigest())
+            (root/'SOURCE.json').write_bytes(canonical(record))
+            with self.assertRaisesRegex(ValueError,'omits application version metadata'):source_record(root)
 
     def test_payload_verification_rejects_mode_changes_and_special_files(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -100,7 +126,7 @@ class Identity(unittest.TestCase):
                 modes[name]=0o755 if name.startswith(('bin/','libexec/')) else 0o644
                 path.chmod(modes[name]);files[name]=hashlib.sha256(path.read_bytes()).hexdigest()
             payload=Payload.__new__(Payload);payload.tree=root;payload.architecture='arm64'
-            payload.manifest=dict(schema=2,files=files,file_modes=modes,candidate_version='0.0.1-rc.1')
+            payload.manifest=dict(schema=2,files=files,file_modes=modes,candidate_version=CURRENT_VERSION)
             payload.source_identity=dict(source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64);payload.manifest_sha256='c'*64
             payload.verify('test')
             path=root/'libexec/brewpi-emulator-rmx/wait-ready.py'
@@ -114,6 +140,15 @@ class Identity(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);os.mkfifo(root/'freeze.json')
             with self.assertRaises(ValueError):verify_freeze(root)
+
+    def test_saved_verifier_preserves_unsigned_and_pending_acceptance(self):
+        metadata=dict(schema=1,status='frozen-provisional-review-required',version=CURRENT_VERSION,source_commit=None,source_commit_role='pending-reviewed-commit-binding',unsigned=True,license_audit_accepted=False,sustained_testing_started=False)
+        invalid=[dict(unsigned=value) for value in [False,'true',1]]
+        invalid += [dict(license_audit_accepted=True),dict(sustained_testing_started=True),dict(r5_accepted=True),dict(r3_started=True),dict(r5_accepted=0),dict(r3_started='false')]
+        for fields in invalid:
+            with self.subTest(fields=fields),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);(root/'freeze.json').write_bytes(canonical(dict(metadata,**fields)))
+                with self.assertRaises(ValueError):verify_freeze(root)
 
     def test_assertion_disabled_release_verification_fails(self):
         with patch.dict(os.environ,{'PYTHONOPTIMIZE':'1'}):
@@ -131,8 +166,8 @@ class Identity(unittest.TestCase):
     def test_provisional_payload_rejects_wrong_source_base_before_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);manifest=root/'manifest.json'
-            data=dict(schema=2,candidate_version='0.0.1-rc.1',architecture='arm64',source_commit=None,base_commit='a'*40,
-                source_snapshot_sha256='b'*64,source_commit_role='pending-reviewed-commit-binding',application_version_output='brewpi-emulator-rmx 0.0.1-rc.1',
+            data=dict(schema=2,candidate_version=CURRENT_VERSION,architecture='arm64',source_commit=None,base_commit='a'*40,
+                source_snapshot_sha256='b'*64,source_commit_role='pending-reviewed-commit-binding',application_version_output='brewpi-emulator-rmx '+CURRENT_VERSION,
                 files={name:'c'*64 for name in FILES},file_modes={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in FILES})
             manifest.write_text(json.dumps(data))
             with patch.dict(os.environ,{'RMX_CANDIDATE_SNAPSHOT':'b'*64,'RMX_CANDIDATE_COMMIT':''}),patch('artifacts.source_record',return_value=dict(source_snapshot_sha256='b'*64,base_commit='d'*40)):
@@ -154,7 +189,7 @@ class Reproducibility(unittest.TestCase):
             root=Path(tmp);results=[]
             for label in ['first','second']:
                 result=root/'builds/arm64'/label/'result';result.mkdir(parents=True);results.append(result)
-                for name in ['brewpi-emulator-rmx-0.0.1-rc.1-source.tar.gz','brewpi-emulator-rmx-0.0.1-rc.1-linux-arm64.tar.gz','payload-manifest.json','build-manifest.json','packages.tsv','debs.sha256','indices.sha256']:
+                for name in [STEM+'-source.tar.gz',STEM+'-linux-arm64.tar.gz','payload-manifest.json','build-manifest.json','packages.tsv','debs.sha256','indices.sha256']:
                     (result/name).write_bytes(b'original comparison fixture')
                 (result/'native-results').mkdir()
                 (result/'native-results/fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
@@ -201,7 +236,7 @@ class PayloadProfiles(unittest.TestCase):
                 p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'original inventory test data')
                 modes[name]=0o755 if name.startswith(('bin/','libexec/')) else 0o644;p.chmod(modes[name]);files[name]=hashlib.sha256(p.read_bytes()).hexdigest()
             payload=Payload.__new__(Payload);payload.tree=root;payload.architecture='arm64';payload.source_identity={};payload.manifest_sha256='c'*64
-            payload.manifest=dict(schema=2,payload_profile='local-controls-v1',candidate_version='0.0.1-rc.1',files=files,file_modes=modes)
+            payload.manifest=dict(schema=2,payload_profile='local-controls-v1',candidate_version=CURRENT_VERSION,files=files,file_modes=modes)
             payload.verify('test')
             helper=root/'libexec/brewpi-emulator-rmx/lcd-viewer.py';original=helper.read_bytes()
             helper.write_bytes(b'changed')
@@ -219,10 +254,10 @@ class ControlsQualificationEvidence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);manifest=root/'manifest.json'
             m=dict(schema=2,payload_profile='local-controls-v1',source_commit=None,base_commit='a'*40,
-                source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files={n:'a'*64 for n in LOCAL_CONTROLS_FILES})
+                source_snapshot_sha256='b'*64,candidate_version=CURRENT_VERSION,architecture='arm64',files={n:'a'*64 for n in LOCAL_CONTROLS_FILES})
             def save():
                 manifest.write_text(json.dumps(m));identity=dict(mode='packaged-input',source_commit=None,base_commit='a'*40,
-                    source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files=m['files'],
+                    source_snapshot_sha256='b'*64,candidate_version=CURRENT_VERSION,architecture='arm64',files=m['files'],
                     manifest_sha256=hashlib.sha256(manifest.read_bytes()).hexdigest())
                 (root/'execution-input.json').write_text(json.dumps(dict(mode='packaged-input',sha256='a'*64,executable='/payload/bin/brewpi-emulator-rmx')))
                 (root/'executable-hashes.jsonl').write_text(''.join(json.dumps(dict(phase=p,sha256='a'*64))+'\n' for p in ['restart-1','restart-2','restart-3','after-integration']))
@@ -239,9 +274,9 @@ class ControlsQualificationEvidence(unittest.TestCase):
         from evidence import input_evidence
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);manifest=root/'manifest.json';files={n:'a'*64 for n in LOCAL_CONTROLS_FILES}
-            m=dict(schema=2,payload_profile='local-controls-v1',source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)
+            m=dict(schema=2,payload_profile='local-controls-v1',source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64,candidate_version=CURRENT_VERSION,architecture='arm64',files=files)
             manifest.write_text(json.dumps(m));digest=hashlib.sha256(manifest.read_bytes()).hexdigest()
-            identity=dict(mode='packaged-input',source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files=files,manifest_sha256=digest)
+            identity=dict(mode='packaged-input',source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64,candidate_version=CURRENT_VERSION,architecture='arm64',files=files,manifest_sha256=digest)
             (root/'execution-input.json').write_text(json.dumps(dict(mode='packaged-input',architecture='arm64',files=files)))
             (root/'installed-integrity.json').write_text(json.dumps(dict(status='passed',files=files)))
             (root/'payload-execution.jsonl').write_text(''.join(json.dumps(dict(identity,phase=p))+'\n' for p in ['before-runtime','service-start','service-end','after-runtime']))

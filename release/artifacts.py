@@ -18,8 +18,8 @@ import tarfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tests/ci'))
 from payload import FILES, LOCAL_CONTROLS_FILES, payload_files, preflight, sha
-from version import application_version
-VERSION='0.0.1-rc.1'
+from version import application_version, checked_version
+VERSION=application_version(ROOT)
 STEM='brewpi-emulator-rmx-'+VERSION
 ORIGINAL_SOURCES={
     'libexec/brewpi-emulator-rmx/wait-ready.py':'scripts/wait-ready.py',
@@ -102,12 +102,13 @@ def unpack(path, destination, top, inventory=None, epoch=None):
     return destination/top
 
 
-def source_record(root):
+def source_record(root, expected_version=None):
+    expected_version=checked_version(expected_version if expected_version is not None else VERSION)
     root=Path(root).resolve();metadata=root/'SOURCE.json'
     if metadata.is_symlink() or not metadata.is_file() or stat.S_IMODE(metadata.stat().st_mode)!=0o644:
         raise ValueError('source metadata is not a regular canonical file')
     record=json.loads(metadata.read_text())
-    if record.get('schema')!=1 or record.get('version')!=VERSION or record.get('spdx_license_identifier')!='MIT' or record.get('source_commit') is not None or record.get('identity_role')!='uncommitted-provisional-snapshot' or not re.fullmatch('[0-9a-f]{40}',record.get('base_commit','')) or type(record.get('source_date_epoch')) is not int or not 0<=record['source_date_epoch']<=0xffffffff:
+    if record.get('schema')!=1 or record.get('version')!=expected_version or record.get('spdx_license_identifier')!='MIT' or record.get('source_commit') is not None or record.get('identity_role')!='uncommitted-provisional-snapshot' or not re.fullmatch('[0-9a-f]{40}',record.get('base_commit','')) or type(record.get('source_date_epoch')) is not int or not 0<=record['source_date_epoch']<=0xffffffff:
         raise ValueError('invalid provisional source metadata')
     content={k:v for k,v in record.items() if k!='source_snapshot_sha256'}
     if hashlib.sha256(canonical(content)).hexdigest()!=record['source_snapshot_sha256']:
@@ -122,6 +123,10 @@ def source_record(root):
         p=root/safe_name(name)
         if row.get('mode') not in [0o644,0o755] or not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]) or sha(p)!=row['sha256'] or stat.S_IMODE(p.stat().st_mode)!=row['mode']:
             raise ValueError('frozen source input changed: '+name)
+    if 'cmake/version.cmake' not in record['files']:
+        raise ValueError('source snapshot omits application version metadata')
+    if application_version(root)!=expected_version:
+        raise ValueError('archived application metadata differs from expected version')
     return record
 
 
@@ -136,11 +141,13 @@ def verify_original_files(manifest, record):
             raise ValueError('installed original differs from source: '+installed)
 
 
-def payload_record(manifest, record, architecture, source_digest):
-    expected=dict(schema=2,candidate_version=VERSION,source_commit=None,base_commit=record['base_commit'],
+def payload_record(manifest, record, architecture, source_digest, expected_version=None):
+    version=checked_version(expected_version if expected_version is not None else VERSION)
+    if record.get('version')!=version:raise ValueError('source version differs from payload expectation')
+    expected=dict(schema=2,candidate_version=version,source_commit=None,base_commit=record['base_commit'],
         source_snapshot_sha256=record['source_snapshot_sha256'],source_archive_sha256=source_digest,
         source_commit_role='pending-reviewed-commit-binding',architecture=architecture,install_prefix='/usr/local',
-        application_version_output='brewpi-emulator-rmx '+VERSION)
+        application_version_output='brewpi-emulator-rmx '+version)
     if any(manifest.get(k)!=v for k,v in expected.items()):raise ValueError('payload metadata differs from source/target')
     files=payload_files(manifest)
     modes={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in files}
@@ -152,11 +159,11 @@ def payload_record(manifest, record, architecture, source_digest):
     return {name:dict(sha256=digest,mode=modes[name]) for name,digest in manifest['files'].items()}
 
 
-def canonical_source(source, path):
-    record=source_record(source)
+def canonical_source(source, path, expected_version=None):
+    record=source_record(source,expected_version=expected_version)
     entries={name:((Path(source)/name).read_bytes(),row['mode']) for name,row in record['files'].items()}
     entries['SOURCE.json']=((Path(source)/'SOURCE.json').read_bytes(),0o644)
-    archive(path,STEM+'-source',entries,record['source_date_epoch'])
+    archive(path,'brewpi-emulator-rmx-'+record['version']+'-source',entries,record['source_date_epoch'])
 
 
 def snapshot(root, output):
@@ -283,13 +290,15 @@ def build(source_archive, output, work, architecture, image_id):
 def main():
     parser=argparse.ArgumentParser();sub=parser.add_subparsers(dest='action',required=True)
     snap=sub.add_parser('snapshot');snap.add_argument('output');snap.add_argument('--root',default=str(ROOT))
-    repack=sub.add_parser('repack-source');repack.add_argument('source');repack.add_argument('output');repack.add_argument('--work',required=True)
+    repack=sub.add_parser('repack-source');repack.add_argument('source');repack.add_argument('output');repack.add_argument('--work',required=True);repack.add_argument('--expected-version')
     b=sub.add_parser('build');b.add_argument('source');b.add_argument('output');b.add_argument('--work',required=True)
     b.add_argument('--architecture',choices=['arm64','amd64'],required=True);b.add_argument('--image-id',required=True)
     args=parser.parse_args()
     if args.action=='snapshot':snapshot(args.root,args.output)
     elif args.action=='repack-source':
-        source=unpack(args.source,args.work,STEM+'-source');canonical_source(source,args.output)
+        version=checked_version(args.expected_version if args.expected_version is not None else VERSION)
+        source=unpack(args.source,args.work,'brewpi-emulator-rmx-'+version+'-source')
+        canonical_source(source,args.output,expected_version=version)
     else:build(args.source,args.output,args.work,args.architecture,args.image_id)
 
 

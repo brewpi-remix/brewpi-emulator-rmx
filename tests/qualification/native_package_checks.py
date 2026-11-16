@@ -2,22 +2,29 @@
 # SPDX-License-Identifier: MIT
 """Original negative tests for the native package isolation boundary."""
 import json
+import sys
 import hashlib
 import os
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 import native_package
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'ci'))
+from version import application_version
+CURRENT_VERSION=application_version(Path(__file__).resolve().parents[2])
 
 
 class NativeBoundary(unittest.TestCase):
     def inputs(self, base):
         (base/'source').mkdir()
-        manifest=dict(schema=2,candidate_version='0.0.1-rc.1',architecture='amd64',base_commit='a'*40,source_snapshot_sha256='b'*64)
+        (base/'source/cmake').mkdir()
+        (base/'source/cmake/version.cmake').write_bytes((Path(__file__).resolve().parents[2]/'cmake/version.cmake').read_bytes())
+        manifest=dict(schema=2,candidate_version=CURRENT_VERSION,architecture='amd64',base_commit='a'*40,source_snapshot_sha256='b'*64)
         (base/'candidate.json').write_text(json.dumps(manifest))
-        (base/'source/SOURCE.json').write_text(json.dumps(dict(base_commit='a'*40,source_snapshot_sha256='b'*64)))
-        request=dict(purpose='native packaged qualification',architecture='amd64',source_commit='a'*40,source_snapshot_sha256='b'*64,
+        (base/'source/SOURCE.json').write_text(json.dumps(dict(version=CURRENT_VERSION,base_commit='a'*40,source_snapshot_sha256='b'*64)))
+        request=dict(candidate_version=CURRENT_VERSION,purpose='native packaged qualification',architecture='amd64',source_commit='a'*40,source_snapshot_sha256='b'*64,
             manifest_sha256=hashlib.sha256((base/'candidate.json').read_bytes()).hexdigest(),
             native_wrapper_sha256=hashlib.sha256(Path(native_package.__file__).read_bytes()).hexdigest())
         (base/'request.json').write_text(json.dumps(request));return request
@@ -43,6 +50,32 @@ class NativeBoundary(unittest.TestCase):
             for flag,role in [('false','qualification'),(True,'runtime'),(True,'integration')]:
                 (base/'request.json').write_text(json.dumps(dict(request,sanitizer_process_no_aslr=flag)))
                 with self.subTest(flag=flag,role=role),self.assertRaises(ValueError):native_package.validate_request(base,Path(native_package.__file__),role)
+
+    def test_request_version_must_match_all_staged_inputs(self):
+        for target in ['request','record','cmake','manifest','expectation']:
+            with self.subTest(target=target),tempfile.TemporaryDirectory() as temporary:
+                base=Path(temporary);request=self.inputs(base)
+                other='9.8.7'
+                if target=='request':request['candidate_version']=other
+                elif target=='record':
+                    path=base/'source/SOURCE.json';record=json.loads(path.read_text());record['version']=other;path.write_text(json.dumps(record))
+                elif target=='cmake':
+                    (base/'source/cmake/version.cmake').write_text('set(RMX_VERSION_MAJOR 9)\nset(RMX_VERSION_MINOR 8)\nset(RMX_VERSION_PATCH 7)\nset(RMX_VERSION_PRERELEASE "")\n')
+                elif target=='manifest':
+                    path=base/'candidate.json';record=json.loads(path.read_text());record['candidate_version']=other;path.write_text(json.dumps(record))
+                    request['manifest_sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+                (base/'request.json').write_text(json.dumps(request))
+                with self.assertRaises(ValueError):native_package.validate_request(base,Path(native_package.__file__),'qualification',other if target=='expectation' else None)
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary);request=self.inputs(base);request.pop('candidate_version')
+            (base/'request.json').write_text(json.dumps(request))
+            with self.assertRaises(ValueError):native_package.validate_request(base,Path(native_package.__file__),'qualification')
+
+    def test_ctest_shim_module_imports_without_source_helpers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary);(base/'native_package.py').write_bytes(Path(native_package.__file__).read_bytes())
+            result=subprocess.run([sys.executable,'-I','-c','import sys;sys.path.insert(0,sys.argv[1]);from native_package import ctest_command;assert ctest_command("/lab",[])==["/usr/bin/ctest"]',str(base)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
 
     def test_aslr_workaround_is_only_for_exact_sanitizer_tree(self):
         arguments=['-T','Test','--output-on-failure']

@@ -14,7 +14,7 @@ import tempfile
 import time
 import stat
 import xml.etree.ElementTree as ET
-from artifacts import ROOT, STEM, VERSION, canonical, snapshot, sha, source_record, payload_record, unpack, write_json, preflight
+from artifacts import ROOT, STEM, VERSION, canonical, snapshot, sha, source_record, payload_record, unpack, write_json, preflight, checked_version
 
 
 def compare_builds(output, arch):
@@ -251,32 +251,39 @@ def seal(output,destination):
 
 
 
-def verify_freeze(destination):
+def verify_freeze(destination, expected_version=None):
+    version=checked_version(expected_version if expected_version is not None else VERSION)
+    stem="brewpi-emulator-rmx-"+version
     preflight()
     root=Path(destination)
     if root.is_symlink() or not root.is_dir():raise ValueError('candidate is not a regular directory')
     for path in root.iterdir():
         if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):raise ValueError('nonregular saved candidate member')
     data=json.loads((root/'freeze.json').read_text())
-    if data.get('schema')!=1 or data.get('status')!='frozen-provisional-review-required' or data.get('version')!=VERSION or data.get('source_commit') is not None or data.get('source_commit_role')!='pending-reviewed-commit-binding' or data.get('unsigned') is not True or data.get('license_audit_accepted') is not False or data.get('sustained_testing_started') is not False:
+    pending={}
+    for key,alias in [('license_audit_accepted','r5_accepted'),('sustained_testing_started','r3_started')]:
+        if any(name in data and type(data[name]) is not bool for name in [key,alias]):raise ValueError('invalid saved acceptance flag')
+        if key in data and alias in data and data[key]!=data[alias]:raise ValueError('conflicting saved acceptance flags')
+        pending[key]=data.get(key,data.get(alias))
+    if data.get('schema')!=1 or data.get('status')!='frozen-provisional-review-required' or data.get('version')!=version or data.get('source_commit') is not None or data.get('source_commit_role')!='pending-reviewed-commit-binding' or data.get('unsigned') is not True or pending['license_audit_accepted'] is not False or pending['sustained_testing_started'] is not False:
         raise ValueError('wrong provisional freeze identity')
     if (root/'freeze.sha256').read_text()!=sha(root/'freeze.json')+'  freeze.json\n':raise ValueError('freeze manifest checksum mismatch')
     actual={p.name for p in root.iterdir()}
     if actual!=set(data['files'])|{'freeze.json','freeze.sha256'}:raise ValueError('missing or extra frozen file')
     for name,digest in data['files'].items():
         if Path(name).name!=name or (root/name).is_symlink() or sha(root/name)!=digest:raise ValueError('frozen byte mismatch')
-    for name in [STEM+'-source.tar.gz',STEM+'-linux-amd64.tar.gz',STEM+'-linux-arm64.tar.gz']:
+    for name in [stem+'-source.tar.gz',stem+'-linux-amd64.tar.gz',stem+'-linux-arm64.tar.gz']:
         if name not in data['files']:raise ValueError('missing frozen archive')
     expected=''.join(data['files'][name]+'  '+name+'\n' for name in sorted(data['files']) if name!='SHA256SUMS')
     if (root/'SHA256SUMS').read_text()!=expected:raise ValueError('checksum inventory mismatch')
     # Checksums detect accidental edits; independently reconcile archive contents
     # and sidecar identities as well. They are not signatures/authentication.
     metadata=json.loads((root/'source-manifest.json').read_text())
-    source_digest=sha(root/(STEM+'-source.tar.gz'))
+    source_digest=sha(root/(stem+'-source.tar.gz'))
     if metadata.get('archive_sha256')!=source_digest:raise ValueError('source sidecar archive mismatch')
     with tempfile.TemporaryDirectory() as temporary:
-        source=unpack(root/(STEM+'-source.tar.gz'),Path(temporary)/'source',STEM+'-source',epoch=metadata['source_date_epoch'])
-        record=source_record(source)
+        source=unpack(root/(stem+'-source.tar.gz'),Path(temporary)/'source',stem+'-source',epoch=metadata['source_date_epoch'])
+        record=source_record(source,expected_version=version)
         if any(metadata.get(k)!=v for k,v in record.items()) or any(data.get(k)!=record[k] for k in ['source_snapshot_sha256','base_commit','source_commit']):
             raise ValueError('saved source identities disagree')
         lock=json.loads((root/'environment-lock.json').read_text())
@@ -293,10 +300,10 @@ def verify_freeze(destination):
             if lock['execution'].get(arch)!=execution or reproducible['architectures'][arch].get('native_execution') is not (arch==native_arch):
                 raise ValueError('inconsistent native/emulated evidence label')
             manifest=json.loads((root/(arch+'-payload-manifest.json')).read_text())
-            inventory=payload_record(manifest,record,arch,source_digest)
+            inventory=payload_record(manifest,record,arch,source_digest,expected_version=version)
             build=json.loads((root/(arch+'-build-manifest.json')).read_text())
-            archive=STEM+'-linux-'+arch+'.tar.gz'
-            expected=dict(architecture=arch,version=VERSION,source_snapshot_sha256=record['source_snapshot_sha256'],source_archive_sha256=source_digest,
+            archive=stem+'-linux-'+arch+'.tar.gz'
+            expected=dict(architecture=arch,version=version,source_snapshot_sha256=record['source_snapshot_sha256'],source_archive_sha256=source_digest,
                 source_date_epoch=record['source_date_epoch'],files=manifest['files'],file_modes=manifest['file_modes'],archive=archive,
                 archive_sha256=sha(root/archive),image_id=lock['images'][arch]['build'],
                 package_inventory_sha256=sha(root/(arch+'-packages.tsv')),package_archives_sha256=sha(root/(arch+'-debs.sha256')))
@@ -304,7 +311,7 @@ def verify_freeze(destination):
             comparison=reproducible['architectures'][arch]
             if comparison['binary_archive_sha256']!=sha(root/archive) or comparison['build_manifest_sha256']!=sha(root/(arch+'-build-manifest.json')):
                 raise ValueError('saved reproducibility build mismatch')
-            tree=unpack(root/archive,Path(temporary)/arch,STEM+'-linux-'+arch,inventory,epoch=record['source_date_epoch'])
+            tree=unpack(root/archive,Path(temporary)/arch,stem+'-linux-'+arch,inventory,epoch=record['source_date_epoch'])
             if (tree/'share/doc/brewpi-emulator-rmx/LICENSE.md').read_bytes()!=(source/'LICENSE.md').read_bytes():raise ValueError('saved payload license differs from source')
     return data
 
@@ -316,13 +323,13 @@ def main():
     p=sub.add_parser('prepare');p.add_argument('output')
     p=sub.add_parser('runtime');p.add_argument('output');p.add_argument('architecture',choices=['arm64','amd64'])
     p=sub.add_parser('seal');p.add_argument('output');p.add_argument('destination')
-    p=sub.add_parser('verify');p.add_argument('destination')
+    p=sub.add_parser('verify');p.add_argument('destination');p.add_argument('--expected-version')
     args=parser.parse_args()
     try:
         if args.action=='prepare':prepare(args.output)
         elif args.action=='runtime':runtime(args.output,args.architecture)
         elif args.action=='seal':seal(args.output,args.destination)
-        else:verify_freeze(args.destination)
+        else:verify_freeze(args.destination,expected_version=args.expected_version)
     except BaseException:
         # Never turn a failed attempt into a frozen candidate or reuse its path.
         raise

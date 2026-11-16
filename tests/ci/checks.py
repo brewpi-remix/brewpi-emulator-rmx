@@ -12,6 +12,8 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from version import application_version, checked_version
+CURRENT_VERSION=application_version(Path(__file__).resolve().parents[2])
 from gate import LANES, validate, HELPERS, emit_receipt
 from native import SUITES
 from payload import FILES, Payload, preflight, sha
@@ -113,6 +115,41 @@ class Completion(unittest.TestCase):
             self.assertFalse((Path(tmp)/'build/execution.json').exists())
 
 
+class Versions(unittest.TestCase):
+    def metadata(self, root, suffix):
+        (root/'cmake').mkdir(exist_ok=True)
+        text='set(RMX_VERSION_MAJOR 0)\nset(RMX_VERSION_MINOR 0)\nset(RMX_VERSION_PATCH 1)\nset(RMX_VERSION_PRERELEASE "'+suffix+'")\n'
+        (root/'cmake/version.cmake').write_text(text)
+        return text
+
+    def test_final_and_prerelease_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            for suffix,expected in [('', '0.0.1'),('rc.1','0.0.1-rc.1')]:
+                self.metadata(root,suffix)
+                self.assertEqual(application_version(root),expected)
+
+    def test_malformed_and_duplicate_metadata_is_rejected(self):
+        for suffix in ['rc..1','rc.01','.rc','rc.','rc_1']:
+            with self.subTest(suffix=suffix),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);self.metadata(root,suffix)
+                with self.assertRaises(ValueError):application_version(root)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);text=self.metadata(root,'')
+            for extra in ['set(RMX_VERSION_PATCH 2)\n','set(RMX_VERSION_PRERELEASE "rc.1")\n']:
+                (root/'cmake/version.cmake').write_text(text+extra)
+                with self.assertRaises(ValueError):application_version(root)
+        for value in ['0.0.01','0.0.1-','0.0.1-rc.01','0.0.1;extra',None]:
+            with self.subTest(value=value),self.assertRaises(ValueError):checked_version(value)
+
+    def test_cmake_commands_cannot_override_the_parsed_version(self):
+        for extra in ['set(RMX_VERSION_PATCH 2) # override\n','set (RMX_VERSION_PATCH 2)\n','SET(RMX_VERSION_PATCH 2)\n','unset(RMX_VERSION_PRERELEASE)\n','include(other.cmake)\n','#[[\nset(RMX_VERSION_PATCH 2)\n]]\n']:
+            with self.subTest(extra=extra),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);text=self.metadata(root,'')
+                (root/'cmake/version.cmake').write_text(text+extra)
+                with self.assertRaises(ValueError):application_version(root)
+
+
 class Packaged(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
@@ -122,15 +159,29 @@ class Packaged(unittest.TestCase):
         (self.root/'share/doc/brewpi-emulator-rmx/LICENSE.md').write_bytes((Path(__file__).resolve().parents[2]/'LICENSE.md').read_bytes())
         binary=self.root/'bin/brewpi-emulator-rmx'
         header=bytearray(64);header[:6]=b'\x7fELF\x02\x01';header[18:20]=(183).to_bytes(2,'little');binary.write_bytes(header)
-        self.manifest=dict(schema=1,install_prefix='/opt/brewpi-emulator-rmx',candidate_version='0.0.1-rc.1',architecture='arm64',source_commit='a'*40,
-                           application_version_output='fixture-only',files={name:sha(self.root/name) for name in FILES})
+        self.manifest=dict(schema=1,install_prefix='/opt/brewpi-emulator-rmx',candidate_version=CURRENT_VERSION,architecture='arm64',source_commit='a'*40,
+                           application_version_output='brewpi-emulator-rmx '+CURRENT_VERSION,files={name:sha(self.root/name) for name in FILES})
         self.path=Path(self.tmp.name)/'manifest.json';self.save()
 
     def save(self):self.path.write_text(json.dumps(self.manifest))
 
-    def load(self):
-        with patch('payload.subprocess.check_output',return_value='fixture-only\n'),patch.dict(os.environ,RMX_CANDIDATE_COMMIT='a'*40,RMX_CANDIDATE_SNAPSHOT=''):
-            return Payload(self.root,self.path,'arm64')
+    def load(self, expected_version=None, actual_version=None):
+        actual_version=actual_version if actual_version is not None else CURRENT_VERSION
+        with patch('payload.subprocess.check_output',return_value='brewpi-emulator-rmx '+actual_version+'\n'),patch.dict(os.environ,RMX_CANDIDATE_COMMIT='a'*40,RMX_CANDIDATE_SNAPSHOT=''):
+            return Payload(self.root,self.path,'arm64',expected_version=expected_version)
+
+    def test_old_payload_needs_explicit_version_and_cannot_be_relabelled(self):
+        old='0.0.1-rc.1'
+        self.manifest.update(candidate_version=old,application_version_output='brewpi-emulator-rmx '+old);self.save()
+        with self.assertRaises(ValueError):self.load(actual_version=old)
+        self.assertEqual(self.load(expected_version=old,actual_version=old).verify('review')['candidate_version'],old)
+        with self.assertRaises(ValueError):self.load(expected_version=old,actual_version=CURRENT_VERSION)
+        self.manifest['candidate_version']=CURRENT_VERSION;self.save()
+        with self.assertRaisesRegex(ValueError,'CLI version expectation'):self.load(actual_version=old)
+
+    def test_final_manifest_rejects_old_executable_output(self):
+        with self.assertRaisesRegex(ValueError,'application version differs'):
+            self.load(actual_version='0.0.1-rc.1')
 
     def test_original_fixture(self):self.assertEqual(self.load().verify('end')['mode'],'packaged-input')
 
@@ -273,8 +324,8 @@ class SavedEvidence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);manifest=root/'manifest.json'
             files={name:'a'*64 for name in FILES}
-            manifest.write_text(json.dumps(dict(schema=1,source_commit='a'*40,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)))
-            record=dict(mode='packaged-input',manifest_sha256=sha(manifest),source_commit='a'*40,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)
+            manifest.write_text(json.dumps(dict(schema=1,source_commit='a'*40,candidate_version=CURRENT_VERSION,architecture='arm64',files=files)))
+            record=dict(mode='packaged-input',manifest_sha256=sha(manifest),source_commit='a'*40,candidate_version=CURRENT_VERSION,architecture='arm64',files=files)
             phases=['before-integration','restart-1','restart-2','restart-3','after-integration']
             (root/'execution-input.json').write_text(json.dumps(dict(mode='packaged-input',executable='/payload/bin/brewpi-emulator-rmx',sha256='a'*64)))
             (root/'executable-hashes.jsonl').write_text(''.join(json.dumps(dict(phase=p,sha256='a'*64))+'\n' for p in phases[1:]))

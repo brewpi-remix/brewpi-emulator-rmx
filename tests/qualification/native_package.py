@@ -31,10 +31,16 @@ def ctest_command(directory, arguments):
     return ['/usr/bin/ctest',*arguments]
 
 
-def validate_request(base, wrapper, role):
+def validate_request(base, wrapper, role, expected_version=None):
     request=json.loads((base/'request.json').read_text())
+    sys.path.insert(0,str(base/'source/tests/ci'))
+    from version import application_version, checked_version
+    expected_version=checked_version(expected_version if expected_version is not None else request.get('candidate_version'))
+    if request.get('candidate_version')!=expected_version or application_version(base/'source')!=expected_version:
+        raise ValueError('requested version differs from staged source metadata')
     raw=(base/'candidate.json').read_bytes();manifest=json.loads(raw)
     source=json.loads((base/'source/SOURCE.json').read_text())
+    if source.get('version')!=expected_version:raise ValueError('staged source record version differs from request')
     snapshot=manifest.get('source_snapshot_sha256')
     commit=source.get('base_commit')
     if not isinstance(commit,str) or len(commit)!=40 or any(c not in '0123456789abcdef' for c in commit):
@@ -46,7 +52,7 @@ def validate_request(base, wrapper, role):
         raise ValueError('invalid staged source identity')
     if request.get('manifest_sha256')!=hashlib.sha256(raw).hexdigest() or request.get('native_wrapper_sha256')!=hashlib.sha256(wrapper.read_bytes()).hexdigest():
         raise ValueError('staged manifest or wrapper differs from request')
-    if manifest.get('candidate_version')!='0.0.1-rc.1' or manifest.get('architecture')!='amd64' or manifest.get('schema')!=2:
+    if manifest.get('candidate_version')!=expected_version or manifest.get('architecture')!='amd64' or manifest.get('schema')!=2:
         raise ValueError('wrong staged candidate version or architecture')
     if request.get('source_snapshot_sha256')!=snapshot or source.get('source_snapshot_sha256')!=snapshot or manifest.get('base_commit')!=source.get('base_commit'):
         raise ValueError('requested and staged source identities disagree')
@@ -170,7 +176,7 @@ def launch(base, role):
         clean=process is None or (namespace is not None and not remaining)
         if not clean:error=error or 'owned namespace cleanup unverified'
         result=dict(status='passed' if error is None else 'failed',role=role,
-            architecture='amd64',native_machine=platform.machine(),started_utc=started,finished_utc=time.time(),
+            architecture='amd64',candidate_version=request['candidate_version'],native_machine=platform.machine(),started_utc=started,finished_utc=time.time(),
             exit_code=process.returncode if process else None,error=error,cleanup_verified=clean,
             remaining_owned_pids=remaining,source_snapshot_sha256=request['source_snapshot_sha256'])
         result['sanitizer_process_no_aslr']=role=='qualification' and request.get('sanitizer_process_no_aslr') is True
