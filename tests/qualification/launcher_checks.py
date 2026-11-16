@@ -36,8 +36,8 @@ elif args[0]=='run':
     runtime=dict(status='passed',checks=[dict(name=name,status='passed') for name in ['unprivileged ownership and nonconsuming readiness', 'readiness rejection and exclusive ownership', 'pacing and response 1', 'pacing and response 10', 'pacing and response 60', 'slow-reader backpressure', 'coherent checkpoint continuation', 'failed checkpoint preservation', 'forced-stop recovery and saved state']])
     for kind in ['release','sanitize']:
      folder=evidence/('native-'+kind);folder.mkdir()
-     (folder/'milestone3-fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
-     (folder/'execution.json').write_text(json.dumps(dict(status='passed',kind=kind,suites=['milestone3-model', 'milestone3-dynamics', 'milestone3-process', 'milestone2-fixtures', 'milestone2-edges', 'milestone2-pty'],counts=dict(passed=48,unresolved_reference_characterization=9))))
+     (folder/'fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
+     (folder/'execution.json').write_text(json.dumps(dict(status='passed',kind=kind,suites=['model', 'dynamics', 'process', 'protocol-fixtures', 'protocol-edges', 'pty'],counts=dict(passed=48,unresolved_reference_characterization=9))))
     (evidence/'runtime-results').mkdir()
     (evidence/'runtime-results/runtime-results.json').write_text(json.dumps(runtime))
     (evidence/'service-results.json').write_text(json.dumps(dict(status='passed',unit_commands_executed=True)))

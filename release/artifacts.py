@@ -21,6 +21,25 @@ from payload import FILES, LOCAL_CONTROLS_FILES, payload_files, preflight, sha
 from version import application_version
 VERSION='0.0.1-rc.1'
 STEM='brewpi-emulator-rmx-'+VERSION
+ORIGINAL_SOURCES={
+    'libexec/brewpi-emulator-rmx/wait-ready.py':'scripts/wait-ready.py',
+    'share/doc/brewpi-emulator-rmx/LICENSE.md':'LICENSE.md',
+    'share/doc/brewpi-emulator-rmx/THIRD_PARTY_NOTICES.md':'THIRD_PARTY_NOTICES.md',
+    'share/doc/brewpi-emulator-rmx/operation.txt':'docs/operation.txt',
+}
+
+
+def source_names(root):
+    names=[line for line in (Path(root)/'release/source-files.txt').read_text().splitlines()
+           if line and not line.startswith('#')]
+    if names!=sorted(set(names)):raise ValueError('source allowlist must be unique and sorted')
+    required=set(ORIGINAL_SOURCES.values())|{
+        'CMakeLists.txt','cmake/version.cmake','scripts/lcd-viewer.py',
+        'systemd/brewpi-emulator@.service.in',
+    }
+    missing=required-set(names)
+    if missing:raise ValueError('source allowlist omits install inputs: '+', '.join(sorted(missing)))
+    return names
 
 
 def canonical(value):
@@ -108,12 +127,7 @@ def source_record(root):
 
 def verify_original_files(manifest, record):
     """Bind verbatim installed project material to the archived original source."""
-    bindings={
-        'libexec/brewpi-emulator-rmx/wait-ready.py':'scripts/wait-ready.py',
-        'share/doc/brewpi-emulator-rmx/LICENSE.md':'LICENSE.md',
-        'share/doc/brewpi-emulator-rmx/THIRD_PARTY_NOTICES.md':'THIRD_PARTY_NOTICES.md',
-        'share/doc/brewpi-emulator-rmx/operation.txt':'docs/operation.txt',
-    }
+    bindings=dict(ORIGINAL_SOURCES)
     if manifest.get('payload_profile')=='local-controls-v1':
         bindings['libexec/brewpi-emulator-rmx/lcd-viewer.py']='scripts/lcd-viewer.py'
     for installed,original in bindings.items():
@@ -150,15 +164,14 @@ def snapshot(root, output):
     if application_version(root)!=VERSION:raise ValueError('wrong candidate version')
     base=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
     epoch=int(subprocess.check_output(['git','-C',str(root),'show','-s','--format=%ct',base],text=True))
-    names=[line for line in (root/'release/source-files.txt').read_text().splitlines() if line and not line.startswith('#')]
-    if names!=sorted(set(names)):raise ValueError('source allowlist must be unique and sorted')
+    names=source_names(root)
     tracked=set(subprocess.check_output(['git','-C',str(root),'ls-files'],text=True).splitlines())
     entries={};files={};new=[]
     for name in names:
         safe_name(name);p=root/name
         if not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]):raise ValueError('nonregular source input')
         if name not in tracked:
-            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/release.md','engineering/licenses/software-release-r4.md','engineering/development/candidate-controls-integration.md','engineering/development/candidate-controls-results.md','engineering/development/candidate-controls-review.md','engineering/development/software-release-r4-final.md','engineering/licenses/software-release-r5.md','engineering/development/software-release-r5-review.md','engineering/development/software-release-rc1-dossier.md','engineering/development/software-release-r6-review.md','docs/rc1-guide.md','docs/rc1-release-notes.md','tests/qualification/native_package.py','tests/qualification/native_package_checks.py']):
+            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/development.md','docs/release.md','engineering/protocol/commands.md','engineering/protocol/controller.md','tests/qualification/native_package.py','tests/qualification/native_package_checks.py']):
                 raise ValueError('undeclared new original input: '+name)
             new.append(name)
         if p.stat().st_mode&0o6000:raise ValueError('privileged source mode')

@@ -1,6 +1,6 @@
-# Firmware defaults and units v1
+# Firmware defaults and units
 
-Status: milestone 1 specification for review. Original MIT documentation and [defaults data](test-vectors/defaults-v1.json); no reference code or source declaration is incorporated. Defaults target the normal Uno/RevC profile in the [behavioral contract](behavioral-contract.md). Unlike the abandoned nominal-value proposal, fixed-point artifacts are required wire values, not tolerances to normalize away.
+Original MIT defaults and [machine-readable data](test-vectors/defaults-v1.json) for the normal Uno/RevC profile in the [behavioral contract](behavioral-contract.md).
 
 ## Numeric categories and representation
 
@@ -13,7 +13,7 @@ The controller uses signed 16-bit temperatures/factors with 512 internal units p
 | Unscaled number | Raw fixed-point number unchanged by display units. | S heatEst/coolEst; C Kp/Ki/Kd; V p/i/d. |
 | Character/integer | No temperature conversion. | mode/tempFormat, filters, flags, indices, times, and states. |
 
-All S/C fields are writable j names, but their converters differ. Processing is sequential; a tempFormat write affects subsequent values in the same object and stores the already-mutated current configuration. Duplicates are processed repeatedly. Mode/tempFormat take the first character without an enum check. Numeric converters do not enforce the earlier proposed gain/temperature/filter bounds; do not add them. Null absolute setpoints are supported. A failed known converter usually leaves its target unchanged without a warning; unknown names get W0 after I12. Gains/estimates can be negative where the source converter permits it. Source: [converter mapping](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/PiLink.cpp#L922).
+All S/C fields are writable j names, but their converters differ. Processing is sequential; a tempFormat write affects subsequent values in the same object and stores the already-mutated current configuration. Duplicates are processed repeatedly. Mode/tempFormat take the first character without an enum check. Numeric converters do not enforce gain/temperature/filter bounds; do not add them. Null absolute setpoints are supported. A failed known converter usually leaves its target unchanged without a warning; unknown names get W0 after I12. Gains/estimates can be negative where the source converter permits it. Source: [converter mapping](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/PiLink.cpp#L922).
 
 Fixed-point scalar conversion rejects leading plus/exponent text, but follows the source's custom minus/digit handling rather than a stricter JSON numeric parser. Values are constrained to raw -32766 through 32767 when that converter calls for it, reserving the two lower int16 values for invalid/disabled temperature sentinels. Unsigned time input clips above 65535; negative time input is ignored. Filter input uses atol narrowed to uint8. Flag input accepts true/false, otherwise integer narrowing occurs before 0/1 acceptance, so 256 can behave as 0. Extreme arithmetic/overflow and malformed long tokens are characterization cases in [findings](firmware-findings.md), not newly rejected schema errors. Source: [numeric converters](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/TemperatureFormats.cpp#L117).
 

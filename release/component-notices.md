@@ -1,4 +1,4 @@
-# Required 0.0.1-rc.1 distribution notices
+# Component notice requirements
 
 Copyright 2026 Lee Bussy. This index and the generated component inventory are original MIT project documentation. LICENSE-original-project.md applies to original project material, not to the separately attributed external texts and sources.
 
@@ -10,10 +10,8 @@ GCC 12 startup support, C++ template instantiations, and the ARM64 libgcc outlin
 
 The glibc startup sources retain LGPL-2.1-or-later. ABI-note, crti, crtn, and x86-64 start retain additional compiled-linking permissions, copied verbatim as legal notices. AArch64 start.S and the csu/init.c ABI marker lack that additional permission. To cover those contributions, the distribution supplies the complete corresponding Debian glibc source package, its patches/build scripts, the original application's complete source/build scripts, and LGPL-2.1/GPL texts. This supports modifying the library and relinking the work through source, including the conservative LGPL-2.1 section 6(a) route. The MIT application terms impose no restriction on modification or reverse engineering for debugging library modifications. This package does not impose any such restriction.
 
-The exact glibc-source companion is external GNU/distributor material under its existing file-specific terms, not MIT emulator source. Its DSC, upstream archive, and Debian patch archive are provided unchanged, with checksums. The Debian copyright introduction says 2.23; the actual inspected binary/source package version is 2.36-9+deb12u14, established from the package database and DSC. That historical introduction is preserved verbatim rather than edited.
+The exact glibc-source companion is external GNU/distributor material under its existing file-specific terms, not MIT emulator source. Its DSC, upstream archive, and Debian patch archive are provided unchanged, with checksums.
 
 Linux UAPI declarations retain the kernel header terms, including the Linux-syscall-note exception for normal user-space interfaces. The supplied full exception and Debian package copyright notice identify those terms; no kernel implementation is bundled into the emulator. Package copyright files may discuss many unlinked components. Their presence is conservative notice retention, not a claim that every listed component contributes to the executable.
 
 The loader and shared libc/libm/libstdc++/libgcc libraries remain external OS requirements, under their own terms. No shared library file is bundled. The normal ELF loader permits compatible library replacement; the recorded ABI/version requirements and Debian runtime package inventories define the tested baseline. Python is external for the readiness helper, and optional Python/tkinter/Tcl/Tk and system fonts are external for GUI use. No Python/Tcl/Tk runtime or font is bundled or relicensed MIT.
-
-R5 covers this exact artifact set. It does not publish a release, activate a service, qualify physical Pi hardware, or resolve the nine Arduino characterization cases. Changes to artifacts or dependencies require checking the affected inventory and notices again.

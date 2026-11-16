@@ -1,6 +1,6 @@
-# Milestone 2 behavioral clarifications
+# Command semantics
 
-These original MIT notes supplement the reviewed milestone 1 contract without changing its source-defined JSON reply expectations. Two unresolved characterization initial presets were corrected during review, as recorded in the fixture guide. They record additional compatibility facts inspected while implementing milestone 2, not copied source routines or declarations.
+These original MIT notes describe parser, device, storage, and numeric behavior alongside the [wire contract](behavioral-contract.md).
 
 The custom scalar/time/flag reader accepts an integer prefix consisting of digits and minus signs; the presence of a minus sign makes that prefix negative. It requires a digit, rejects a leading plus and exponent suffix, and permits a decimal point as the end of an integer prefix. A scalar's first fractional prefix is separately parsed; its fixed-point fraction is rounded at each decimal reduction, rather than rounding a binary floating-point value once. A second decimal point can terminate that fractional prefix without rejecting the remaining text. Scalar sign handling also examines minus signs anywhere in the token. Flags and times validate their integer prefix before narrowing/clipping, so arbitrary text is not accepted as zero. The filter/query/device integer paths use their documented atol/atoi-style prefix behavior instead. Source facts: [numeric conversion](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/TemperatureFormats.cpp#L143) and [custom integer grammar](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/TemperatureFormats.cpp#L349).
 

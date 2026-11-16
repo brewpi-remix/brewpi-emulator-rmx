@@ -1,6 +1,6 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
-"""Original R2 negative gates. Synthetic inputs are not release artifacts."""
+"""Original CI rejection checks. Synthetic inputs are not release artifacts."""
 import base64
 import copy
 import io
@@ -201,7 +201,7 @@ class ReviewGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);folder=root/'Testing/run';folder.mkdir(parents=True)
             results=root/'test-results';results.mkdir()
-            (results/'milestone3-fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
+            (results/'fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
             xml=folder/'Test.xml'
             for names,status in [(list(SUITES),'passed'),(list(SUITES)[:-1],'passed'),(list(SUITES),'notrun'),(['wrong']*6,'passed')]:
                 xml.write_text('<Site><Testing>'+''.join('<Test Status="'+status+'"><Name>'+name+'</Name></Test>' for name in names)+'</Testing></Site>')

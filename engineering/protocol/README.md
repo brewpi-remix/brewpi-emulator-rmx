@@ -1,14 +1,13 @@
-# Protocol documentation
+# Protocol reference
 
-Milestone 1 is complete as a source-backed specification and original fixture deliverable for owner review. Milestone 2 now executes its scoped cases through an original C++ engine and tests; see the [review](../development/milestone-2-review.md) and [additional behavioral facts](milestone-2-details.md). Reference-hardware execution remains unperformed. The owner's firmware-first instruction supersedes earlier proposed behavioral improvements: preserve Arduino action/reaction, including deterministic bugs, while writing original MIT implementation later.
+The emulator follows the normal Uno/RevC BrewPi Remix controller personality over a PTY. Serial commands preserve firmware types, byte framing, mutation order, diagnostics, timing, and deterministic quirks. Native scenario/store/checkpoint JSON is a separate interface.
 
-- [Behavioral contract v1](behavioral-contract.md): selected build personality, serial semantics, commands, schemas, timing, and persistence.
-- [Defaults and units](defaults.md): full S/C/V data, fixed-point C/F behavior, identities, and external plant inputs.
-- [Diagnostic metadata](diagnostics.md): version-3 IDs, typed arguments, reachability, and output ordering without copied expansion text.
-- [Firmware findings](firmware-findings.md): required bugs/quirks and explicit characterization obligations.
-- [Original protocol fixtures](test-vectors/README.md): machine-readable defaults, 43 diagnostic signatures, 48 source-defined cases, and nine characterization cases.
-- [Milestone review](../development/milestone-1-review.md) and [provenance record](../licenses/milestone-1.md).
+- [Behavioral contract](behavioral-contract.md)
+- [Command details](commands.md)
+- [Controller, filters, clock, and thermal model](controller.md)
+- [Defaults and units](defaults.md)
+- [Diagnostic signatures](diagnostics.md)
+- [Firmware quirks and compatibility limits](firmware-findings.md)
+- [Original fixture data](test-vectors/README.md)
 
-The [implementation plan](../../IMPLEMENTATION_PLAN.md) owns later milestones. This document set is normative for milestone 1 topics and supersedes inconsistent provisional protocol choices in earlier history. Undefined/hardware-dependent findings are not assigned invented exact outputs or counted as passing tests. Stop for review before implementation.
-
-Milestone 3 adds original [controller/filter/clock/thermal behavioral mathematics](milestone-3-details.md) and executes all 48 source-defined reviewed cases. The [milestone 3 review](../development/milestone-3-review.md) records test evidence and the nine unresolved characterization obligations. Existing reviewed JSON oracles remain unchanged; independent physical checks are separate from reference qualification.
+Required wire identifiers and source-backed facts establish interoperability; no reference implementation is incorporated. See the [authorship contract](../../CONTRACT.md). Undefined-memory, overflow, and physical-bus outcomes remain unqualified where no exact reference result exists.

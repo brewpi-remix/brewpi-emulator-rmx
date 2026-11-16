@@ -1,15 +1,27 @@
-# Independent tests
+# Development tests
 
-The [build/run guide](../docs/milestone-3.md) provides actual CMake/CTest commands. tests/fixtures.py executes [reviewed specification fixtures](../engineering/protocol/test-vectors/README.md) against the original C++ test driver. It accounts for 48 passed source-defined cases, no deferred milestone 3 cases, and nine unresolved reference-characterization cases. Source-defined expectations are unchanged; two unresolved characterization initial presets were corrected during review. The fixtures retain their creation-time execution_status metadata; current runs are evidence in separate reports, without mutating the reviewed oracles. Test-only construction is not a serial API or hardware execution. Raw fixtures compare bytes; semantic fixtures require complete CRLF frames and strict JSON, then compare types, absence, arrays, signatures, and interleaving without ignoring extra output. Presets seed raw facts, and unsupported clock/history construction fails explicitly.
+The six CTest suites exercise model arithmetic, dynamics/controller behavior, process pacing/checkpoints, protocol fixtures, edge cases, and real PTY/file ownership. Build and run them using the [development guide](../docs/development.md). Reports distinguish deterministic source-defined cases from unresolved physical/artifact-dependent behavior.
 
-tests/edges.py covers additional patch/discovery/address/numeric/string/reload/codec facts and negative tests of the fixture matcher, and tests/transport.py exercises actual kernel PTYs, deadlines, ownership, backpressure, process restart, and storage failures. Python standard-library clients are original; no host/panel/reference helper is imported. Reports appear in the invoking working directory's ignored test-results directory, normally under the build directory with CTest. CTest has bounded timeouts. [Review evidence](../engineering/development/milestone-2-review.md) records platforms and limitations. Those native suites claim no Arduino, host/panel, or Pi execution.
+The original [fixture driver](driver.cpp) provides controlled internal state for semantic tests. The shipped executable has no such test interface. PTY/process tests exercise the public executable separately. [Fixture data](../engineering/protocol/test-vectors/README.md) describes byte matching and characterization limits.
 
-Milestone 3 adds model.cpp for independent closed-form filter arithmetic and probe/room behavior, dynamics.py for controller/energy/clock/snapshot checks, and pacing.py for real process pacing, pause, resume, and environment-error behavior. There are six CTest suites. Current fixture execution is reported in milestone3-fixtures.json, and new dynamic/process reports use milestone3 names under ignored test-results. The [milestone 3 review](../engineering/development/milestone-3-review.md) separates these results from physical/reference qualification.
+Run independent helper regressions from the repository root:
 
-The separate opt-in [milestone 4 launcher](integration/run-isolated.sh) builds an external test environment and runs the pinned host/panel as separate processes through real browser, PHP, socket, and serial interfaces. See the [integration guide](../docs/milestone-4.md), [review](../engineering/development/milestone-4-review.md), and [provenance record](../engineering/licenses/milestone-4.md). This fixture uses external Python/browser dependencies; standard CTest remains separate. Raw captures, client artwork/screenshots, logs, and generated state remain ignored and are not treated as original MIT source.
+```sh
+python3 tests/ci/checks.py
+python3 release/checks.py
+python3 tests/integration/checks.py
+python3 tests/qualification/launcher_checks.py
+python3 tests/qualification/checks.py
+```
 
-Milestone 4 [helper regressions](integration/checks.py) exercise stale/failed/interrupted evidence, phase-scoped capture parsing, reference-file auditing, cleanup, and exact device assertions without a browser or Docker daemon. Run python3 tests/integration/checks.py separately; the isolated launcher also runs them before the six native suites and real clients. A successful integration claim requires passing launcher and cleanup status as well as workflow results.
+The controls and LCD helpers exercise terminal/IPC behavior, menu confirmation, dimming, GUI fallback, close handling, and installed-helper discovery. They use isolated processes/PTYs; GUI-specific checks need the external graphical toolkit and session. Their command-line entry points identify the executable under test.
 
-The opt-in [milestone 5 launcher](qualification/run-isolated.sh) uses the agreed isolated Debian 12 ARM64 tool image, runs both Release and Debug/sanitizer native suites as an unprivileged account, audits staged install/ELF contents, checks service syntax and its exact commands, and measures PTY ownership, readiness, pacing, blocking, backpressure, and recovery. See the [operating guide](../docs/operation.md), [review](../engineering/development/milestone-5-review.md), and [provenance](../engineering/licenses/milestone-5.md). The container has no network, reference mount, physical device, or systemd PID 1. Raw results stay ignored; physical Pi and unresolved Arduino cases are not passing claims.
+The opt-in external-client integration fixture runs the pinned host/panel separately through browser, PHP, socket, and serial interfaces. Prepare the sibling reference repositories listed in [references.json](ci/references.json), Docker, and the external tools image, then run:
 
-The [cross-milestone review](../engineering/development/cross-milestone-review.md) adds scenario/output collision and strict local-JSON UTF-8 regressions without changing wire oracles. Shared original [source-input hashing](source_inputs.py) and the common launcher evidence gate distinguish original source integrity from external reference-client integrity. The [specification checker](specification.py) saves the original static validation previously run as a temporary helper: run python3 tests/specification.py from this Git checkout with the prepared sibling reference repositories available. It checks original fixture/diagnostic metadata, links, whitespace, and pinned source paths without executing reference code. Standard CTest still has six suites.
+```sh
+./tests/integration/run-isolated.sh "$PWD/runs/integration-check"
+```
+
+Use a new output directory. The launcher owns its container and verifies cleanup; reference clients are not imported into the emulator. Its Dockerfile and requirements lock define external test dependencies. [Runtime checks](qualification/README.md) inspect installed files, readiness, recovery, and inert service commands. Generated state, raw client captures, logs, and screenshots are ignored development outputs, not package contents or original MIT assets.
+
+Original tests are MIT. No reference helper, routine, or test is copied or translated. Physical Arduino/Pi behavior and system-manager activation are outside these regression claims.

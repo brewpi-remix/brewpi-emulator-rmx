@@ -255,7 +255,7 @@ def run():
     result = dict(status='passed', platform=sys.platform, checks=checks)
     out = Path('test-results')
     out.mkdir(exist_ok=True)
-    (out / 'milestone2-transport.json').write_text(json.dumps(result, indent=2) + '\n')
+    (out / 'transport.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
 
 

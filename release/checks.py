@@ -10,7 +10,7 @@ import tempfile
 import tarfile
 import unittest
 from unittest.mock import patch
-from artifacts import archive, unpack, canonical, source_record, verify_original_files
+from artifacts import archive, unpack, canonical, source_record, source_names, verify_original_files
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/ci'))
 from payload import source_identity
@@ -19,6 +19,16 @@ from local import compare_builds, verify_freeze
 
 
 class Archives(unittest.TestCase):
+    def test_source_list_requires_install_documents_and_template(self):
+        project=Path(__file__).resolve().parents[1]
+        names=source_names(project)
+        for missing in ['docs/operation.txt','LICENSE.md','systemd/brewpi-emulator@.service.in']:
+            with self.subTest(missing=missing),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);(root/'release').mkdir()
+                (root/'release/source-files.txt').write_text('\n'.join(n for n in names if n!=missing)+'\n')
+                with self.assertRaisesRegex(ValueError,'omits install inputs'):
+                    source_names(root)
+
     def test_independent_roots_and_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);entries={'bin/original':(b'original MIT fixture\n',0o755),'LICENSE.md':(b'original notice\n',0o644)}
@@ -147,7 +157,7 @@ class Reproducibility(unittest.TestCase):
                 for name in ['brewpi-emulator-rmx-0.0.1-rc.1-source.tar.gz','brewpi-emulator-rmx-0.0.1-rc.1-linux-arm64.tar.gz','payload-manifest.json','build-manifest.json','packages.tsv','debs.sha256','indices.sha256']:
                     (result/name).write_bytes(b'original comparison fixture')
                 (result/'native-results').mkdir()
-                (result/'native-results/milestone3-fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
+                (result/'native-results/fixtures.json').write_text(json.dumps(dict(counts=dict(passed=48,unresolved_reference_characterization=9))))
                 (result/'build-results.json').write_text(json.dumps(dict(status='passed',native_suites=6,counts=dict(passed=48,unresolved_reference_characterization=9))))
                 xml='<Site><Testing>'+''.join('<Test Status="passed"><Name>'+name+'</Name></Test>' for name in sorted(SUITES))+'</Testing></Site>'
                 (result/'ctest.xml').write_text(xml)
@@ -243,11 +253,8 @@ class ControlsQualificationEvidence(unittest.TestCase):
 
 
 def load_tests(loader, tests, pattern):
-    # Keep the new boundary/evidence negatives in the existing CI helper lane.
+    # Include native package boundary checks in the helper suite.
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/qualification'))
-    tests.addTests(loader.loadTestsFromName('r4_review_checks'))
-    tests.addTests(loader.loadTestsFromName('r5_checks'))
-    tests.addTests(loader.loadTestsFromName('r6_checks'))
     tests.addTests(loader.loadTestsFromName('native_package_checks'))
     return tests
 

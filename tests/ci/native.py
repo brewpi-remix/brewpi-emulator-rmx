@@ -12,8 +12,8 @@ import shutil
 import xml.etree.ElementTree as ET
 from payload import preflight, sha
 
-SUITES = {'milestone3-model', 'milestone3-dynamics', 'milestone3-process',
-          'milestone2-fixtures', 'milestone2-edges', 'milestone2-pty'}
+SUITES = {'model', 'dynamics', 'process',
+          'protocol-fixtures', 'protocol-edges', 'pty'}
 
 
 def validate_build(build):
@@ -24,7 +24,7 @@ def validate_build(build):
     rows = ET.parse(tests[0]).findall('./Testing/Test')
     if {r.findtext('Name') for r in rows} != SUITES or len(rows) != 6 or any(r.get('Status') != 'passed' for r in rows):
         raise ValueError('not all six named native suites passed')
-    fixtures = json.loads((build / 'test-results/milestone3-fixtures.json').read_text())
+    fixtures = json.loads((build / 'test-results/fixtures.json').read_text())
     if fixtures['counts'] != dict(passed=48, unresolved_reference_characterization=9):
         raise ValueError('fixture coverage differs')
     return fixtures

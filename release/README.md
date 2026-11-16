@@ -1,19 +1,20 @@
-# Original release tooling
+# Package utilities
 
-All helpers, recipes, allowlist metadata, and tests here are independently authored MIT work, copyright 2026 Lee Bussy. Downloaded tool images, system libraries, source references, and external notices retain their own terms and are not original project code. See the [package guide](../docs/release.md), [release policy](../engineering/development/software-release-policy.md), and [licensing gate](../engineering/licenses/README.md).
+These original MIT tools build and inspect archives without committing, publishing, activating services, or changing reference clients.
 
-artifacts.py handles canonical snapshot/archive creation, safe extraction, source identity, isolated source builds, exact staged inventories, and original machine-readable metadata. local.py invokes disposable pinned environments, records native versus emulated execution, checks independent build reproducibility, and saves a local review candidate only after rechecking both builds, CTest reports, and required local package evidence. runtime.py applies the existing original runtime checks in an environment without compilers or build tools. checks.py supplies original malformed-archive, file-mode/type, repeated-build, and source-identity regressions included in the CI helper lanes. source-files.txt is an explicit reviewed input list; no ignored/unfiltered working-tree directory enters an archive.
+| File | Purpose |
+| --- | --- |
+| artifacts.py | Allowlisted source snapshots, deterministic archives, safe extraction, source identity, native builds, and installed inventories. |
+| source-files.txt | Explicit source archive inputs; excludes private/generated state and obsolete collateral. |
+| local.py | Isolated reproducible builds and verification of saved local package sets. |
+| runtime.py | Clean packaged-runtime checks without a compiler/build tree. |
+| audit_binary.py | Compiler/header/startup/archive and shared-library inspection for component notices. |
+| checks.py | Archive, mode, identity, reproducibility, and payload-boundary regressions. |
+| runbook.py | Generate or check the installed text guide from the operating and scenario guides. |
+| build.Dockerfile, runtime.Dockerfile | Separate build/runtime environments. |
 
-Source snapshots, packages, manifests, and receipts are local ignored outputs. A provisional snapshot is not a reviewed Git commit, a candidate acceptance, a signed artifact, or a grant to publish. No release tool performs Git commits, pushes, tags, service activation, external-client modifications, or R3 sustained workloads.
+Run python3 release/checks.py for helper regressions. Invoke each utility with --help for its arguments. Use new output directories and exact source/payload identities; never overwrite accepted/public artifacts. No ignored directory, reference repository, tool image, raw capture, or credential belongs in a source archive.
 
-r4_review.py independently rechecks a saved final rc.1 candidate against its selected Git commit, acceptance packet, original build/client/runtime evidence, native captures, staged request/wrapper identities, hosted CI receipts, minimum-tool results, and sanitizer diagnostic. It compares extracted reports with every raw archive file rather than trusting edited summaries. It performs no workload execution or package repair. r4_review_checks.py and the native-boundary negatives run through the existing release/checks.py CI helper entry point.
+After editing docs/operation.md or config/README.md, run python3 release/runbook.py. The specification checker verifies that docs/operation.txt matches these inputs, including installed license filenames and explicit source-only references.
 
-Run python3 release/r4_review.py CANDIDATE EVIDENCE CI_EVIDENCE --commit EXACT_COMMIT --packet ACCEPTANCE_PACKET --output NEW_REPORT from the repository root. The output path must be new. Keep the complete ignored evidence directories available; a checksum packet alone cannot establish the original executions or Git source association. See the [final R4 record](../engineering/development/software-release-r4-final.md) for the actual selected source/artifact identities, retained evidence layout, sanitizer condition, and review limits.
-
-audit_binary.py reproduces the exact qualified executable in a pinned build image with linker diagnostics and captures used headers, startup/archive inputs, runtime file hashes/providers, and external legal texts outside the original source tree. r5_audit.py builds or verifies a separate complete five-archive review set without changing the qualified three archives. r5_checks.py exercises classification and distribution-integrity failures in the existing CI helper lane. r5-notice-index.md and r5-glibc-source-readme.md are original MIT prose inputs; external notice/source bytes remain separately attributed in ignored companions. See the [R5 audit](../engineering/licenses/software-release-r5.md) for commands, exact inputs, hashes, and distribution requirements.
-
-r6_handoff.py retains and verifies the explicit private evidence selection in r6-inputs.json, refuses reused/recursive/symlinked or incomplete destinations, preserves structured failures, and creates/verifies a separate full-readback recovery archive. r6_checks.py exercises retention/backup negatives through release/checks.py. These tools do not publish, sign, change Git refs, execute external clients, or modify candidate payloads. The local owner store and recovery archive are not off-device backups or public/MIT payloads; see the [R6 dossier](../engineering/development/software-release-rc1-dossier.md).
-
-Run python3 release/r6_handoff.py retain NEW_DESTINATION --root . --config release/r6-inputs.json, verify DESTINATION --root ., backup DESTINATION after retaining source-history.bundle, or verify-backup DESTINATION. Preserve the original failed attempt when a check rejects inputs. The final handoff/proof and review-source snapshot stay outside reproducible candidate archives.
-
-r6_assemble.py builds a fresh review handoff from --review ORIGINAL_R6_SNAPSHOT, --store OWNER_STORE, and --index RECONCILED_INDEX, then verifies every member/hash/mode, source-role binding, five-archive R5 closure, and checksum inventory. Use build NEW_OUTPUT or verify EXISTING_OUTPUT. It copies original manifests and portable prose, places the complete original uncommitted review tree under review/, and keeps packages/ bound to f717d36. It neither re-executes candidate workloads nor authenticates evidence or authorizes publication.
+The [package guide](../docs/release.md) describes shipped files. [Component notices](component-notices.md) and the [GNU source guide](glibc-source.md) describe required external companions. Compiler/startup/library terms remain separate from the original MIT implementation; inspect actual final outputs rather than assuming every compiler contribution is MIT.

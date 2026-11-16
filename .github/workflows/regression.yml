@@ -186,7 +186,7 @@ jobs:
       - name: Prepare separate pinned references
         run: python3 tests/ci/references.py "$(dirname "$GITHUB_WORKSPACE")"
       - name: Prepare disposable external tool image
-        run: docker build -t brewpi-emulator-m4-tools:local -f tests/integration/Dockerfile tests/integration
+        run: docker build -t brewpi-emulator-test-tools:local -f tests/integration/Dockerfile tests/integration
       - name: Execute required lane
         id: execute
         env:

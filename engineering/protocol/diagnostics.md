@@ -30,7 +30,7 @@ Original MIT specification of interoperability metadata, not copied source enums
 | I19 | The positive-drift timeout path reports an outcome. | Same four string categories; see sentinel-derived error finding F15. |
 | I20 | The negative-drift timeout path reports an outcome. | Same four string categories; see F15. |
 
-Temperature-string diagnostic arguments use one decimal and current display units; estimate strings use three decimals in unscaled fixed-point numbers. Preserve the logger's leading positive numeric padding inside these strings. Integer arguments are JSON numbers. I12 reflects token-reader transformations: literal spaces and quote characters were removed; escapes were not decoded. Do not normalize number spelling or replace text with parsed numeric values. Diagnostic string output itself is not universally escaped by the source.
+Temperature-string diagnostic arguments use one decimal and current display units; estimate strings use three decimals in unscaled fixed-point numbers. Preserve the logger's leading positive numeric padding inside these strings. Integer arguments are JSON numbers. I12 reflects token-reader transformations: literal spaces and quote characters were removed; escapes were not decoded. Do not normalize number spelling or replace text with parsed numeric values. The firmware does not escape every diagnostic string.
 
 ## Defined but normally unreachable or disabled metadata
 

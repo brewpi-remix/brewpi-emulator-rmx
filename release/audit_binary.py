@@ -22,7 +22,7 @@ def command(arguments, output, **kwargs):
 
 
 def audit(source_archive, output, architecture, expected):
-    output=Path(output);work=Path('/build/r5');work.mkdir();output.mkdir(exist_ok=True)
+    output=Path(output);work=Path('/build/component-audit');work.mkdir();output.mkdir(exist_ok=True)
     source=unpack(source_archive,work/'source',STEM+'-source');record=source_record(source);build=work/'build'
     isa='armv8-a' if architecture=='arm64' else 'x86-64'
     flags=' '.join(['-march='+isa,'-mtune=generic','-ffile-prefix-map='+str(source)+'=/usr/src/brewpi-emulator-rmx','-ffile-prefix-map='+str(build)+'=/usr/src/brewpi-emulator-rmx/build'])

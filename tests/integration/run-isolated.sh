@@ -5,8 +5,8 @@ set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 script_ref=${1:-"$repo_root/../brewpi-script-rmx"}
 panel_ref=${2:-"$repo_root/../brewpi-www-rmx"}
-evidence=${3:-"$repo_root/runs/milestone4/$(date -u +%Y%m%dT%H%M%SZ)-$$"}
-image=${RMX_INTEGRATION_IMAGE:-brewpi-emulator-m4-tools:local}
+evidence=${3:-"$repo_root/runs/integration-check/$(date -u +%Y%m%dT%H%M%SZ)-$$"}
+image=${RMX_INTEGRATION_IMAGE:-brewpi-emulator-test-tools:local}
 script_ref=$(CDPATH= cd -- "$script_ref" && pwd)
 panel_ref=$(CDPATH= cd -- "$panel_ref" && pwd)
 command -v python3 >/dev/null

@@ -17,7 +17,7 @@ class NativeBoundary(unittest.TestCase):
         manifest=dict(schema=2,candidate_version='0.0.1-rc.1',architecture='amd64',base_commit='a'*40,source_snapshot_sha256='b'*64)
         (base/'candidate.json').write_text(json.dumps(manifest))
         (base/'source/SOURCE.json').write_text(json.dumps(dict(base_commit='a'*40,source_snapshot_sha256='b'*64)))
-        request=dict(purpose='R4 native packaged qualification',architecture='amd64',source_commit='a'*40,source_snapshot_sha256='b'*64,
+        request=dict(purpose='native packaged qualification',architecture='amd64',source_commit='a'*40,source_snapshot_sha256='b'*64,
             manifest_sha256=hashlib.sha256((base/'candidate.json').read_bytes()).hexdigest(),
             native_wrapper_sha256=hashlib.sha256(Path(native_package.__file__).read_bytes()).hexdigest())
         (base/'request.json').write_text(json.dumps(request));return request
@@ -60,7 +60,7 @@ class NativeBoundary(unittest.TestCase):
 
     def test_non_native_request_cannot_provision(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root=Path(temporary);(root/'request.json').write_text(json.dumps(dict(purpose='R4 native packaged qualification',architecture='amd64')))
+            root=Path(temporary);(root/'request.json').write_text(json.dumps(dict(purpose='native packaged qualification',architecture='amd64')))
             if os.geteuid()==0:os.chown(root,1000,1000)
             with patch('native_package.os.geteuid',return_value=0),patch('native_package.platform.machine',return_value='aarch64'),patch('native_package.command') as command:
                 with self.assertRaises(RuntimeError):native_package.launch(root,'integration')

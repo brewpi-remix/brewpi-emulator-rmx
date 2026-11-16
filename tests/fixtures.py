@@ -93,9 +93,9 @@ def run(executable):
     for artifact in artifacts.values():
         assert artifact['schema_version'] == 1 and artifact['spdx_license_identifier'] == 'MIT'
     expected_formats = {
-        'defaults-v1.json': 'brewpi-emulator-milestone-1-defaults-v1',
-        'protocol-v1.json': 'brewpi-emulator-milestone-1-protocol-v1',
-        'diagnostics-v1.json': 'brewpi-emulator-milestone-1-diagnostic-metadata-v1',
+        'defaults-v1.json': 'brewpi-emulator-defaults-v1',
+        'protocol-v1.json': 'brewpi-emulator-protocol-v1',
+        'diagnostics-v1.json': 'brewpi-emulator-diagnostic-metadata-v1',
     }
     for name, artifact in artifacts.items():
         assert artifact['format'] == expected_formats[name], 'unsupported fixture format'
@@ -165,7 +165,7 @@ def run(executable):
                         assert value == defaults[spec['settings']][key], 'unsupported nondefault estimate seed'
             assert all(v == 20 for v in defaults['external_scenario']['initial_temperatures_c'].values())
             conditions = defaults[spec['controller_preconditions']]
-            # The milestone 2 engine has no advancing controller clock/history.
+            # A driver without clock/history support cannot execute these cases.
             for key in ('controller_seconds', 'controller_millis', 'last_idle_seconds',
                         'last_heat_seconds', 'last_cool_seconds', 'wait_seconds',
                         'integral_evaluation_count', 'camera_last_active_seconds'):
@@ -255,10 +255,10 @@ def run(executable):
     counts = dict(Counter(x['status'] for x in report))
     out = Path('test-results')
     out.mkdir(exist_ok=True)
-    (out / 'milestone3-fixtures.json').write_text(json.dumps(dict(counts=counts, cases=report), indent=2) + '\n')
+    (out / 'fixtures.json').write_text(json.dumps(dict(counts=counts, cases=report), indent=2) + '\n')
     print(json.dumps(counts))
     assert counts.get('failed', 0) == 0
-    assert counts['passed'] == 48 and counts.get('deferred_milestone_3',0) == 0
+    assert counts['passed'] == 48 and counts.get('deferred_controller_cases',0) == 0
     assert counts['unresolved_reference_characterization'] == 9
 
 

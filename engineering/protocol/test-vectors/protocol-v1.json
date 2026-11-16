@@ -7,7 +7,7 @@
   "reference_host_revision": "d183fb5319b928f78b4c0eb6f05fe3620610ffff",
   "reference_panel_revision": "f79631830a99575e250403f08a19be8bf944596c",
   "execution_status": "not_executed_against_emulator_or_reference",
-  "format": "brewpi-emulator-milestone-1-protocol-v1",
+  "format": "brewpi-emulator-protocol-v1",
   "fixture_semantics": "README.md",
   "cases": [
     {

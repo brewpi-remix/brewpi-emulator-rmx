@@ -5,12 +5,13 @@
 Requires this Git checkout and the prepared sibling reference repositories.
 References are read with git show; no reference code is imported or executed.
 """
-import json,re,subprocess,collections,os
+import json,re,subprocess,collections,os,sys
 from urllib.parse import unquote
 if not __debug__ or os.environ.get("PYTHONOPTIMIZE", "") not in ("", "0"):
  raise SystemExit("Python assertions must be enabled")
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]; base=root/'engineering/protocol/test-vectors'
+subprocess.run([sys.executable,str(root/'release/runbook.py'),'--check'],check=True)
 def pairs(xs):
  d={}
  for k,v in xs:
@@ -86,6 +87,7 @@ assert roms==sorted(roms,key=lambda h:tuple((b>>i)&1 for b in bytes.fromhex(h) f
 # Validate documentation targets and pinned source paths without executing references.
 files=[root/x for x in subprocess.check_output(['git','-C',str(root),'ls-files','--cached','--others','--exclude-standard'],text=True).splitlines()]
 local=anchors=source=0;cache={}
+files=[f for f in files if f.is_file()]
 for f in files:
  b=f.read_bytes();assert b.endswith(b'\n') and b'\r' not in b,f
  assert all(line.rstrip()==line for line in b.splitlines()),f

@@ -1,6 +1,6 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
-"""Original regressions for the milestone 2 clarification notes and local codec."""
+"""Original regressions for the command semantics and local codec."""
 import json
 from pathlib import Path
 import subprocess
@@ -137,7 +137,7 @@ def run(executable):
         d.close()
     out = Path('test-results')
     out.mkdir(exist_ok=True)
-    (out / 'milestone2-edges.json').write_text(json.dumps(dict(status='passed', checks=checks), indent=2) + '\n')
+    (out / 'protocol-edges.json').write_text(json.dumps(dict(status='passed', checks=checks), indent=2) + '\n')
     print(json.dumps(dict(status='passed', checks=checks)))
 
 

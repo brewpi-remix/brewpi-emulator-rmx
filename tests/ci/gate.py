@@ -129,6 +129,7 @@ def execute(lane, out):
         files=subprocess.check_output(['git','-C',str(ROOT),'ls-files','--cached','--others','--exclude-standard'],text=True).splitlines()
         for name in files:
             path=ROOT/name
+            if not path.is_file():continue
             if path.suffix in {'.py','.sh','.cpp','.hpp','.yml','.in'} and 'SPDX-License-Identifier: MIT' not in path.read_text():
                 raise ValueError('missing MIT source marker: '+name)
         return ['specification','original-source-SPDX']
@@ -149,7 +150,7 @@ def execute(lane, out):
         return [native(ROOT,out/'native','sanitize' if config=='sanitizers' else 'release')]
     if lane=='host-panel-arm64':
         if platform.machine()!='aarch64':raise ValueError('host-panel requires native ARM64 host')
-        image=os.environ.get('RMX_INTEGRATION_IMAGE','brewpi-emulator-m4-tools:local')
+        image=os.environ.get('RMX_INTEGRATION_IMAGE','brewpi-emulator-test-tools:local')
         image_arch=subprocess.check_output(['docker','image','inspect','--format','{{.Architecture}}',image],text=True).strip()
         if image_arch!='arm64':raise ValueError('host-panel guest image must be ARM64')
         try:

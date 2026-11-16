@@ -62,10 +62,10 @@ def inside(base, role):
     folder=base/role;root=folder/'rootfs'
     sanitizer_scope=role=='qualification' and json.loads((base/'request.json').read_text()).get('sanitizer_process_no_aslr') is True
     if sanitizer_scope:
-        private=root/'opt/r4-test';private.mkdir()
+        private=root/'opt/package-test';private.mkdir()
         (private/'native_package.py').write_bytes(Path(__file__).read_bytes())
         shim=private/'ctest'
-        shim.write_text('#!/usr/bin/python3\n# Copyright 2026 Lee Bussy\n# SPDX-License-Identifier: MIT\nimport os,sys\nsys.path.insert(0,"/opt/r4-test")\nfrom native_package import ctest_command\ncommand=ctest_command(os.getcwd(),sys.argv[1:])\nif command[0].endswith("setarch"): print("R4 sanitizer-only process ASLR workaround; host policy unchanged",flush=True)\nos.execv(command[0],command)\n')
+        shim.write_text('#!/usr/bin/python3\n# Copyright 2026 Lee Bussy\n# SPDX-License-Identifier: MIT\nimport os,sys\nsys.path.insert(0,"/opt/package-test")\nfrom native_package import ctest_command\ncommand=ctest_command(os.getcwd(),sys.argv[1:])\nif command[0].endswith("setarch"): print("Sanitizer-only process ASLR workaround; host policy unchanged",flush=True)\nos.execv(command[0],command)\n')
         shim.chmod(0o755)
     command('mount','--make-rprivate','/')
     for source,target in [(base/'source','work'),(base/'payload','payload'),
@@ -104,7 +104,7 @@ def inside(base, role):
     # Fail before builds if a smaller soak-only tool filesystem was supplied.
     if role!='runtime':
         command('/bin/sh','-c','command -v php && command -v chromium && command -v systemd-analyze && command -v cmake && command -v c++')
-    # The external R3 tool image already has this test account. Remove it only
+    # The external tools image already has this test account. Remove it only
     # inside this private copy; the original workflows create their own account.
     if any(row.startswith('brewpi:') for row in Path('/etc/passwd').read_text().splitlines()):
         command('/usr/sbin/userdel','brewpi')
@@ -116,7 +116,7 @@ def inside(base, role):
         RMX_EXECUTION_MODE='packaged-input',RMX_PAYLOAD_ROOT='/payload',RMX_PAYLOAD_MANIFEST='/candidate.json',
         RMX_CANDIDATE_SNAPSHOT=manifest['source_snapshot_sha256'],RMX_TARGET_ARCH=manifest['architecture'],
         RMX_DISPOSABLE_QUALIFICATION='1')
-    if sanitizer_scope:env['PATH']='/opt/r4-test:'+env['PATH']
+    if sanitizer_scope:env['PATH']='/opt/package-test:'+env['PATH']
     script='/work/tests/'+('integration/run.py' if role=='integration' else 'qualification/prepare.py')
     if role=='runtime':
         env.update(RMX_PAYLOAD_ROOT='/usr/local',RMX_PAYLOAD_RECEIPT='/qualification/results/payload-execution.jsonl')
@@ -129,7 +129,7 @@ def launch(base, role):
     if os.geteuid()!=0 or base.is_symlink() or not base.is_dir() or base.stat().st_uid==0:
         raise RuntimeError('explicit user-owned private staging directory required')
     request=json.loads((base/'request.json').read_text())
-    if request.get('purpose')!='R4 native packaged qualification' or request.get('architecture')!='amd64' or platform.machine()!='x86_64':
+    if request.get('purpose')!='native packaged qualification' or request.get('architecture')!='amd64' or platform.machine()!='x86_64':
         raise RuntimeError('explicit native x86-64 request required')
     request=validate_request(base,Path(__file__),role)
     folder=base/role;folder.mkdir()

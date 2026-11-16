@@ -1,6 +1,6 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
-"""Execute milestone 4 against separate, pinned, unmodified host/panel clients."""
+"""Execute external-client integration against separate, pinned, unmodified host/panel clients."""
 import csv
 import datetime as dt
 import json
@@ -259,7 +259,7 @@ class Run:
         samples=[row['c'][columns['FridgeTemp']]['v'] for row in chart['rows'] if row['c'][columns['FridgeTemp']]]
         assert any(22<value<30 for value in samples) and any(0<value<15 for value in samples),samples
         self.page.wait_for_selector('#curr-beer-chart canvas',timeout=20000)
-        files=list((LAB/'www/data/Milestone4').glob('*.csv'))
+        files=list((LAB/'www/data/IntegrationTest').glob('*.csv'))
         assert files
         with files[-1].open() as source:
             rows=list(csv.reader(source))

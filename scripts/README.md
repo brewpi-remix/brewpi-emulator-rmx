@@ -1,7 +1,7 @@
-# Development scripts
+# Runtime helpers
 
-The original MIT [lcd-viewer.py](lcd-viewer.py) helper draws a twenty-column/four-row Unicode LCD with local rotary, pushbutton, and door controls using optional Python 3.9+/Tk 8.6+. The emulator launches it over a private inherited descriptor; it never opens a serial device, loads firmware code/assets, or parses controller serial commands. It sends bounded physical-action intents over private IPC; the C++ engine owns validation, draft confirmation, and state changes. CMake copies a development helper adjacent to the executable and supplies a separate optional lcd-viewer install component. Do not invoke it with an arbitrary serial descriptor. See the [LCD operating guide](../docs/operation.md#optional-local-lcd) and [review/provenance record](../engineering/development/lcd-review.md).
+[lcd-viewer.py](lcd-viewer.py) is the original MIT graphical LCD helper. The emulator launches it over a private inherited descriptor; it does not open controller serial. It uses external Python 3.9+/tkinter and Tcl/Tk 8.6+ and sends local action intents to the C++ engine. The lcd-viewer CMake install component installs only this helper.
 
-The original MIT [wait-ready.py](wait-ready.py) helper checks that a positive PID exists and an owned character endpoint has raw terminal flags without reading, writing, consuming startup diagnostics, or changing termios settings. It requires Python 3 and reports failures outside the serial protocol. A process/endpoint readiness result does not initialize the controller or establish firmware parity.
+[wait-ready.py](wait-ready.py) uses the Python standard library to check a positive PID and an owned raw PTY without consuming startup bytes or changing terminal modes. It does not initialize controller configuration or authenticate the process/endpoint relationship.
 
-See the [operating guide](../docs/operation.md) for invocation and private-directory assumptions. Six original stdlib checks in [qualification/checks.py](../tests/qualification/checks.py) cover nonconsumption and invalid endpoint/process arguments; target runtime checks also exercise the installed helper and service commands. No installation or activation is performed on the user's host.
+See [operation](../docs/operation.md) for dependencies, invocation, and limits.

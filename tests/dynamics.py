@@ -336,7 +336,7 @@ def run(executable):
 
     result=dict(status='passed',checks=checks)
     out=Path('test-results');out.mkdir(exist_ok=True)
-    (out/'milestone3-dynamics.json').write_text(json.dumps(result,indent=2)+'\n')
+    (out/'dynamics.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result))
 
 

@@ -164,7 +164,7 @@ class Lab:
         (LAB/'tools').mkdir()
         (LAB/'host/logs').mkdir(exist_ok=True)
         (LAB/'www/config_user.php').write_text("<?php\n$scriptPath = '/lab/host';\n")
-        (LAB/'host/settings/config.cfg').write_text('''chamber = Milestone4
+        (LAB/'host/settings/config.cfg').write_text('''chamber = IntegrationTest
 scriptPath = /lab/host/
 wwwPath = /lab/www/
 toolPath = /lab/tools/
@@ -172,7 +172,7 @@ port = /lab/host-serial
 altport = None
 startupDelay = 0
 interval = 10
-beerName = Milestone4
+beerName = IntegrationTest
 dataLogging = active
 logJson = True
 ''')
@@ -293,8 +293,8 @@ logJson = True
             for name in ['controller.json','checkpoint.json']:
                 if (LAB/name).exists():
                     shutil.copyfile(LAB/name,EVIDENCE/name)
-            for source,destination in [('host/data/Milestone4','host-data/Milestone4'),
-                                       ('www/data/Milestone4','web-data/Milestone4')]:
+            for source,destination in [('host/data/IntegrationTest','host-data/IntegrationTest'),
+                                       ('www/data/IntegrationTest','web-data/IntegrationTest')]:
                 if (LAB/source).exists():
                     shutil.copytree(LAB/source,EVIDENCE/destination,dirs_exist_ok=True)
         attempt('evidence collection',collect)

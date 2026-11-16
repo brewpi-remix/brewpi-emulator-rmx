@@ -28,7 +28,7 @@ def compare_builds(output, arch):
         rows=ET.parse(result/'ctest.xml').findall('./Testing/Test')
         if len(rows)!=6 or {r.findtext('Name') for r in rows}!=SUITES or any(r.get('Status')!='passed' for r in rows):
             raise ValueError('incomplete build-root CTest evidence')
-        fixture=json.loads((result/'native-results/milestone3-fixtures.json').read_text())
+        fixture=json.loads((result/'native-results/fixtures.json').read_text())
         report=json.loads((result/'build-results.json').read_text())
         counts=dict(passed=48,unresolved_reference_characterization=9)
         if fixture.get('counts')!=counts or report.get('status')!='passed' or report.get('counts')!=counts or report.get('native_suites')!=6:
@@ -64,7 +64,7 @@ def docker(args, log, timeout=1800, cid=None):
 
 
 def image(role, arch):
-    tag='brewpi-emulator-r4-'+role+':'+arch
+    tag='brewpi-emulator-package-'+role+':'+arch
     raw=json.loads(subprocess.check_output(['docker','image','inspect',tag],text=True))[0]
     if raw['Architecture']!=arch:raise ValueError('wrong tool image architecture')
     return raw['Id']
@@ -227,7 +227,7 @@ def seal(output,destination):
             else:os.environ[key]=value
     destination.parent.mkdir(parents=True,exist_ok=True)
     final_destination=destination
-    destination=Path(tempfile.mkdtemp(prefix='r4-unsealed-',dir=destination.parent))
+    destination=Path(tempfile.mkdtemp(prefix='package-staging-',dir=destination.parent))
     try:
         for name,path in files.items():shutil.copyfile(path,destination/name)
         write_json(destination/'source-manifest.json',dict(record,archive=STEM+'-source.tar.gz',archive_sha256=sha(files[STEM+'-source.tar.gz']),reviewed_commit_binding_pending=True))
@@ -235,8 +235,8 @@ def seal(output,destination):
         (destination/'SHA256SUMS').write_text(''.join(digest+'  '+name+'\n' for name,digest in checks.items()))
         write_json(destination/'freeze.json',dict(schema=1,status='frozen-provisional-review-required',version=VERSION,
             source_snapshot_sha256=record['source_snapshot_sha256'],base_commit=record['base_commit'],source_commit=None,
-            source_commit_role='pending-reviewed-commit-binding',unsigned=True,r3_started=False,r5_accepted=False,
-            pending=['owner review','reviewed commit association','candidate minimum-tool checks','native amd64 packaged client/qualification','R3 sustained-evidence review (fresh workload or justified carry-forward)','final R4/R5/R6 acceptance'],
+            source_commit_role='pending-reviewed-commit-binding',unsigned=True,sustained_testing_started=False,license_audit_accepted=False,
+            pending=['owner review','reviewed commit association','candidate minimum-tool checks','native amd64 packaged client/qualification','sustained-evidence assessment','package/license/distribution acceptance'],
             files={p.name:sha(p) for p in sorted(destination.iterdir())}))
         (destination/'freeze.sha256').write_text(sha(destination/'freeze.json')+'  freeze.json\n')
         verify_freeze(destination)
@@ -258,7 +258,7 @@ def verify_freeze(destination):
     for path in root.iterdir():
         if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):raise ValueError('nonregular saved candidate member')
     data=json.loads((root/'freeze.json').read_text())
-    if data.get('schema')!=1 or data.get('status')!='frozen-provisional-review-required' or data.get('version')!=VERSION or data.get('source_commit') is not None or data.get('source_commit_role')!='pending-reviewed-commit-binding' or data.get('unsigned') is not True or data.get('r5_accepted') is not False or data.get('r3_started') is not False:
+    if data.get('schema')!=1 or data.get('status')!='frozen-provisional-review-required' or data.get('version')!=VERSION or data.get('source_commit') is not None or data.get('source_commit_role')!='pending-reviewed-commit-binding' or data.get('unsigned') is not True or data.get('license_audit_accepted') is not False or data.get('sustained_testing_started') is not False:
         raise ValueError('wrong provisional freeze identity')
     if (root/'freeze.sha256').read_text()!=sha(root/'freeze.json')+'  freeze.json\n':raise ValueError('freeze manifest checksum mismatch')
     actual={p.name for p in root.iterdir()}

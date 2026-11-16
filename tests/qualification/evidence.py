@@ -59,7 +59,7 @@ def input_evidence(directory, kind):
 
 
 def native_evidence(directory, kind):
-    expected={'milestone3-model','milestone3-dynamics','milestone3-process','milestone2-fixtures','milestone2-edges','milestone2-pty'}
+    expected={'model','dynamics','process','protocol-fixtures','protocol-edges','pty'}
     execution=json.loads((directory/'execution.json').read_text())
     if execution.get('status')!='passed' or execution.get('kind')!=kind or len(execution.get('suites',[]))!=6 or set(execution['suites'])!=expected or execution.get('counts')!=dict(passed=48,unresolved_reference_characterization=9):
         raise ValueError('incomplete named native execution evidence: '+kind)
@@ -85,7 +85,7 @@ def validate(directory):
         raise ValueError('runtime summary differs from saved report')
     for kind in ['release','sanitize']:
         native_evidence(directory/('native-'+kind),kind)
-        fixture=json.loads((directory/('native-'+kind)/'milestone3-fixtures.json').read_text())
+        fixture=json.loads((directory/('native-'+kind)/'fixtures.json').read_text())
         if fixture.get('counts')!=dict(passed=48,unresolved_reference_characterization=9):
             raise ValueError('incomplete native fixture evidence: '+kind)
 
@@ -109,7 +109,7 @@ def validate_integration(directory):
     if integrity.get('unchanged') is not True or integrity.get('checked_files',0)<=0:
         raise ValueError('reference integrity was not verified')
     native_evidence(directory/'native-test-results','debug')
-    fixture=json.loads((directory/'native-test-results/milestone3-fixtures.json').read_text())
+    fixture=json.loads((directory/'native-test-results/fixtures.json').read_text())
     if fixture.get('counts')!=dict(passed=48,unresolved_reference_characterization=9):
         raise ValueError('incomplete integration native fixture evidence')
 

@@ -1,8 +1,8 @@
-# Firmware fidelity findings v1
+# Firmware quirks and compatibility limits
 
-Original MIT behavioral findings, not implementation patches. The owner's November 13, 2026 instruction is authoritative: follow firmware action/reaction even when it is a bug, document it, and do not repair it in the emulator by default. These findings supersede contrary provisional plan/scaffolding choices. Reference profile and source revisions are frozen by the [behavioral contract](behavioral-contract.md).
+Deterministic firmware quirks are required controller behavior. Undefined-memory, overflow, and hardware-dependent outcomes remain explicit compatibility limits; no safer invented serial response substitutes for them. Original findings use MIT; reference source retains its terms.
 
-D means a deterministic source-defined expectation with original fixture coverage. C means a characterization case whose source bounds/call order are recorded but whose exact runtime result needs hardware/build evidence; no deterministic reply is invented. Hardware characterization is not performed or authorized by this documentation task. A C case cannot be called passing or silently rejected by the future emulator; qualify it before claiming the affected compatibility. [Fixture semantics](test-vectors/README.md) distinguish these categories.
+D means a deterministic source-defined expectation with original fixture coverage. C means a characterization case whose source bounds/call order are recorded but whose exact runtime result needs hardware/build evidence; no deterministic reply is invented. Hardware characterization is not performed or authorized by this documentation task. A C case cannot be called passing or silently rejected by the emulator; qualify it before claiming the affected compatibility. [Fixture semantics](test-vectors/README.md) distinguish these categories.
 
 | ID | Class | Finding and required reaction | Evidence |
 | --- | --- | --- | --- |
