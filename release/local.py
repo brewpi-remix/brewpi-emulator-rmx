@@ -236,7 +236,7 @@ def seal(output,destination):
         write_json(destination/'freeze.json',dict(schema=1,status='frozen-provisional-review-required',version=VERSION,
             source_snapshot_sha256=record['source_snapshot_sha256'],base_commit=record['base_commit'],source_commit=None,
             source_commit_role='pending-reviewed-commit-binding',unsigned=True,r3_started=False,r5_accepted=False,
-            pending=['owner review','reviewed commit association','candidate minimum-tool checks','native amd64 packaged client/qualification','R3 sustained workloads','final R4/R5/R6 acceptance'],
+            pending=['owner review','reviewed commit association','candidate minimum-tool checks','native amd64 packaged client/qualification','R3 sustained-evidence review (fresh workload or justified carry-forward)','final R4/R5/R6 acceptance'],
             files={p.name:sha(p) for p in sorted(destination.iterdir())}))
         (destination/'freeze.sha256').write_text(sha(destination/'freeze.json')+'  freeze.json\n')
         verify_freeze(destination)

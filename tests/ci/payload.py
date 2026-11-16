@@ -14,7 +14,15 @@ FILES = {'bin/brewpi-emulator-rmx', 'libexec/brewpi-emulator-rmx/wait-ready.py',
          'share/doc/brewpi-emulator-rmx/LICENSE.md',
          'share/doc/brewpi-emulator-rmx/THIRD_PARTY_NOTICES.md',
          'share/doc/brewpi-emulator-rmx/operation.txt'}
+LOCAL_CONTROLS_FILES = FILES | {'libexec/brewpi-emulator-rmx/lcd-viewer.py'}
 MACHINES = {'amd64': 62, 'arm64': 183}
+
+
+def payload_files(manifest):
+    profile=manifest.get('payload_profile','core-v1')
+    if profile=='core-v1':return FILES
+    if profile=='local-controls-v1' and manifest.get('schema')==2:return LOCAL_CONTROLS_FILES
+    raise ValueError('unsupported payload profile')
 
 
 def preflight():
@@ -64,17 +72,19 @@ class Payload:
         self.source_identity=source_identity(m)
         if not isinstance(m.get('application_version_output'), str) or not m['application_version_output']:
             raise ValueError('missing frozen version expectation')
-        if set(m.get('files', {})) != FILES:
+        files=payload_files(m)
+        if set(m.get('files', {})) != files:
             raise ValueError('incomplete payload inventory')
-        if m['schema']==2 and m.get('file_modes')!={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in FILES}:
+        if m['schema']==2 and m.get('file_modes')!={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in files}:
             raise ValueError('incorrect payload file modes')
         if m['schema']==2:
             import sys
             sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'release'))
-            from artifacts import source_record
+            from artifacts import source_record, verify_original_files
             record=source_record(Path(__file__).resolve().parents[2])
             if record['source_snapshot_sha256']!=m['source_snapshot_sha256'] or record['base_commit']!=m['base_commit'] or m.get('source_commit_role')!='pending-reviewed-commit-binding':
                 raise ValueError('driver/helper source differs from provisional payload identity')
+            verify_original_files(m,record)
         self.prefix=m.get('install_prefix')
         if self.prefix not in ['/usr/local','/opt/brewpi-emulator-rmx']:
             raise ValueError('unsupported payload install prefix')
@@ -94,7 +104,7 @@ class Payload:
         for path in self.tree.rglob('*'):
             if path.is_symlink() or not (path.is_file() or path.is_dir()):raise ValueError('nonregular payload input')
             if path.is_file():actual.add(str(path.relative_to(self.tree)))
-        if actual != FILES:
+        if actual != payload_files(self.manifest):
             raise ValueError('payload contains missing or unexpected files')
         for name, expected in self.manifest['files'].items():
             path = self.tree / name

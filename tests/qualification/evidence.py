@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'ci'))
-from payload import FILES, source_identity
+from payload import FILES, payload_files, source_identity
 
 
 INTEGRATION_NAMES=['startup', 'factory initialization', 'discovery and assignment', 'mode b', 'mode f', 'mode o', 'LCD bytes and alternation', 'temperature units', 'default actions retain persistence quirks', 'profile disabled segment and resumption', 'calibration, deactivation, and manual output', 'reset and rediscovery', 'evolving temperatures and control states', 'actual process restart', 'logs and chart', 'maintenance log viewer', 'browser execution']
@@ -22,9 +22,13 @@ def input_evidence(directory, kind):
     mode=os.environ.get('RMX_EXECUTION_MODE','source-build')
     if mode not in ['source-build','packaged-input'] or report.get('mode')!=mode:
         raise ValueError('wrong execution mode')
+    manifest=json.loads(Path(os.environ['RMX_PAYLOAD_MANIFEST']).read_text()) if mode=='packaged-input' else None
+    files=payload_files(manifest) if manifest is not None else FILES
+    if manifest is not None and set(manifest.get('files',{}))!=files:
+        raise ValueError('incorrect declared payload inventory')
     if kind=='qualification':
         integrity=json.loads((directory/'installed-integrity.json').read_text())
-        if integrity.get('status')!='passed' or set(report.get('files',{}))!=FILES or integrity.get('files')!=report['files']:
+        if integrity.get('status')!='passed' or set(report.get('files',{}))!=files or integrity.get('files')!=report['files']:
             raise ValueError('missing installed-file integrity evidence')
     else:
         rows=[json.loads(row) for row in (directory/'executable-hashes.jsonl').read_text().splitlines()]

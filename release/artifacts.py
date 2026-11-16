@@ -17,7 +17,7 @@ import tarfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tests/ci'))
-from payload import FILES, preflight, sha
+from payload import FILES, LOCAL_CONTROLS_FILES, payload_files, preflight, sha
 from version import application_version
 VERSION='0.0.1-rc.1'
 STEM='brewpi-emulator-rmx-'+VERSION
@@ -106,17 +106,35 @@ def source_record(root):
     return record
 
 
+def verify_original_files(manifest, record):
+    """Bind verbatim installed project material to the archived original source."""
+    bindings={
+        'libexec/brewpi-emulator-rmx/wait-ready.py':'scripts/wait-ready.py',
+        'share/doc/brewpi-emulator-rmx/LICENSE.md':'LICENSE.md',
+        'share/doc/brewpi-emulator-rmx/THIRD_PARTY_NOTICES.md':'THIRD_PARTY_NOTICES.md',
+        'share/doc/brewpi-emulator-rmx/operation.txt':'docs/operation.txt',
+    }
+    if manifest.get('payload_profile')=='local-controls-v1':
+        bindings['libexec/brewpi-emulator-rmx/lcd-viewer.py']='scripts/lcd-viewer.py'
+    for installed,original in bindings.items():
+        digest=record.get('files',{}).get(original,{}).get('sha256')
+        if digest is None or manifest.get('files',{}).get(installed)!=digest:
+            raise ValueError('installed original differs from source: '+installed)
+
+
 def payload_record(manifest, record, architecture, source_digest):
     expected=dict(schema=2,candidate_version=VERSION,source_commit=None,base_commit=record['base_commit'],
         source_snapshot_sha256=record['source_snapshot_sha256'],source_archive_sha256=source_digest,
         source_commit_role='pending-reviewed-commit-binding',architecture=architecture,install_prefix='/usr/local',
         application_version_output='brewpi-emulator-rmx '+VERSION)
     if any(manifest.get(k)!=v for k,v in expected.items()):raise ValueError('payload metadata differs from source/target')
-    modes={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in FILES}
-    if set(manifest.get('files',{}))!=FILES or manifest.get('file_modes')!=modes:
+    files=payload_files(manifest)
+    modes={name:(0o755 if name.startswith(('bin/','libexec/')) else 0o644) for name in files}
+    if set(manifest.get('files',{}))!=files or manifest.get('file_modes')!=modes:
         raise ValueError('incorrect payload inventory or modes')
     if any(not isinstance(value,str) or not re.fullmatch('[0-9a-f]{64}',value) for value in manifest['files'].values()):
         raise ValueError('invalid payload file digest')
+    verify_original_files(manifest,record)
     return {name:dict(sha256=digest,mode=modes[name]) for name,digest in manifest['files'].items()}
 
 
@@ -140,7 +158,7 @@ def snapshot(root, output):
         safe_name(name);p=root/name
         if not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]):raise ValueError('nonregular source input')
         if name not in tracked:
-            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/release.md','engineering/licenses/software-release-r4.md']):
+            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/release.md','engineering/licenses/software-release-r4.md','engineering/development/candidate-controls-integration.md','engineering/development/candidate-controls-results.md','engineering/development/candidate-controls-review.md']):
                 raise ValueError('undeclared new original input: '+name)
             new.append(name)
         if p.stat().st_mode&0o6000:raise ValueError('privileged source mode')
@@ -196,11 +214,12 @@ def build(source_archive, output, work, architecture, image_id):
     shutil.copyfile(build_root/'compile_commands.json',output/'compile_commands.json')
     stage=work/'stage'
     command(['cmake','--install',build_root],output/'install.log',env=dict(env,DESTDIR=str(stage)))
+    command(['cmake','--install',build_root,'--component','lcd-viewer'],output/'lcd-install.log',env=dict(env,DESTDIR=str(stage)))
     tree=stage/'usr/local'
     actual={str(p.relative_to(tree)) for p in tree.rglob('*') if p.is_file() or p.is_symlink()}
-    if actual!=FILES:raise ValueError('unexpected installed payload')
+    if actual!=LOCAL_CONTROLS_FILES:raise ValueError('unexpected installed payload')
     entries={}
-    for name in sorted(FILES):
+    for name in sorted(LOCAL_CONTROLS_FILES):
         path=tree/name
         if any(p.is_symlink() for p in [path,*path.parents]):raise ValueError('linked payload input')
         mode=0o755 if name.startswith(('bin/','libexec/')) else 0o644
@@ -218,7 +237,7 @@ def build(source_archive, output, work, architecture, image_id):
         raise ValueError('unexpected loader dependency/search path')
     interpreter=re.search(r'Requesting program interpreter: ([^\]]+)',elf['programs']).group(1)
     symbols=sorted(set(re.findall(r'\b(?:GLIBCXX|GLIBC|CXXABI)_[0-9.]+',elf['versions'])))
-    data=dict(schema=2,candidate_version=VERSION,source_commit=None,base_commit=record['base_commit'],
+    data=dict(schema=2,payload_profile='local-controls-v1',candidate_version=VERSION,source_commit=None,base_commit=record['base_commit'],
         source_snapshot_sha256=record['source_snapshot_sha256'],source_archive_sha256=sha(source_archive),
         source_commit_role='pending-reviewed-commit-binding',architecture=architecture,install_prefix='/usr/local',
         application_version_output=version,files={p:hashlib.sha256(d).hexdigest() for p,(d,m) in entries.items()},

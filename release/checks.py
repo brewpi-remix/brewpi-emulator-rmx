@@ -10,11 +10,11 @@ import tempfile
 import tarfile
 import unittest
 from unittest.mock import patch
-from artifacts import archive, unpack, canonical, source_record
+from artifacts import archive, unpack, canonical, source_record, verify_original_files
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/ci'))
 from payload import source_identity
-from payload import Payload, FILES
+from payload import Payload, FILES, LOCAL_CONTROLS_FILES, payload_files
 from local import compare_builds, verify_freeze
 
 
@@ -161,6 +161,85 @@ class Reproducibility(unittest.TestCase):
             changed.write_bytes(original)
             xml=results[1]/'ctest.xml';xml.write_text(xml.read_text().replace('Status="passed"','Status="failed"',1))
             with self.assertRaises(ValueError):compare_builds(root,'arm64')
+
+
+class PayloadProfiles(unittest.TestCase):
+    def test_verbatim_project_files_must_match_archived_originals(self):
+        originals={'scripts/wait-ready.py','scripts/lcd-viewer.py','LICENSE.md','THIRD_PARTY_NOTICES.md','docs/operation.txt'}
+        for profile,files in [('core-v1',FILES),('local-controls-v1',LOCAL_CONTROLS_FILES)]:
+            with self.subTest(profile=profile):
+                manifest=dict(payload_profile=profile,files={n:'a'*64 for n in files})
+                record=dict(files={n:dict(sha256='a'*64) for n in originals})
+                verify_original_files(manifest,record)
+                for original in originals-({'scripts/lcd-viewer.py'} if profile=='core-v1' else set()):
+                    record['files'][original]['sha256']='b'*64
+                    with self.assertRaisesRegex(ValueError,'installed original differs'):verify_original_files(manifest,record)
+                    record['files'][original]['sha256']='a'*64
+                del record['files']['scripts/wait-ready.py']
+                with self.assertRaises(ValueError):verify_original_files(manifest,record)
+
+    def test_profiles_preserve_original_inventory_and_require_explicit_controls(self):
+        self.assertEqual(payload_files(dict(schema=2)),FILES)
+        self.assertEqual(payload_files(dict(schema=2,payload_profile='local-controls-v1')),LOCAL_CONTROLS_FILES)
+        for m in [dict(schema=1,payload_profile='local-controls-v1'),dict(schema=2,payload_profile='arbitrary')]:
+            with self.assertRaises(ValueError):payload_files(m)
+
+    def test_controls_inventory_requires_exact_helper_bytes_and_modes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();files={};modes={}
+            for name in LOCAL_CONTROLS_FILES:
+                p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'original inventory test data')
+                modes[name]=0o755 if name.startswith(('bin/','libexec/')) else 0o644;p.chmod(modes[name]);files[name]=hashlib.sha256(p.read_bytes()).hexdigest()
+            payload=Payload.__new__(Payload);payload.tree=root;payload.architecture='arm64';payload.source_identity={};payload.manifest_sha256='c'*64
+            payload.manifest=dict(schema=2,payload_profile='local-controls-v1',candidate_version='0.0.1-rc.1',files=files,file_modes=modes)
+            payload.verify('test')
+            helper=root/'libexec/brewpi-emulator-rmx/lcd-viewer.py';original=helper.read_bytes()
+            helper.write_bytes(b'changed')
+            with self.assertRaises(ValueError):payload.verify('test')
+            helper.write_bytes(original);helper.chmod(0o644)
+            with self.assertRaises(ValueError):payload.verify('test')
+            helper.chmod(0o755);payload.manifest.pop('payload_profile')
+            with self.assertRaises(ValueError):payload.verify('test')
+
+
+class ControlsQualificationEvidence(unittest.TestCase):
+    def test_integration_requires_supported_profile_and_exact_inventory(self):
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/qualification'))
+        from evidence import input_evidence
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);manifest=root/'manifest.json'
+            m=dict(schema=2,payload_profile='local-controls-v1',source_commit=None,base_commit='a'*40,
+                source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files={n:'a'*64 for n in LOCAL_CONTROLS_FILES})
+            def save():
+                manifest.write_text(json.dumps(m));identity=dict(mode='packaged-input',source_commit=None,base_commit='a'*40,
+                    source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files=m['files'],
+                    manifest_sha256=hashlib.sha256(manifest.read_bytes()).hexdigest())
+                (root/'execution-input.json').write_text(json.dumps(dict(mode='packaged-input',sha256='a'*64,executable='/payload/bin/brewpi-emulator-rmx')))
+                (root/'executable-hashes.jsonl').write_text(''.join(json.dumps(dict(phase=p,sha256='a'*64))+'\n' for p in ['restart-1','restart-2','restart-3','after-integration']))
+                (root/'payload-execution.jsonl').write_text(''.join(json.dumps(dict(identity,phase=p))+'\n' for p in ['before-integration','restart-1','restart-2','restart-3','after-integration']))
+            with patch.dict(os.environ,RMX_EXECUTION_MODE='packaged-input',RMX_PAYLOAD_MANIFEST=str(manifest),RMX_CANDIDATE_SNAPSHOT='b'*64,RMX_CANDIDATE_COMMIT=''):
+                save();input_evidence(root,'integration')
+                m['payload_profile']='unknown';save()
+                with self.assertRaisesRegex(ValueError,'unsupported payload profile'):input_evidence(root,'integration')
+                m['payload_profile']='local-controls-v1';del m['files']['libexec/brewpi-emulator-rmx/lcd-viewer.py'];save()
+                with self.assertRaisesRegex(ValueError,'declared payload inventory'):input_evidence(root,'integration')
+
+    def test_seven_file_qualification_is_explicit_and_identity_bound(self):
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/qualification'))
+        from evidence import input_evidence
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);manifest=root/'manifest.json';files={n:'a'*64 for n in LOCAL_CONTROLS_FILES}
+            m=dict(schema=2,payload_profile='local-controls-v1',source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files=files)
+            manifest.write_text(json.dumps(m));digest=hashlib.sha256(manifest.read_bytes()).hexdigest()
+            identity=dict(mode='packaged-input',source_commit=None,base_commit='a'*40,source_snapshot_sha256='b'*64,candidate_version='0.0.1-rc.1',architecture='arm64',files=files,manifest_sha256=digest)
+            (root/'execution-input.json').write_text(json.dumps(dict(mode='packaged-input',architecture='arm64',files=files)))
+            (root/'installed-integrity.json').write_text(json.dumps(dict(status='passed',files=files)))
+            (root/'payload-execution.jsonl').write_text(''.join(json.dumps(dict(identity,phase=p))+'\n' for p in ['before-runtime','service-start','service-end','after-runtime']))
+            (root/'runtime-results').mkdir();(root/'runtime-results/payload-execution.jsonl').write_text(json.dumps(dict(identity,phase='runtime-process-start'))+'\n')
+            with patch.dict(os.environ,RMX_EXECUTION_MODE='packaged-input',RMX_PAYLOAD_MANIFEST=str(manifest),RMX_CANDIDATE_SNAPSHOT='b'*64,RMX_CANDIDATE_COMMIT=''):
+                input_evidence(root,'qualification')
+                m.pop('payload_profile');manifest.write_text(json.dumps(m))
+                with self.assertRaises(ValueError):input_evidence(root,'qualification')
 
 
 if __name__=='__main__':unittest.main()
