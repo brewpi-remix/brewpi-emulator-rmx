@@ -1,5 +1,7 @@
 # Development checklist
 
+- ✅ Review and correct the [0.0.1 final software release plan](engineering/development/software-release-001-plan.md) and R3 evidence reuse assessment; the owner authorized committing and pushing this documentation to main. R3 reuse acceptance, final implementation, and qualification remain pending. Pi qualification, systemd activation, and Arduino characterization are excluded. No tag or release publication is authorized. Earlier RC checklist entries below describe their historical stage dispositions.
+
 Status key: ✅ complete, ⏳ in progress, ▧ not started. Checklist status describes evidence available, not approval to proceed.
 
 - ✅ Record source-backed implementation plan and protocol review.
