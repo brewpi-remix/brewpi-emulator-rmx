@@ -69,7 +69,7 @@ Use `57600` baud, eight data bits, no parity, and one stop bit. Client open/clos
 
 Readiness, controls, and shutdown
 
-Use `--lcd off`, `--lcd terminal`, `--lcd gui`, or `--lcd auto`. Terminal controls require an attached Windows console with at least 23 columns and eight rows. Type a command and press `Enter` to submit it; `press` is the rotary pushbutton action. GUI modes use the existing controls and fall back to terminal presentation, then headless operation, when unavailable. See the control reference (source archive: docs/operation.md).
+Use `--lcd off`, `--lcd terminal`, `--lcd gui`, or `--lcd auto`. Terminal controls require an attached Windows console with at least 23 columns and 15 rows. Type a command and press `Enter` to submit it; `press` is the rotary pushbutton action. GUI modes show the four-by-twenty LCD, physical heater/cooler/fan/light indicators, and an open/closed door icon. Counterclockwise and clockwise buttons flank the green encoder ring, with the press button in its center; full action names appear in tooltips. Indicators show physical load activation (`On`, `Off`, or `N/A` when no load is modeled), including custom wiring and polarity. Terminal presentation shows the same equipment and door states as text. GUI modes fall back to terminal presentation, then headless operation, when unavailable. See the control reference (source archive: docs/operation.md).
 
 The readiness helper uses the state path, selected COM endpoint, and actual process PID:
 

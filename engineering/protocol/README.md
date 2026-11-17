@@ -9,6 +9,7 @@ The emulator defaults to the normal Uno/RevC BrewPi Remix controller personality
 - [Diagnostic signatures](diagnostics.md)
 - [Firmware quirks and compatibility limits](firmware-findings.md)
 - [Arduino bench validation checklist](arduino-validation.md)
+- [Physical Uno I2C characterization](i2c-characterization.md)
 - [Original fixture data](test-vectors/README.md)
 
 Required wire identifiers and source-backed facts establish interoperability; no reference implementation is incorporated. See the [authorship contract](../../CONTRACT.md). Undefined-memory, overflow, and physical-bus outcomes remain unqualified where no exact reference result exists.

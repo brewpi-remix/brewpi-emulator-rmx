@@ -22,7 +22,7 @@ errors = []
 def send(unit, sequence):
     rows = ['Mode   Beer Const.  ', f'Beer   20.0  20.0 °{unit}',
             f'Fridge 19.5  19.0 °{unit}', 'Cooling for    03m12']
-    a.send(json.dumps(dict(version=2, type='frame', sequence=sequence, rows=rows, dim=False, door=False, status='Ready', session='test', epoch=0)).encode())
+    a.send(json.dumps(dict(version=2, type='frame', sequence=sequence, rows=rows, dim=False, door=sequence == 2, equipment=([1,0,1,0] if sequence == 1 else [0,1,0,1] if sequence == 2 else [-1]*4), status='Ready', session='test', epoch=0)).encode())
     a.send(b'{"version":2,"type":"heartbeat"}')
 
 def check(name, unit):
@@ -30,6 +30,13 @@ def check(name, unit):
         assert viewer.ready
         assert viewer.rows[1][18:] == '°'+unit
         assert len(viewer.cells) == 80
+        expected = [1,0,1,0] if viewer.sequence == 1 else [0,1,0,1] if viewer.sequence == 2 else [-1]*4
+        assert viewer.equipment == expected
+        assert bool(viewer.equipment_canvas.find_withtag('no')) == (expected[2] == 0)
+        assert viewer.door_open == (viewer.sequence == 2)
+        for item in viewer.equipment_canvas.find_all():
+            x0,y0,x1,y1=viewer.equipment_canvas.bbox(item)
+            assert 0<=x0<x1<=viewer.equipment_canvas.winfo_width() and 0<=y0<y1<=viewer.equipment_canvas.winfo_height()
         w, h = viewer.canvas.winfo_width(), viewer.canvas.winfo_height()
         for item in viewer.cells:
             x0, y0, x1, y1 = viewer.canvas.bbox(item)
@@ -49,7 +56,9 @@ viewer.root.after(600, lambda: check('minimum-c', 'C'))
 viewer.root.after(700, lambda: viewer.root.geometry('960x500'))
 viewer.root.after(800, lambda: send('F', 2))
 viewer.root.after(1000, lambda: check('large-f', 'F'))
-viewer.root.after(1100, viewer.root.destroy)
+viewer.root.after(1100, lambda: send('C', 3))
+viewer.root.after(1300, lambda: check('unmodeled-c', 'C'))
+viewer.root.after(1400, viewer.root.destroy)
 viewer.run()
 a.close(); b.close()
 assert not errors, errors

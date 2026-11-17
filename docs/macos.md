@@ -35,7 +35,7 @@ altport = None
 
 Use `57600` baud, eight data bits, no parity, and one stop bit. Configuration values are literal paths; they do not gain shell-variable or `~` expansion. `port = auto` does not discover virtual PTYs. Restarting the emulator replaces the underlying PTY, so clients must close and reopen the configured symlink. Client close/reopen does not itself reboot the controller; `R` requests an explicit controller restart.
 
-The [readiness helper](../scripts/wait-ready.py) checks the owned raw PTY without reading startup bytes or changing terminal attributes. On Darwin, `IGNBRK` can remain set by raw mode. A serial client may purge startup bytes when opening or explicitly flushing input; this is distinct from emulator byte loss. LCD serial replies retain raw byte `B0`, which BrewPi decodes as CP437, rather than a UTF-8 degree glyph.
+The [readiness helper](../scripts/wait-ready.py) checks the owned raw PTY without reading startup bytes or changing terminal attributes. On Darwin, `IGNBRK` can remain set by raw mode. A serial client may purge startup bytes when opening or explicitly flushing input; this is distinct from emulator byte loss. LCD serial replies retain raw degree byte `B0` for RevC or `DF` for I2C, which BrewPi decodes as CP437. The local terminal and graphical displays show `°` for either profile.
 
 For explicit checkpoint continuation, follow the [checkpoint procedure](operation.md#stop-restart-and-checkpoints) with writable absolute paths. Drain replies and stop client traffic before clean emulator shutdown. A successful write to an OS buffer is not proof that the client consumed those bytes.
 

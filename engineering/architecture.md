@@ -16,3 +16,5 @@ The serial host is the sole consumer of the controller PTY. Local display/contro
 Simulated time advances physics and controller scheduling. Serial-token deadlines, display activity, and host profile/chart time remain wall-clock based. Process restart loads saved controller state with a fresh external plant; explicit checkpoint continuation restores coherent plant/controller histories. Serial `R` restarts controller state while retaining the running plant.
 
 See the [wire contract](protocol/behavioral-contract.md), [controller reference](protocol/controller.md), and [operating guide](../docs/operation.md).
+
+The local equipment view is a passive projection of modeled physical load kinds, configured pins, polarity, and retained electrical latches. It aggregates multiple loads of one kind without deriving activation from controller state or logical assignments. GUI frames carry the four heater/cooler/fan/light values through private IPC; the serial protocol and controller checkpoint schema are unchanged. The original procedural icon strokes are drawn locally with Tk canvas/native button images; no icon library, image asset, or symbol font is bundled.

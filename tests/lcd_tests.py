@@ -131,6 +131,10 @@ def decoder_checks():
                   dict(sequence=True), dict(sequence=2**53), dict(rows=[' ' * 19] * 4),
                   dict(rows=['\x1b' + ' ' * 19] * 4), dict(rows=['界' * 20] * 4), dict(extra=1)]:
         bad.append(json.dumps(dict(good, **patch)).encode())
+    for values in ([0, 1, 0, -1], [1, 0, 1, 0]):
+        assert module.decode(json.dumps(dict(good, equipment=values)).encode())['equipment'] == values
+    for values in (None, {}, [], [0]*3, [0]*5, [True, 0, 0, 0], [2, 0, 0, 0], [-2, 0, 0, 0], ['0', 0, 0, 0]):
+        bad.append(json.dumps(dict(good, equipment=values)).encode())
     for packet in bad:
         try:
             module.decode(packet)
@@ -248,7 +252,7 @@ def run(exe, core):
             fcntl.ioctl(p.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 6, 22, 0, 0))
             wait_for(lambda: b'23 columns' in p.console()[start:])
             assert b'\x1b' not in p.buffer[start:]
-            fcntl.ioctl(p.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 8, 23, 0, 0))
+            fcntl.ioctl(p.slave, termios.TIOCSWINSZ, struct.pack('HHHH', 15, 23, 0, 0))
             start = len(p.buffer)
             wait_for(lambda: b'\xc2\xb0C' in p.console()[start:])
             assert p.command(b'n').startswith(b'N:')
@@ -264,6 +268,37 @@ def run(exe, core):
                 assert (b'\xc2\xb0C' in content) == expect
             finally:
                 p.close()
+        for profile, heater in [('revc', 5), ('i2c', 6)]:
+            p = Process(exe, root/('equipment-'+profile), 'terminal', env=env,
+                        extra=('--profile', profile))
+            try:
+                wait_for(lambda: b'Heater OFF  Cooler OFF' in p.console())
+                def query(data, prefix):
+                    os.write(p.serial, data)
+                    while True:
+                        row = p.line()
+                        if row.startswith(prefix+b':'):
+                            return row
+                query(b'E', b'D')
+                query(('U{i:3,f:2,h:1,p:%d,x:1}' % heater).encode(), b'U')
+                query(b'j{mode:t}', b'S'); query(b'c', b'C')
+                before = len(p.console())
+                query(b'd{i:3,w:1}', b'd')
+                wait_for(lambda: b'Heater ON ' in p.console()[before:])
+                before = len(p.console())
+                query(b'U{i:3,f:0}', b'U')
+                query(b'j{mode:o}', b'S'); query(b'c', b'C')
+                query(b'n', b'N')
+                # The next repaint must retain the active orphan latch.
+                os.write(p.master, b'door open\r')
+                wait_for(lambda: b'Door   OPEN' in p.console()[before:])
+                assert b'Heater ON ' in p.console()[before:]
+                before = len(p.console())
+                query(('U{i:3,f:2,h:1,p:%d,x:1}' % heater).encode(), b'U')
+                wait_for(lambda: b'Heater OFF' in p.console()[before:])
+            finally:
+                p.close()
+        checks.append('both-profile paused terminal equipment repaint, orphan latch, restoration, and physical door')
         p = Process(exe, root/'headless', 'terminal', env=env, terminal=False)
         try:
             assert p.command(b'n').startswith(b'N:')
@@ -288,6 +323,25 @@ def run(exe, core):
                         wait_for(lambda: (directory/'frame.json').exists())
                         item = json.loads((directory/'frame.json').read_text())
                         assert len(item['rows']) == 4 and item['rows'][1][18] == '°'
+                        assert item['equipment'] == [0, 0, 0, 0]
+                        def query(data, prefix):
+                            os.write(p.serial, data)
+                            while True:
+                                line = p.line()
+                                if line.startswith(prefix+b':'):return line
+                        query(b'E', b'D')
+                        query(b'U{i:3,f:2,h:1,p:5,x:1}', b'U')
+                        query(b'j{mode:t}', b'S'); query(b'c', b'C')
+                        time.sleep(.15)
+                        unchanged_rows=json.loads((directory/'frame.json').read_text())['rows']
+                        query(b'd{i:3,w:1}', b'd')
+                        def active_frame():
+                            try:return json.loads((directory/'frame.json').read_text())
+                            except ValueError:return {}
+                        wait_for(lambda: active_frame().get('equipment') == [1, 0, 0, 0])
+                        assert active_frame()['rows'] == unchanged_rows
+                        query(b'd{i:3,w:0}', b'd')
+
                         time.sleep(.2)
                         assert b'+--------------------+' not in p.console()
                     elif scenario == 'blocked':

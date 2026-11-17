@@ -48,10 +48,10 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
         assert b'Action accepted' not in segment and b'Edit target' not in segment
         command(b'help\r', b'cw ccw press door open/close')
         # Appended acknowledgments never allocate a new prompt region.
-        # Repainting moves six rows up and returns to the same command line.
+        # Repainting includes equipment/help and returns to the same command line.
         command(b'press\r', b'Action accepted')
         segment = command(b'cw\r', b'Action accepted')
-        assert segment.startswith(b'\r\x1b[6A') and b'\x1b[2K' in segment
+        assert segment.startswith(b'\r\x1b[13A') and b'\x1b[2K' in segment
         # Normal controller execution keeps advancing under an open menu.
         # process speed override is zero, so test background progress in another instance below.
         os.kill(p.proc.pid,signal.SIGTSTP)

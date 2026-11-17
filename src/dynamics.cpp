@@ -255,10 +255,10 @@ void Plant::configure(const Json& config) {
     energy_from_loads = energy_from_fermentation = energy_from_room = 0;
     available.fill(true);
     const auto hardware = profile_hardware(profile);
-    loads = {{hardware.heater, 25, true},
-             {hardware.cooler, -60, true},
-             {hardware.light, 0, true},
-             {hardware.fan, 0, true}};
+    loads = {{hardware.heater, 25, true, 0},
+             {hardware.cooler, -60, true, 1},
+             {hardware.light, 0, true, 3},
+             {hardware.fan, 0, true, 2}};
     if (config.has("physical_loads")) {
         loads.clear();
         std::map<int, bool> used;
@@ -270,8 +270,12 @@ void Plant::configure(const Json& config) {
                 (kind != "heater" && kind != "cooler" && kind != "light" && kind != "fan"))
                 throw std::runtime_error("invalid external load");
             used[pin] = true;
-            loads.push_back(
-                {pin, kind == "cooler" ? -watts : watts, entry.at("active_low").boolean()});
+            loads.push_back({pin, kind == "cooler" ? -watts : watts,
+                             entry.at("active_low").boolean(),
+                             size_t(kind == "heater"   ? 0
+                                    : kind == "cooler" ? 1
+                                    : kind == "fan"    ? 2
+                                                       : 3)});
         }
     }
     sample_probes();
@@ -301,6 +305,15 @@ void Plant::sample_probes() {
         double c = std::round((lagged[i] + n) / quantum) * quantum;
         probe[i] = absolute_raw(c);
     }
+}
+EquipmentStates Plant::equipment_states(const std::map<int, bool>& pins) const {
+    EquipmentStates result{{-1, -1, -1, -1}};
+    for (const auto& load : loads) {
+        const auto pin = pins.find(load.pin);
+        const int active = pin != pins.end() && (pin->second != load.low) ? 1 : 0;
+        result[load.equipment] = std::max(result[load.equipment], active);
+    }
+    return result;
 }
 void Plant::step(const std::map<int, bool>& pins) {
     constexpr double dt = .1, pi = 3.14159265358979323846;

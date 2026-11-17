@@ -416,7 +416,7 @@ void Engine::stationary_display() {
     place(1, 0, "Beer ");
     place(2, 0, screen_room ? "Room  " : "Fridge ");
     for (auto row : {1u, 2u}) {
-        screen[row][18] = char(0xb0);
+        screen[row][18] = char(profile == Profile::i2c ? 0xdf : 0xb0);
         screen[row][19] = char(constants.at("tempFormat"));
     }
 }

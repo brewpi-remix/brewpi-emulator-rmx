@@ -35,7 +35,7 @@ altport = None
 
 Use `57600` baud, eight data bits, no parity, and one stop bit. Configuration values are literal paths; they do not gain shell-variable or `~` expansion. `port = auto` does not discover virtual PTYs. Restarting the emulator replaces the underlying PTY, so clients must close and reopen the configured symlink. Client close/reopen does not itself reboot the controller; `R` requests an explicit controller restart.
 
-The readiness helper (source archive: scripts/wait-ready.py) checks the owned raw PTY without reading startup bytes or changing terminal attributes. On Darwin, `IGNBRK` can remain set by raw mode. A serial client may purge startup bytes when opening or explicitly flushing input; this is distinct from emulator byte loss. LCD serial replies retain raw byte `B0`, which BrewPi decodes as CP437, rather than a UTF-8 degree glyph.
+The readiness helper (source archive: scripts/wait-ready.py) checks the owned raw PTY without reading startup bytes or changing terminal attributes. On Darwin, `IGNBRK` can remain set by raw mode. A serial client may purge startup bytes when opening or explicitly flushing input; this is distinct from emulator byte loss. LCD serial replies retain raw degree byte `B0` for RevC or `DF` for I2C, which BrewPi decodes as CP437. The local terminal and graphical displays show `°` for either profile.
 
 For explicit checkpoint continuation, follow the checkpoint procedure (source archive: docs/operation.md) with writable absolute paths. Drain replies and stop client traffic before clean emulator shutdown. A successful write to an OS buffer is not proof that the client consumed those bytes.
 
@@ -60,7 +60,11 @@ Command-line options
 | `--version` | Print application version. Serial `n` identifies the emulated firmware separately. |
 Optional local LCD
 
-The local LCD shows the twenty-column, four-row controller screen. The terminal presentation requires a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 8 rows. Unsupported terminals display a read-only screen. Headless and terminal operation need no Python or Tcl/Tk.
+The local LCD shows the twenty-column, four-row controller screen. The terminal presentation requires a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 15 rows. Unsupported terminals display a read-only screen. Headless and terminal operation need no Python or Tcl/Tk.
+
+The equipment strip shows the modeled heater, cooler, fan, and chamber light. A red flame denotes the heater, a pale-blue snowflake denotes the cooler, and a circle/slash over the fan denotes off. Labels distinguish `On`, `Off`, and `N/A` (no modeled load or unavailable display data). These indicators read physical load wiring and electrical latches, including custom `physical_loads` and polarity; they do not infer activation from the controller state or logical function names. Multiple loads of one kind show on when any is active. Indicator reads do not change serial replies, saved state, or thermal behavior.
+
+The encoder has a press symbol in its center, with counterclockwise and clockwise arrow buttons on either side. Hover or keyboard focus exposes the full action names. The door button shows the physical open/closed door icon; clicking it toggles the modeled door. The terminal presents the same equipment and door states as text beneath the unchanged LCD, followed by the existing typed commands. A timestamped read-only terminal shows the equipment states without interactive controls.
 
 The graphical LCD requires the installed `lcd-viewer.py` helper, `python3` on `PATH` selecting Python 3.9 or later, working `tkinter`/`_tkinter`, Tcl/Tk 8.6 or later, and a local graphical session. Check that interpreter's setup with `python3 -m tkinter`. Python, Tcl/Tk, fonts, and desktop software are supplied separately. GUI failure falls back to the terminal, then headless mode. Closing the GUI requests normal emulator shutdown.
 Local rotary and door controls

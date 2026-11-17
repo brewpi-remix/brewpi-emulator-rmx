@@ -10,6 +10,8 @@
 #include <optional>
 
 namespace rmx {
+// Heater, cooler, fan, light: -1 has no modeled load, 0 is inactive, 1 is active.
+using EquipmentStates = std::array<int, 4>;
 int word16(int64_t n);
 int32_t word32(int64_t n);
 int64_t signed_shift(int64_t n, unsigned bits);
@@ -63,6 +65,7 @@ class Plant {
         int pin;
         double watts;
         bool low;
+        size_t equipment;
     };
     std::vector<Load> loads;
     double fermentation(double age_seconds) const;
@@ -74,6 +77,7 @@ class Plant {
     explicit Plant(Profile profile = Profile::revc);
     void configure(const Json& config);
     void step(const std::map<int, bool>& pins); // fixed 100 ms
+    EquipmentStates equipment_states(const std::map<int, bool>& pins) const;
     std::optional<int> read(size_t index) const;
     void set_temperature(size_t index, double c);
     void set_connected(size_t index, bool yes);

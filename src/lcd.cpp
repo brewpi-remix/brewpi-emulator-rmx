@@ -51,7 +51,7 @@ LcdRows unicode_lcd(const LcdRows& raw, bool& replaced) {
             throw std::runtime_error("LCD shadow must contain twenty-byte rows");
         for (char byte : raw[r]) {
             auto c = static_cast<unsigned char>(byte);
-            if (c == 0xb0)
+            if (c == 0xb0 || c == 0xdf)
                 result[r] += "\xc2\xb0";
             else if (c >= 32 && c <= 126)
                 result[r] += char(c);
@@ -216,6 +216,8 @@ struct LocalLcd::Impl {
     std::string session = std::to_string(Clock::now().time_since_epoch().count());
     uint64_t last_action = 0, shown_epoch = 0;
     bool shown_door = false;
+    EquipmentStates shown_equipment{{-2, -2, -2, -2}};
+    unsigned terminal_lines = 6;
     LcdRows latest{}, shown{};
     uint64_t wall_ms() const {
         return uint64_t(
@@ -719,19 +721,25 @@ struct LocalLcd::Impl {
             latest = unicode_lcd(engine->lcd_rows(), replacement_reported);
         uint64_t epoch = engine ? engine->local_revision() : 0;
         bool door = engine && engine->local_door();
+        const EquipmentStates equipment =
+            engine ? engine->local_equipment() : EquipmentStates{{-1, -1, -1, -1}};
         if (state == State::gui && now >= next_frame &&
             (latest != shown || dim != shown_dim || epoch != shown_epoch || door != shown_door ||
-             status != shown_status)) {
+             equipment != shown_equipment || status != shown_status)) {
             next_frame = now + 100ms;
             Json::Array rows;
             for (const auto& row : latest)
                 rows.emplace_back(row);
+            Json::Array outputs;
+            for (int value : equipment)
+                outputs.emplace_back(value);
             auto bytes = Json(Json::Object{{"version", 2},
                                            {"type", "frame"},
                                            {"sequence", double(++sequence)},
                                            {"rows", rows},
                                            {"dim", dim},
                                            {"door", door},
+                                           {"equipment", outputs},
                                            {"status", status},
                                            {"session", session},
                                            {"epoch", double(epoch)}})
@@ -743,6 +751,7 @@ struct LocalLcd::Impl {
                 shown_dim = dim;
                 shown_epoch = epoch;
                 shown_door = door;
+                shown_equipment = equipment;
                 shown_status = status;
                 next_frame = now + 100ms;
             }
@@ -780,12 +789,13 @@ struct LocalLcd::Impl {
             suspended = false;
             next_frame = Time{};
         }
-        if (width < 23 || height < (ansi && engine ? 8u : 7u)) {
+        const unsigned minimum_rows = engine ? (ansi ? 15u : 11u) : 7u;
+        if (width < 23 || height < minimum_rows) {
             restore_input();
             cancel();
             if (!small_reported) {
-                note("terminal needs at least 23 columns and 8 rows for controls; display "
-                     "suspended");
+                note("terminal needs at least 23 columns and " + std::to_string(minimum_rows) +
+                     " rows; display suspended");
                 small_reported = true;
             }
             return;
@@ -796,15 +806,19 @@ struct LocalLcd::Impl {
         dim = !keep_on && now - activity > 60s;
         if (engine)
             latest = unicode_lcd(engine->lcd_rows(), replacement_reported);
+        const bool door = engine && engine->local_door();
+        const EquipmentStates equipment =
+            engine ? engine->local_equipment() : EquipmentStates{{-1, -1, -1, -1}};
         std::string prompt = acknowledged > now ? status : "> " + input;
         if (dropping)
             prompt = "Line too long/invalid";
         if (terminal_output.empty() &&
-            (latest != shown || dim != shown_dim || (ansi && engine && prompt != shown_status)) &&
+            (latest != shown || dim != shown_dim || door != shown_door ||
+             equipment != shown_equipment || (ansi && engine && prompt != shown_status)) &&
             now >= next_frame) {
             std::string frame;
             if (ansi && region)
-                frame = "\r\x1b[6A";
+                frame = "\r\x1b[" + std::to_string(terminal_lines) + "A";
             else
                 frame = "\r\n";
             if (!ansi) {
@@ -819,7 +833,9 @@ struct LocalLcd::Impl {
                 std::strftime(stamp, sizeof stamp, "%Y-%m-%d %H:%M:%SZ\r\n", &tm);
                 frame += stamp;
             }
+            unsigned lines = 0;
             auto line = [&](const std::string& text) {
+                ++lines;
                 frame += "\r";
                 if (ansi)
                     frame += "\x1b[2K";
@@ -830,6 +846,21 @@ struct LocalLcd::Impl {
                 line(std::string(dim && ansi ? "\x1b[2m" : "") + "|" + row + "|" +
                      (dim && ansi ? "\x1b[0m" : ""));
             line("+--------------------+");
+            if (engine) {
+                auto label = [&](size_t index) {
+                    return equipment[index] < 0 ? "N/A" : equipment[index] ? "ON " : "OFF";
+                };
+                if (ansi)
+                    line("");
+                line(std::string("Heater ") + label(0) + "  Cooler " + label(1));
+                line(std::string("Fan    ") + label(2) + "  Light  " + label(3));
+                line(std::string("Door   ") + (door ? "OPEN" : "CLOSED"));
+                if (ansi) {
+                    line("");
+                    line("ccw | press | cw");
+                    line("door open | door close");
+                }
+            }
             if (ansi && engine)
                 frame += "\r\x1b[2K" + prompt.substr(0, width - 1);
 
@@ -839,6 +870,9 @@ struct LocalLcd::Impl {
             shown = latest;
             shown_dim = dim;
             shown_status = prompt;
+            shown_equipment = equipment;
+            shown_door = door;
+            terminal_lines = lines;
             next_frame = now + (ansi ? 100ms : 1000ms);
             region = true;
         }

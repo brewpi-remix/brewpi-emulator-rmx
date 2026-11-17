@@ -210,7 +210,7 @@ def snapshot(root, output):
                 'tests/windows-channel-client.py','tests/windows-channel.cpp','tests/windows-serial.cpp',
                 'tests/windows-storage.cpp','tests/windows/CMakeLists.txt','tests/windows_application.py',
                 '.github/workflows/windows-native.yml','tests/ci/native_windows.py','tests/windows_runtime.py','tests/native_protocol.py','tests/windows_session0.py','tests/windows_session0_checks.py',
-                'engineering/protocol/arduino-validation.md','src/profile.hpp']):
+                'engineering/protocol/arduino-validation.md','engineering/protocol/i2c-characterization.md','src/profile.hpp']):
                 raise ValueError('undeclared new original input: '+name)
             new.append(name)
         if p.stat().st_mode&0o6000:raise ValueError('privileged source mode')

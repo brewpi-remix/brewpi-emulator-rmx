@@ -44,6 +44,7 @@ engineering/protocol/controller.md
 engineering/protocol/defaults.md
 engineering/protocol/diagnostics.md
 engineering/protocol/firmware-findings.md
+engineering/protocol/i2c-characterization.md
 engineering/protocol/test-vectors/README.md
 engineering/protocol/test-vectors/defaults-v1.json
 engineering/protocol/test-vectors/diagnostics-v1.json

@@ -37,9 +37,10 @@ def step():
   command=commands[stage];widget=v.door_button if command=='door' else v.encoder
   key='Right' if command=='cw' else 'Return'
   if os.environ.get('CONTROL_GUI_MOUSE')=='1':
-   if command=='press' and stage==3:widget=v.buttons[1]
+   if command=='press':widget=v.press_button
+   if command=='cw':widget=v.buttons[2]
    widget.focus_force();v.root.update()
-   x,y=(90,55) if command=='cw' else ((55,55) if widget==v.encoder else (widget.winfo_width()//2,widget.winfo_height()//2))
+   x,y=(90,55) if command=='cw' and widget==v.encoder else ((55,55) if widget==v.encoder else (widget.winfo_width()//2,widget.winfo_height()//2))
    assert v.root.winfo_containing(widget.winfo_rootx()+x,widget.winfo_rooty()+y)==widget
    widget.event_generate('<Enter>',x=x,y=y)
    widget.event_generate('<ButtonPress-1>',x=x,y=y)

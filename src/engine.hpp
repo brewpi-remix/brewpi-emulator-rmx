@@ -60,6 +60,9 @@ class Engine {
     bool local_door() const {
         return plant.door_open();
     }
+    EquipmentStates local_equipment() const {
+        return plant.equipment_states(pins);
+    }
     std::array<std::string, 4> local_rows() const;
     void restore_checkpoint(const Json& snapshot);
     uint16_t seconds() const {

@@ -7,6 +7,7 @@ from pathlib import Path
 import socket
 import sys
 import time
+import traceback
 
 root=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('lcd_viewer',root/'scripts/lcd-viewer.py')
@@ -21,7 +22,7 @@ def frame(dim=False, unit='C', stale=False):
     sequence+=1
     a.send(json.dumps(dict(version=2,type='frame',sequence=sequence,
         rows=['Mode   Beer Const.  ',f'Beer   20.0  20.0 °{unit}',f'Fridge 19.5  19.0 °{unit}','Idling for     00m00'],
-        dim=dim,door=door,status='Ready',session='visual-test',epoch=epoch-1 if stale else epoch)).encode())
+        dim=dim,door=door,equipment=[0,1,1,0],status='Ready',session='visual-test',epoch=epoch-1 if stale else epoch)).encode())
 
 def pump():
     global epoch,door
@@ -48,7 +49,7 @@ def pump():
 
 def check(fn):
     try:fn()
-    except BaseException as exc:errors.append(repr(exc));v.root.destroy()
+    except BaseException as exc:errors.append(traceback.format_exc());v.root.destroy()
 
 def key(widget,name,release=True):
     widget.focus_force();v.root.update()
@@ -71,6 +72,12 @@ def assertions():
     global completed
     assert commands==['press','cw','door open'],commands
     assert v.door_button.cget('text')=='Close door'
+    assert v.equipment==[0,1,1,0]
+    assert v.door_tip.text.startswith('Door open')
+    assert str(v.images['door open']) in str(v.door_button.cget('image')), v.door_button.cget('image')
+    for item in v.equipment_canvas.find_all():
+        x0,y0,x1,y1=v.equipment_canvas.bbox(item)
+        assert 0<=x0<x1<=v.equipment_canvas.winfo_width() and 0<=y0<y1<=v.equipment_canvas.winfo_height()
     foreground = v.canvas.itemcget(v.cells[0],'fill')
     assert foreground=='#384624'
     def luminance(color):
@@ -99,11 +106,10 @@ def mouse_pass(size_index=0, index=0):
     if size_index==len(sizes):
         v.root.after(90000 if '--hold' in sys.argv else 20,v.root.destroy)
         return
-    cases=[(v.encoder,55,55,'press'),(v.encoder,29,55,'press'),
-           (v.encoder,28,55,'ccw'),(v.encoder,81,55,'press'),
-           (v.encoder,82,55,'cw'),(v.buttons[0],None,None,'ccw'),
-           (v.buttons[1],None,None,'press'),(v.buttons[2],None,None,'cw'),
-           (v.door_button,None,None,'door close'),(v.door_button,None,None,'door open')]
+    cases=[(v.press_button,None,None,'press'),(v.encoder,15,55,'ccw'),
+           (v.encoder,95,55,'cw'),(v.buttons[0],None,None,'ccw'),
+           (v.buttons[2],None,None,'cw'),(v.door_button,None,None,'door close'),
+           (v.door_button,None,None,'door open')]
     if index==0:
         v.root.geometry(sizes[size_index]);v.root.update()
     if index==len(cases):
@@ -143,7 +149,7 @@ v.root.after(1800,lambda:check(assertions))
 v.root.after(1900,lambda:check(mouse_pass))
 v.root.after(120000 if '--hold' in sys.argv else 20000,v.root.destroy)
 v.run();a.close();b.close()
-assert not errors and completed==2 and stale_blocked==1 and mouse_checks==30,(errors,completed,stale_blocked,mouse_checks)
+assert not errors and completed==2 and stale_blocked==1 and mouse_checks==21,(errors,completed,stale_blocked,mouse_checks)
 
 # Actual standalone helper lease, not a mocked root.destroy callback.
 import subprocess
