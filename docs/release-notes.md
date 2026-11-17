@@ -5,6 +5,7 @@ Introducing BrewPi Emulator Remix, a native virtual controller for BrewPi Remix 
 This initial release provides:
 
 - A serial pseudo-terminal on Linux and macOS, or an operator-provisioned virtual COM pair on Windows. The web panel communicates through the BrewPi host.
+- Two Uno controller personalities: default `--profile revc` and optional `--profile i2c`, with their corresponding firmware identities, probe buses, output inventories, and default virtual load wiring.
 - Virtual temperature probes and outputs, chamber heating and cooling, fermentation heat, and configurable room-temperature cycles.
 - Persistent controller settings and optional checkpoints for continuing a simulation with its matching saved controller state.
 - Terminal and graphical LCD displays, with simulated rotary, pushbutton, and door controls.
@@ -16,7 +17,9 @@ Windows requires a separately installed compatible virtual COM provider and the 
 
 The optional graphical LCD requires separately installed Python 3.9 or later with a working `tkinter` extension, Tcl/Tk, and a local graphical session. Headless and terminal emulator operation require neither Python nor Tcl/Tk. The Python readiness helper and separately installed BrewPi host have their own interpreter requirements. No COM driver, interpreter, toolkit, or runtime-library bundle is included.
 
-The emulated firmware personality is Uno/RevC. The Arduino I2C bench guide describes a separate physical setup. The emulator follows the selected Arduino firmware's documented behavior, including its quirks. Nine hardware/build-dependent characterization cases remain unresolved compatibility limits; software validation does not establish physical Pi or Arduino qualification. The supplied Linux systemd example does not activate a service automatically.
+Select the profile at startup and use a separate `--state` file for each profile. Supply `--profile i2c` on every restart or checkpoint `--resume` for an I2C instance; the default remains RevC even when loading saved files. RevC stores retain `brewpi-emulator-store-v1`, and legacy untagged files are interpreted as RevC. I2C stores use `brewpi-emulator-store-v2` with an explicit `i2c` profile tag, which older RevC-only executables reject. Checkpoints record the profile and embed the matching store. Cross-profile or conflicting metadata is rejected locally before opening the serial interface, without automatic assignment conversion. See the [profile pin map and saved-state rules](operation.md#connect-brewpi-remix).
+
+Both profiles render a virtual LCD. The Arduino I2C bench guide covers a separate physical setup and its hardware-specific comparison limits. The emulator follows the selected Arduino firmware's documented behavior, including its quirks. Nine hardware/build-dependent characterization cases remain unresolved compatibility limits; software validation does not establish physical Pi or Arduino qualification. The supplied Linux systemd example does not activate a service automatically.
 
 Original emulator code, helpers, tests, and documentation are independently authored under the [MIT License](../LICENSE.md). External compiler/runtime contributions retain their separate terms, described in the [component notices](../THIRD_PARTY_NOTICES.md).
 
