@@ -1,12 +1,34 @@
 # Arduino bench validation checklist
 
-This reusable procedure validates the Uno I2C firmware build using an Arduino Uno R3, a rudimentary shield, a compatible 20×4 I²C LCD, temperature probes, and GPIO indicator LEDs. It also specifies optional rotary encoder wiring. BrewPi firmware must be installed before protocol testing. Actuators are unnecessary for serial, probe, and LED observations; physical heating/cooling performance remains outside this setup. Rotary encoder checks remain deferred until the encoder is installed.
+This reusable procedure validates practical BrewPi Remix workflows using the Uno I2C firmware build, an Arduino Uno R3, a rudimentary shield, a compatible 20×4 I²C LCD, temperature probes, GPIO indicator LEDs, and a rotary encoder. The five practical checks below are the acceptance gate. Detailed protocol, boundary, and characterization checks are optional. BrewPi firmware must be installed before protocol testing. Actuators are unnecessary for serial, probe, and LED observations; physical heating/cooling performance remains outside this setup. Encoder checks remain deferred until the ordered Fabteck module is installed and its connections are verified.
 
 This document specifies checks, not completed hardware qualification. Use an external evidence copy to record results: `not run`, `in progress`, `pass`, `fail`, `blocked` with the missing prerequisite, or `deferred` with the reason. All unchecked items below are not run unless explicitly marked deferred. A pass requires retained evidence and satisfied preconditions; an unavailable measurement is not a pass.
 
 Follow the [behavioral contract](behavioral-contract.md), [firmware findings](firmware-findings.md), [fixture semantics](test-vectors/README.md), and [provenance gate](../licenses/README.md#review-gate). Arduino action/reaction, including deterministic bugs, governs the comparison. Undefined or build-dependent observations qualify only the recorded artifact and history.
 
 The emulator and existing fixtures target Uno/RevC. This bench uses the I2C personality of the same firmware revision; its identity, bus, output inventory, and LCD driver differ. Record shared protocol observations separately from build-specific observations. Do not change the emulator's personality or fixture expectations merely to make the two builds match.
+
+## Practical acceptance gate
+
+This gate applies to the optional Arduino bench exercise. Physical bench acceptance is separate from software-release publication.
+
+Complete wiring and firmware setup before these checks. Use an isolated BrewPi Remix host configuration and fresh emulator state; keep working brewery configuration separate. Run the ordinary host workflows against the Arduino and emulator separately, discovering and assigning each controller's own probes and pins. Record firmware/emulator/host versions, the wiring and assignments, initial settings, steps, relevant logs/readbacks, and observed results. Exact raw byte/timing traces are needed for optional byte-level or characterization claims, not every ordinary acceptance observation.
+
+- [ ] **1. Host communication:** BrewPi Remix connects, identifies the expected controller personality, reads temperatures and state, applies a normal mode/setpoint change, and reconnects after a controller restart. Confirm the host shows the resulting settings and fresh telemetry; record unexpected errors or recovery steps.
+- [ ] **2. Probes:** discover and assign the available beer, chamber, and ambient probes, testing roles sequentially if necessary. Warm/cool each probe independently to confirm the correct role responds. Disconnect and restore each assigned probe, checking missing-data reporting, discovery/assignment retention, and recovery; confirm a missing ambient reading is omitted as specified. Demonstrate response and repeatability; accuracy certification is unnecessary for this gate.
+- [ ] **3. Control outputs:** with valid probe assignments and ordinary setpoint changes, observe heating, cooling, idle, and waiting states alongside the correctly labeled LEDs. Check that outputs follow their logical assignments/polarity, ordinary protection waits occur, and required-probe loss and restoration produce the documented controller/output response. Check normal on/off operation of any light/fan outputs included in the bench setup. Exact one-second timer boundaries, pin-removal history, and physical load performance are outside this gate.
+- [ ] **4. Persistence:** save ordinary settings and device assignments, record them, and compare after reset and a controlled power cycle. Confirm the settings expected to persist and probe/output assignments survive, telemetry resumes, and the host reconnects. Restart the emulator with its saved controller state for the corresponding check; compare saved configuration without requiring its virtual plant to reproduce physical temperatures.
+- [ ] **5. LCD and encoder:** confirm the I²C LCD displays readable mode, probe temperatures, targets, and controller state. Use the Fabteck encoder to enter menus, rotate in both directions, select settings, and confirm mode/target changes; after exit, verify the resulting settings over serial and through the host. Repeat ordinary interactions to expose skipped turns or duplicate presses. If the LCD or encoder is unavailable, mark this check deferred and report partial acceptance rather than passing all five.
+
+Accept the practical baseline when all five checks pass with evidence and no unexplained failure affecting those workflows. Run the comparable emulator workflows at normal speed, allowing its documented local UI behavior and RevC pin/identity differences. Physical probe warming and cable disconnection are Arduino stimuli; use the emulator's documented scenarios and assignment controls for available comparisons, and record any physical stimulus without a public emulator equivalent as a comparison limit. Do not invent a probe-disconnect control or count native driver state injection as a public workflow. Firmware menu quirks are observations to record, not a reason to assume the physical menu matches the emulator's draft-only controls. An unexpected result in a practical check needs investigation even if it resembles an optional edge case.
+
+The supported conclusion is “works for the tested BrewPi Remix workflows on the recorded setup.” Optional tests may remain not run, blocked, or deferred without preventing that conclusion. They remain unresolved limits; practical acceptance does not establish exact parity for every input, qualify real actuators, or change existing native regression requirements.
+
+## Emulator personality and comparison scope
+
+Separate I2C and parallel display transport modes are unnecessary for this practical gate: the emulator exchanges serial messages and renders a virtual LCD, while the physical firmware drives the actual display. Compare ordinary readings and settings through that shared serial interface.
+
+Controller personality is still visible to the host. The emulator currently identifies as RevC (`s=2`), discovers probes on A4 (`18`), and advertises output pins 2, 5, 6, and 19. The Uno I2C build identifies as I2C (`s=5`), uses A0 (`14`) for probes, and has outputs 5, 6, 2, and 10. Configure each independently; do not reuse saved device records or require identical host pin labels. An I2C personality would be needed to claim matching I2C identity/inventory or reuse I2C assignments unchanged. That would involve consistent identity, pin, validation, and saved-state behavior, not just an LCD transport toggle. The practical gate does not require that feature.
 
 ## Equipment and evidence prerequisites
 
@@ -16,7 +38,7 @@ The emulator and existing fixtures target Uno/RevC. This bench uses the I2C pers
 - [ ] Identify the OneWire data connection separately from output connections; do not place an output indicator or output assignment on the probe bus during ordinary checks.
 - [ ] Prepare one probe for initial testing; add other probes individually, label each physical probe with its discovered ROM, and record any roles that must be tested sequentially because probes are limited.
 - [ ] Prepare safe, repeatable temperature changes, such as hand warming or separate cool/warm environments; immerse only probes rated for immersion, and keep the board and connectors dry. Record a reference thermometer and acceptance tolerance if claiming temperature accuracy; without one, claim response/repeatability only.
-- [ ] Create an evidence directory outside tracked source/package inputs. Record firmware and emulator hashes, setup photographs or diagrams, EEPROM starting state/history, exact transmitted bytes, raw received bytes, monotonic timestamps, wall-clock context, LED observations, failures, and recovery actions.
+- [ ] Create an evidence directory outside tracked source/package inputs. For the practical gate, retain the setup/version/assignment record and enough logs, readbacks, and LED/LCD observations to support each result. For optional exact-characterization claims, also retain artifact hashes, EEPROM history, exact transmitted/received bytes, timestamps, failures, and recovery actions.
 - [ ] Use a dedicated serial session and isolated emulator state, without a working BrewPi installation or another serial client accessing the Uno. Identify the port explicitly; never select a device by trial writes.
 
 ## Bench wiring
@@ -51,7 +73,11 @@ For verified DS18B20 probes, use three-wire external power for the baseline, fol
 
 All beer, chamber, and ambient probes share A0; software assigns roles by each probe's ROM. Start with short leads and one probe, then add the others. Use one bus pull-up for the baseline, not one additional resistor per probe. This external OneWire pull-up is separate from the firmware's internal encoder pull-ups. A0 is digital pin identifier `14` in device records on the Uno; use the actual discovered pin value when assigning probes. Do not use the RevC fixture's bus pin `18` (A4), because A4 is SDA in this build.
 
-### Rotary encoder, optional
+### Rotary encoder
+
+The selected bench module is the Fabteck rotary encoder with hardware debounce. Verify its supplied documentation and actual output labels before connecting it; do not infer connector order or wire colors from a bare encoder diagram. Connect its identified A output to D8, B output to D9, pushbutton output to D7, supply to 5 V, and ground to GND. Confirm that the conditioned pushbutton output is active LOW and that the outputs produce valid logic levels with the firmware's enabled internal pull-ups before using it for acceptance. Record its hardware revision and any required interface changes. Basic encoder operation belongs to check 5 once installed; extended encoder characterization remains optional.
+
+The following table is an alternative for a bare contact encoder, not the Fabteck module's power wiring.
 
 Use a plain mechanical quadrature encoder with A/B/common contacts and a separate normally open momentary pushbutton. No I²C encoder interface or encoder library is required. The default [encoder input configuration](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/RotaryEncoder.cpp#L114) uses the Uno's internal pull-ups, so short bench wiring needs no added pull-up resistors or debounce capacitors.
 
@@ -89,16 +115,20 @@ These labels are bench assignments; the firmware does not automatically install 
 
 The bench reference is firmware revision `8f1fa1213cbbfc1f987fada5168d01925e1a2ee8`, Uno I2C personality, debug 0. Its [build configuration](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/platformio.ini) defines the Uno `I2C` environment and 57600-baud runtime serial connection. Select `I2C` explicitly, not `RevC` or `Glycol`. Reference firmware and tools remain external components under their own licenses.
 
-- [ ] Select or prepare the exact Uno I2C firmware artifact in a separate build location; retain binary hash, source revision, compiler/framework/dependency versions, build flags, and build output. The revision alone does not pin compiler-dependent results, and identity text alone does not identify binary bytes.
+- [ ] Select or prepare the Uno I2C firmware artifact in a separate build location; record its version, revision, binary hash, and build environment. Retain full compiler/framework/dependency versions, flags, and build output when making optional compiler-dependent characterization claims. Identity text alone does not identify binary bytes.
 - [ ] Before upload, record the board's existing program/EEPROM status and recovery method. Upload the selected artifact only during an owner-authorized hardware session; this checklist does not itself execute or authorize a flash.
 - [ ] Record the actual post-upload EEPROM state; do not assume uploading firmware erases EEPROM or that a fresh board is already initialized for BrewPi.
 - [ ] Open serial at 57600 baud, capture startup from connection/reset, and record whether opening the port resets this Uno. Allow startup to settle before queries; retain boot messages separately from command replies.
 - [ ] Send `n`; record all `N` fields and verify the Uno I2C identity, including shield field `s=5` from the pinned [shield identifiers](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/Brewpi.h#L44). The emulator's RevC fixture uses `s=2`; retain this intentional difference rather than expecting byte-identical identity replies.
-- [ ] If an invalid/erased controller store is established, capture its safe-mode behavior and `W3` before initialization; do not treat arbitrary preexisting EEPROM bytes as a controlled erased-store test.
+- [ ] If startup reports an invalid/erased controller store, record it and initialize for ordinary testing. Deliberately establishing an erased-store precondition and characterizing `W3` is optional; do not treat arbitrary preexisting EEPROM bytes as a controlled erased-store test.
 - [ ] Send `E` to initialize controller configuration, capture its actual diagnostics, then explicitly query `s`, `c`, `v`, and `d{e:1}`. Check defaults and empty assignments without expecting an invented bulk acknowledgment from `E`.
 - [ ] Save a reproducible initialized baseline and the commands needed to recreate it; restore that baseline between cases that mutate settings or assignments.
 
-## Serial protocol and saved settings
+## Optional detailed checks
+
+All subsections below, before the acceptance record, supplement the five practical checks and are not additional acceptance gates. Select checks when diagnosing a practical discrepancy or making a more specific compatibility claim. A native fixture pass remains distinct from an Arduino observation; unexecuted characterization remains unresolved.
+
+### Serial protocol and saved settings
 
 - [ ] Query `n`, `s`, `c`, `v`, `t`, and `l`; check reply prefixes, order, scalar types, numeric formatting, CRLF, and raw LCD bytes against the contract. Distinguish serial LCD shadow checks from physical LCD qualification.
 - [ ] Exercise bounded ordinary `j` writes: recognized and unknown keys, duplicate keys, failed conversions, and a later valid member. Verify per-pair diagnostics, incremental changes, annotation ordering, and final `S` then `C`, including no mandatory extra final `T`.
@@ -109,7 +139,7 @@ The bench reference is firmware revision `8f1fa1213cbbfc1f987fada5168d01925e1a2e
 - [ ] Compare `R`, reset-button restart, USB reconnection, and a controlled power cycle, recording which operations actually reset the MCU and what EEPROM state survives. Do not equate `E` with a full reboot.
 - [ ] Review all 48 source-defined fixtures for hardware applicability. Map each to a public serial/physical stimulus or mark it blocked by an unestablished precondition; native driver state injection is not an Arduino command and cannot establish a hardware pass. Document every I2C-specific pin/identity substitution in a separate bench case without altering the RevC fixtures.
 
-## Probe discovery, assignment, and telemetry
+### Probe discovery, assignment, and telemetry
 
 - [ ] With one probe connected, run discovery with and without values; record ROM, bus pin, enumeration fields, values, and latency. Repeat for each probe and then together, recording actual OneWire search order rather than assuming ROM sorting.
 - [ ] Assign discovered ROMs to chamber, beer, and ambient roles through `U`, using the verified A0 bus pin (`p=14`) and valid slots. Verify resulting `U`, installed `d` records, and `t` readings; reassign sequentially if fewer than three probes are available.
@@ -121,7 +151,7 @@ The bench reference is firmware revision `8f1fa1213cbbfc1f987fada5168d01925e1a2e
 - [ ] Exercise assigned/unassigned discovery selectors and the `F09` record-field leak with enough probes or safe digital inventory entries to establish the ordering preconditions.
 - [ ] Test the accepted zero-ROM assignment separately from actual ROMs; observe live disconnection and bus-dependent timing rather than assuming it resolves to the first real probe (`F20`). Restore the normal assignment afterward.
 
-## GPIO LEDs and controller behavior
+### GPIO LEDs and controller behavior
 
 An LED establishes an observable indicator state only after its wiring and polarity are known. It does not establish drive voltage, current capacity, relay operation, transient timing, or actuator performance. Readback may describe a logical fallback object rather than the electrical pin. Record logical value, expected pin polarity, and observed illumination separately.
 
@@ -137,7 +167,7 @@ An LED establishes an observable indicator state only after its wiring and polar
 - [ ] Observe LEDs during boot, mode off, probe loss, reset, removal of an active assignment, and reassignment. Do not assume removal clears a latched output; retain that sequence for `F17` characterization.
 - [ ] End by requesting mode off, recording resulting LEDs, and removing bench power after capture; mode off alone is not proof that every previously assigned pin is inactive.
 
-## Unresolved characterization register
+### Unresolved characterization register
 
 The [nine characterization fixtures](test-vectors/protocol-v1.json) have no invented exact expected reply and do not count as passing. Run ordinary checks first. Each characterization run needs its own reproducible preconditions, exact artifact, EEPROM history, raw bytes/timing, recovery record, and repeats. Retain observations as artifact-specific evidence even if repeated runs agree. Their supplied stimuli target RevC: review pins before use, replace the OneWire bus with `p=14` and output pins with verified I2C outputs where applicable, and record these as separate I2C variants. Such observations do not close the original RevC artifact obligations automatically.
 
@@ -153,26 +183,40 @@ The [nine characterization fixtures](test-vectors/protocol-v1.json) have no inve
 | `large_numeric_overflow` (`F03`) | Not run; separate edge-case session | Exact AVR artifact and USB trace, followed by recovery and baseline restoration; no cross-build guarantee. |
 | `digital_pin_conflicts_with_OneWire_bus` (`F17`, `F19`) | Deferred pending electrical review of the shield and probe bus | The I2C variant concerns A0 (`14`), not the RevC fixture's A4 (`18`), which would instead conflict with SDA here. Assigning an output to the bus can disturb connected hardware; specify a suitable isolated/current-limited fixture before running this case. |
 
-## I²C LCD checks
+### Extended I²C LCD checks
 
 - [ ] Record LCD dimensions, controller/backpack markings, expander wiring, address, supply, and contrast adjustment; confirm all four rows are legible after a cold start.
 - [ ] Compare visible mode, temperatures, setpoints, state/wait text, units, and room/chamber alternation with `l` readback during ordinary operation. Preserve raw degree bytes in serial captures; physical glyph rendering is a separate observation.
 - [ ] Observe LCD initialization, repaint, and backlight behavior after `C`, `E`, `R`, reset-button restart, and power cycling; record display-only faults separately from serial/control faults.
 - [ ] Record I²C write/startup timing and display history under the I2C artifact; do not use these observations as proof of the RevC SPI driver's timing or history.
 
-## Deferred controls and unavailable hardware
+### Extended encoder checks and unavailable hardware
 
-- [ ] **Deferred — rotary encoder:** physical rotation direction, detents, bounce, rapid/reversed input, and missed steps.
-- [ ] **Deferred — rotary encoder/pushbutton:** once installed, observe menu entry, selection, target editing, confirmation, timeout, and any supported button behavior on the LCD; compare with settings and annotations captured after the menu exits.
+Basic display/encoder operation is required by practical check 5 when the hardware is available. The extended checks below remain optional and deferred until their equipment is connected; the unavailable physical-load checks do not block practical acceptance with GPIO LEDs.
+
+- [ ] **Optional, deferred — rotary encoder:** count individual detents, characterize bounce, and exercise rapid/reversed input and missed steps beyond the ordinary rotation checks in gate 5.
+- [ ] **Optional, deferred — rotary encoder/pushbutton:** once installed, characterize timeout, button bounce, and any supported long-press behavior beyond the ordinary menu entry/selection/confirmation required by check 5; compare with settings and annotations captured after exit.
 - [ ] **Deferred — rotary encoder:** characterize mode changes while browsing, timeout restoration, setpoint confirmation, and persistence after restart. The reference menu is not guaranteed to use the emulator's draft-only UI semantics; preserve observed firmware quirks.
 - [ ] **Deferred — rotary encoder:** measure control and serial responsiveness during menu activity. The pinned [menu loops](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/Menu.cpp) block ordinary main-loop serial processing; use the physical LCD to observe intermediate edits, then query `s`, `t`, and `l` after exit. Do not treat queued queries or a serial timeout as a live menu trace, and avoid flooding the receive buffer.
 - [ ] **Deferred — physical LCD, if unavailable:** mark the LCD section deferred and use ordinary serial `l` shadow checks only; full visible menu interaction remains deferred until both LCD and encoder are connected.
 - [ ] **Deferred — actuators and thermal plant:** relay/contact behavior, connected-load polarity, heater/cooler performance, compressor protection under actual operation, and closed-loop thermal response. GPIO LED observations qualify only the recorded output observations.
 
-## Evidence review and completion
+## Acceptance record
 
 - [ ] Repeat successful ordinary cases from a known baseline, record intermittent failures, and separate firmware startup traffic and asynchronous control messages from direct replies.
 - [ ] Compare the emulator at normal speed with matched public preconditions; retain intentional physical-versus-virtual differences, including actual probe ROMs, USB reset behavior, and uncontrolled temperature trajectories. Record I2C-versus-RevC identity, OneWire pin, output inventory/assignments, and LCD driver differences explicitly; do not count these as emulator regressions or mask them in raw captures.
-- [ ] Record a result and evidence pointer for every check; keep not-run, blocked, deferred, failed, source-defined regression, and artifact-specific characterization results distinct. Do not report all nine cases resolved merely because ordinary bench checks pass.
+- [ ] Record a result and evidence pointer for each of the five practical checks. Record optional checks separately if attempted; skipped optional checks do not need execution to complete the practical baseline. Keep not-run, blocked, deferred, failed, source-defined regression, and artifact-specific characterization results distinct. Do not report all nine cases resolved merely because ordinary bench checks pass.
 - [ ] Review discrepancies against the firmware-first contract before changing the emulator. Author minimal original interoperability expectations only after provenance review; keep firmware binaries, reference code, and raw captures outside MIT fixtures and distributed inputs.
 - [ ] State the qualified I2C firmware artifact, Uno/shield/LCD/probe setup, observed GPIO coverage, and remaining limits. Preserve encoder, any unavailable LCD, electrical measurements, actuator deferrals, and unqualified RevC-specific behavior individually rather than claiming full hardware equivalence.
+
+Use the following record in the external evidence copy; all results start as not run.
+
+| Acceptance check | Arduino result / evidence | Emulator result / evidence |
+| --- | --- | --- |
+| 1. Host communication | Not run | Not run |
+| 2. Probes | Not run | Not run; discovery/assignment and scenario readings, with physical-stimulus comparison limits recorded |
+| 3. Control outputs | Not run; LED observations | Not run; virtual output observations |
+| 4. Persistence | Not run | Not run |
+| 5. LCD and encoder | Deferred until connected | Not run; local controls and virtual LCD |
+
+Report the overall result as accepted for the recorded practical workflows, failed with the affected check, or partial with outstanding/deferred checks. Include optional findings only where they explain a discrepancy or limit the claimed coverage.
