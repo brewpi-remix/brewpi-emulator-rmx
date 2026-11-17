@@ -76,7 +76,6 @@ src/dynamics.cpp
 src/dynamics.hpp
 src/engine.cpp
 src/engine.hpp
-src/profile.hpp
 src/json.cpp
 src/json.hpp
 src/lcd.cpp
