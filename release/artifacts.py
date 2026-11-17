@@ -36,6 +36,7 @@ def source_names(root):
     required=set(ORIGINAL_SOURCES.values())|{
         'CMakeLists.txt','cmake/version.cmake','scripts/lcd-viewer.py',
         'systemd/brewpi-emulator@.service.in',
+        'docs/macos.txt','release/notices/LLVM-LICENSE.txt',
     }
     missing=required-set(names)
     if missing:raise ValueError('source allowlist omits install inputs: '+', '.join(sorted(missing)))
@@ -54,6 +55,11 @@ def safe_name(name):
     parts=PurePosixPath(name).parts
     if not name or name.startswith('/') or '\\' in name or '\x00' in name or PurePosixPath(name).as_posix()!=name or any(p in ['.','..'] for p in name.split('/')) or not parts:
         raise ValueError('unsafe archive/input path')
+    reserved={'CON','PRN','AUX','NUL','CONIN$','CONOUT$','CLOCK$'} | {
+        prefix+suffix for prefix in ['COM','LPT'] for suffix in ['1','2','3','4','5','6','7','8','9','¹','²','³']}
+    if any(':' in p or p.endswith(('.', ' ')) or any(ord(c)<32 for c in p) or
+           p.split('.')[0].rstrip(' ').upper() in reserved for p in parts):
+        raise ValueError('archive/input path is not portable to Windows')
     if any(p in ['.git','.agents','.codex','__pycache__','runs','state','captures','.venv','build','dist','out','local'] or p.startswith(('build-','cmake-build-')) or p=='.env' or (p.startswith('.env.') and p!='.env.example') for p in parts):
         raise ValueError('excluded local/external input')
     return name
@@ -75,7 +81,7 @@ def archive(path, top, entries, epoch):
 
 def unpack(path, destination, top, inventory=None, epoch=None):
     destination=Path(destination);destination.mkdir(parents=True,exist_ok=False)
-    seen=set();members=[]
+    seen=set();portable_seen=set();members=[]
     # Validate every member before writing even one payload file.
     with tarfile.open(path,'r:gz') as source:
         for member in source:
@@ -84,8 +90,10 @@ def unpack(path, destination, top, inventory=None, epoch=None):
                 raise ValueError('unsafe or noncanonical archive member')
             if epoch is not None and member.mtime!=epoch:raise ValueError('archive timestamp differs from source epoch')
             relative=name[len(top)+1:];safe_name(relative)
-            if relative in seen:raise ValueError('duplicate archive member')
-            seen.add(relative)
+            import unicodedata
+            portable=unicodedata.normalize('NFC',relative).casefold()
+            if relative in seen or portable in portable_seen:raise ValueError('duplicate or nonportable archive member')
+            seen.add(relative);portable_seen.add(portable)
             data=source.extractfile(member).read()
             if inventory is not None:
                 expected=inventory.get(relative)
@@ -93,7 +101,7 @@ def unpack(path, destination, top, inventory=None, epoch=None):
                     raise ValueError('archive inventory mismatch')
             members.append((relative,data,member.mode))
     if inventory is not None and seen!=set(inventory):raise ValueError('missing archive members')
-    if any(any(str(parent) in seen for parent in PurePosixPath(name).parents) for name in seen):
+    if any(any(unicodedata.normalize('NFC',str(parent)).casefold() in portable_seen for parent in PurePosixPath(name).parents) for name in seen):
         raise ValueError('archive file conflicts with a parent directory')
     for name,data,mode in members:
         target=destination/top/name;target.parent.mkdir(parents=True,exist_ok=True)
@@ -102,14 +110,30 @@ def unpack(path, destination, top, inventory=None, epoch=None):
     return destination/top
 
 
+def legal_provenance(files):
+    origins={'release/notices/LLVM-LICENSE.txt':'https://llvm.org/LICENSE.txt',
+             'release/notices/MSVC-STL-LICENSE.txt':'https://raw.githubusercontent.com/microsoft/STL/219514876ea86491de191ceaa88632616bbc0f19/LICENSE.txt'}
+    return {name:dict(origin=origin,spdx_license_expression='Apache-2.0 WITH LLVM-exception',
+                      sha256=files[name]['sha256'],purpose='verbatim external legal text; not original MIT prose')
+            for name,origin in origins.items() if name in files}
+
+
+def check_legal_provenance(record):
+    expected=legal_provenance(record.get('files',{}))
+    if expected and (record.get('license_scope')!='original-project-material-only' or
+                     record.get('external_legal_texts')!=expected):
+        raise ValueError('external legal text lacks separate provenance/license classification')
+
+
 def source_record(root, expected_version=None):
     expected_version=checked_version(expected_version if expected_version is not None else VERSION)
     root=Path(root).resolve();metadata=root/'SOURCE.json'
-    if metadata.is_symlink() or not metadata.is_file() or stat.S_IMODE(metadata.stat().st_mode)!=0o644:
+    if metadata.is_symlink() or not metadata.is_file() or (os.name!='nt' and stat.S_IMODE(metadata.stat().st_mode)!=0o644):
         raise ValueError('source metadata is not a regular canonical file')
     record=json.loads(metadata.read_text())
     if record.get('schema')!=1 or record.get('version')!=expected_version or record.get('spdx_license_identifier')!='MIT' or record.get('source_commit') is not None or record.get('identity_role')!='uncommitted-provisional-snapshot' or not re.fullmatch('[0-9a-f]{40}',record.get('base_commit','')) or type(record.get('source_date_epoch')) is not int or not 0<=record['source_date_epoch']<=0xffffffff:
         raise ValueError('invalid provisional source metadata')
+    check_legal_provenance(record)
     content={k:v for k,v in record.items() if k!='source_snapshot_sha256'}
     if hashlib.sha256(canonical(content)).hexdigest()!=record['source_snapshot_sha256']:
         raise ValueError('source metadata identity mismatch')
@@ -117,11 +141,11 @@ def source_record(root, expected_version=None):
     for p in root.rglob('*'):
         if '__pycache__' in p.parts:continue
         if p.is_symlink() or not (p.is_file() or p.is_dir()):raise ValueError('nonregular source input')
-        if p.is_file():actual.add(str(p.relative_to(root)))
+        if p.is_file():actual.add(p.relative_to(root).as_posix())
     if actual!=set(record['files'])|{'SOURCE.json'}:raise ValueError('undeclared source snapshot files')
     for name,row in record['files'].items():
         p=root/safe_name(name)
-        if row.get('mode') not in [0o644,0o755] or not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]) or sha(p)!=row['sha256'] or stat.S_IMODE(p.stat().st_mode)!=row['mode']:
+        if row.get('mode') not in [0o644,0o755] or not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]) or sha(p)!=row['sha256'] or (os.name!='nt' and stat.S_IMODE(p.stat().st_mode)!=row['mode']):
             raise ValueError('frozen source input changed: '+name)
     if 'cmake/version.cmake' not in record['files']:
         raise ValueError('source snapshot omits application version metadata')
@@ -178,7 +202,15 @@ def snapshot(root, output):
         safe_name(name);p=root/name
         if not p.is_file() or any(q.is_symlink() for q in [p,*p.parents]):raise ValueError('nonregular source input')
         if name not in tracked:
-            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/development.md','docs/release.md','engineering/protocol/commands.md','engineering/protocol/controller.md','tests/qualification/native_package.py','tests/qualification/native_package_checks.py']):
+            if not (name.startswith('release/') or name in ['cmake/version.cmake','tests/ci/version.py','docs/development.md','docs/release.md','engineering/protocol/commands.md','engineering/protocol/controller.md','tests/qualification/native_package.py','tests/qualification/native_package_checks.py','tests/macos_serial.py','tests/macos_runtime.py','docs/macos.md','docs/macos.txt','docs/windows.md','docs/windows.txt',
+                'scripts/windows_channel.py','scripts/windows_ready.py','src/storage_windows.cpp',
+                'src/windows_channel.cpp','src/windows_channel.hpp','src/windows_console.cpp',
+                'src/windows_console.hpp','src/windows_host.hpp','src/windows_ready.cpp',
+                'src/windows_ready.hpp','src/windows_serial.cpp','src/windows_serial.hpp',
+                'tests/windows-channel-client.py','tests/windows-channel.cpp','tests/windows-serial.cpp',
+                'tests/windows-storage.cpp','tests/windows/CMakeLists.txt','tests/windows_application.py',
+                '.github/workflows/windows-native.yml','tests/ci/native_windows.py','tests/windows_runtime.py','tests/native_protocol.py','tests/windows_session0.py','tests/windows_session0_checks.py',
+                'engineering/protocol/arduino-validation.md']):
                 raise ValueError('undeclared new original input: '+name)
             new.append(name)
         if p.stat().st_mode&0o6000:raise ValueError('privileged source mode')
@@ -186,6 +218,9 @@ def snapshot(root, output):
         data=p.read_bytes();entries[name]=(data,mode);files[name]=dict(sha256=hashlib.sha256(data).hexdigest(),mode=mode)
     content=dict(schema=1,spdx_license_identifier='MIT',version=VERSION,base_commit=base,source_commit=None,
         identity_role='uncommitted-provisional-snapshot',source_date_epoch=epoch,files=files)
+    legal=legal_provenance(files)
+    if legal:
+        content.update(license_scope='original-project-material-only',external_legal_texts=legal)
     record=dict(content,source_snapshot_sha256=hashlib.sha256(canonical(content)).hexdigest())
     entries['SOURCE.json']=(canonical(record),0o644)
     top=STEM+'-source';name=top+'.tar.gz'

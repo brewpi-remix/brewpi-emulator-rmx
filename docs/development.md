@@ -2,7 +2,7 @@
 
 ## Build from source
 
-Use a C++17 compiler, CMake 3.16 or later, Make or Ninja, and C++/POSIX development headers. Native tests require Python 3.9 or later with its standard library. Source builds do not download a controller library or require the reference applications.
+Use a C++17 compiler, CMake 3.16 or later, Make or Ninja, and the platform development headers. See the [Windows guide](windows.md) for native MSVC builds and the five portable Windows core suites; COM, desktop, and package qualification remain separate checks. Native tests require Python 3.9 or later with its standard library. Source builds do not download a controller library or require the reference applications.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
@@ -23,6 +23,8 @@ The second command adds the optional Python helper. Use a fresh stage directory 
 
 ## Regression checks
 
+For Apple Silicon source builds, explicit PTY/state paths, and native serial-client checks, see the [macOS guide](macos.md). macOS installations include its standalone operating guide and the LLVM legal text instead of a Linux service definition. The graphical helper requires a Python interpreter with a working `tkinter` extension; an importable `tkinter` package alone does not establish that the native extension is installed.
+
 CTest runs six native suites covering protocol fixtures, malformed/partial input, PTY ownership/recovery, dynamics, filters, controller behavior, thermal balance, clock arithmetic, and checkpoints. Fixture reports distinguish 48 source-defined cases from nine unresolved characterization cases. A passing native suite does not establish physical Arduino or Pi equivalence.
 
 ```sh
@@ -41,7 +43,7 @@ The specification checker, `python3 tests/specification.py`, validates fixture m
 
 | Directory | Responsibility |
 | --- | --- |
-| `src/` | Original JSON/state handling, serial controller engine, thermal model, local controls, LCD, and POSIX process entry point. |
+| `src/` | Original JSON/state handling, serial controller engine, thermal model, local controls, LCD, and native process boundaries. |
 | `config/` | Independently authored physical scenario examples. |
 | `scripts/` | Readiness and graphical LCD helpers. |
 | `tests/` | Native and helper regression tests plus isolated external-client checks. |

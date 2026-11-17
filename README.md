@@ -1,6 +1,6 @@
 # BrewPi Emulator Remix
 
-BrewPi Emulator Remix replaces an Arduino controller with a Linux process for hardware-free BrewPi Remix use. It provides a serial pseudo-terminal, virtual probes and outputs, a fermentation chamber model, persistent controller settings, and optional local LCD controls.
+BrewPi Emulator Remix replaces an Arduino controller with a native Linux, macOS, or Windows process for hardware-free BrewPi Remix use. It provides a serial PTY on Linux/macOS or uses an externally provisioned virtual COM pair on Windows, virtual probes and outputs, a fermentation chamber model, persistent controller settings, and optional local LCD controls.
 
 Run it alongside BrewPi Remix's host and web panel. The host connects to the emulator's serial path just as it connects to a controller. No Arduino, USB serial adapter, GPIO, sensors, or relays are needed.
 
@@ -23,6 +23,8 @@ Set the BrewPi host's `port` to that serial path and `altport` to `None`. Use th
 ## Documentation
 
 - [Operating guide](docs/operation.md): installation, host setup, displays, controls, checkpoints, and troubleshooting.
+- [macOS guide](docs/macos.md): Apple Silicon builds and packages for macOS 27.
+- [Windows guide](docs/windows.md): Windows 11 x64, virtual COM pair records, and platform prerequisites.
 - [Scenarios](config/README.md): temperatures, fermentation, room cycles, and virtual hardware.
 - [Package contents](docs/release.md): files, integrity, and license/source companions.
 - [Development](docs/development.md): source builds, regression tests, and architecture.

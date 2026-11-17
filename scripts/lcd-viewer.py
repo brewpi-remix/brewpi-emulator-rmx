@@ -2,6 +2,8 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
 """Independently drawn 20x4 LCD with local physical controls. Private local IPC, never serial."""
+import os
+import sys
 import argparse
 import json
 import socket
@@ -294,9 +296,28 @@ class Viewer:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--fd', type=int, required=True)
+    transport = parser.add_mutually_exclusive_group(required=True)
+    transport.add_argument('--fd', type=int)
+    transport.add_argument('--pipe')
+    parser.add_argument('--parent-pid', type=int)
     args = parser.parse_args()
-    channel = socket.socket(fileno=args.fd)
+    if args.pipe is not None:
+        if os.name != 'nt' or args.parent_pid is None:
+            parser.error('--pipe requires native Windows and --parent-pid')
+        # Isolated Python excludes the script directory from sys.path. Load
+        # only the adjacent installed original helper, without bytecode writes.
+        import importlib.util
+        from pathlib import Path
+        sys.dont_write_bytecode = True
+        spec = importlib.util.spec_from_file_location(
+            'rmx_windows_channel', Path(__file__).with_name('windows_channel.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        channel = module.PacketPipe(args.pipe, args.parent_pid)
+    else:
+        if os.name == 'nt' or args.parent_pid is not None:
+            parser.error('--fd requires POSIX and excludes --parent-pid')
+        channel = socket.socket(fileno=args.fd)
     channel.setblocking(False)
     try:
         viewer = Viewer(channel)

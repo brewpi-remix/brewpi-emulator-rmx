@@ -23,7 +23,7 @@ def main():
         archive=root/'input.tar.gz';archive.write_bytes(data)
         with tarfile.open(archive) as source:
             tool=root/'actionlint';tool.write_bytes(source.extractfile('actionlint').read());tool.chmod(0o700)
-        subprocess.run([str(tool),'-shellcheck=','-pyflakes=',str(Path(__file__).resolve().parents[2]/'.github/workflows/regression.yml')],check=True)
+        subprocess.run([str(tool),'-shellcheck=','-pyflakes=',*[str(p) for p in sorted((Path(__file__).resolve().parents[2]/'.github/workflows').glob('*.yml'))]],check=True)
 
 
 if __name__=='__main__':main()

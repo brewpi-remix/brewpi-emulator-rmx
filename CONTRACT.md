@@ -1,6 +1,6 @@
 # Project contract
 
-BrewPi Emulator Remix is an independently authored C++17/Linux replacement for the selected Arduino controller personality. It provides a serial PTY and a virtual fermentation chamber for the BrewPi Remix host and web panel. See the [operating guide](docs/operation.md) and [protocol reference](engineering/protocol/README.md).
+BrewPi Emulator Remix is an independently authored C++17 replacement for the selected Arduino controller personality. The native executable provides a serial PTY on Linux/macOS or uses an operator-provisioned Windows virtual COM pair, with a virtual fermentation chamber for the BrewPi Remix host and web panel. See the [operating guide](docs/operation.md), [macOS guide](docs/macos.md), [Windows guide](docs/windows.md), and [protocol reference](engineering/protocol/README.md).
 
 The selected Arduino firmware's observable action/reaction governs serial and controller behavior, including deterministic bugs. Record uncertain behavior; do not replace it with stricter parsing, atomic updates, corrected filters, different defaults, or new replies. Undefined-memory and hardware-dependent cases remain compatibility limits without invented passing outcomes. Local controls stage drafts and validate confirmation independently of serial acceptance.
 

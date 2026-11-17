@@ -55,6 +55,7 @@ raise SystemExit(10 if v.closing else 0)
 ''')
     peer.chmod(0o755)
     env=dict(os.environ,PATH=str(root)+os.pathsep+os.environ.get('PATH',''),
+             PYTHONDONTWRITEBYTECODE='1',
              CONTROL_GUI_ROOT=str(root),CONTROL_GUI_MOUSE='1' if mouse else '0',TERM='xterm-256color',
              LC_ALL='en_US.UTF-8' if sys.platform=='darwin' else 'C.UTF-8')
     p=Process(exe,root/'instance','gui',env=env)

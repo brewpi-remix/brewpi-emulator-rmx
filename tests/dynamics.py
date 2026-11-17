@@ -178,6 +178,32 @@ def run(executable):
     finally:
         d.close()
 
+    # A transport's closed output gate defers controller work, not elapsed
+    # physical time. Reopening it must not replay every missed evaluation.
+    d=Simulation(executable)
+    try:
+        d.send('j{mode:t}d{i:3,w:1}')
+        before=d.snapshot()
+        wire,_=d.advance(5.056,allowed=False)
+        blocked=d.snapshot()
+        assert not wire
+        assert blocked['controller_ms']==before['controller_ms']+5000
+        assert blocked['pending_ms']==56
+        assert blocked['plant']['age_ms']==before['plant']['age_ms']+5000
+        near(blocked['plant']['load_energy_j']-before['plant']['load_energy_j'],125)
+        for key in ['last_evaluation_ms','histories','variables','last_lcd_reset']:
+            assert equal(blocked[key],before[key]),key
+        d.advance(0)
+        released=d.snapshot()
+        assert released['last_evaluation_ms']==released['controller_ms']
+        assert equal(released['plant'],blocked['plant'])
+        assert released['pending_ms']==56
+        d.advance(0)
+        assert equal(d.snapshot(),released)
+        checks.append('closed output gate retains physical heat and fractional time; release services one controller evaluation without backlog replay')
+    finally:
+        d.close()
+
     d=Simulation(executable)
     try:
         # Width wrap is constructed coherently in the controller-only fixture.

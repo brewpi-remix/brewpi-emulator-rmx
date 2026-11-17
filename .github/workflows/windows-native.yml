@@ -1,0 +1,27 @@
+# Copyright 2026 Lee Bussy
+# SPDX-License-Identifier: MIT
+name: native-windows
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  windows-amd64-core:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, MIT
+        with:
+          persist-credentials: false
+      - name: Build and execute native core suites
+        run: python tests/ci/native_windows.py runs/ci/windows-amd64-core
+      - name: Retain this execution receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, MIT
+        with:
+          name: windows-amd64-core-${{ github.run_attempt }}
+          path: runs/ci/windows-amd64-core/receipt.json
+          retention-days: 7
+          if-no-files-found: error

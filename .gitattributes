@@ -25,3 +25,7 @@ CMakeLists.txt text eol=lf
 *.jpeg binary
 *.gif binary
 *.pdf binary
+
+# Preserve verbatim external legal text and its recorded upstream bytes.
+release/notices/LLVM-LICENSE.txt -text whitespace=-blank-at-eof
+release/notices/MSVC-STL-LICENSE.txt -text whitespace=cr-at-eol

@@ -1,6 +1,6 @@
 # Copyright 2026 Lee Bussy
-# SPDX-License-Identifier: MIT
 # Explicit current source package inputs.
+# SPDX-License-Identifier: MIT
 .clang-format
 .editorconfig
 .gitattributes
@@ -9,6 +9,7 @@
 .github/README.md
 .github/pull_request_template.md
 .github/workflows/regression.yml
+.github/workflows/windows-native.yml
 .gitignore
 CMakeLists.txt
 CONTRACT.md
@@ -24,13 +25,18 @@ config/active-fermentation.json
 config/room-cycle.json
 docs/README.md
 docs/development.md
+docs/macos.md
+docs/macos.txt
 docs/operation.md
 docs/operation.txt
 docs/release.md
+docs/windows.md
+docs/windows.txt
 engineering/README.md
 engineering/architecture.md
 engineering/licenses/README.md
 engineering/protocol/README.md
+engineering/protocol/arduino-validation.md
 engineering/protocol/behavioral-contract.md
 engineering/protocol/commands.md
 engineering/protocol/controller.md
@@ -49,13 +55,19 @@ release/checks.py
 release/component-notices.md
 release/glibc-source.md
 release/local.py
+release/macos.py
+release/notices/LLVM-LICENSE.txt
+release/notices/MSVC-STL-LICENSE.txt
 release/runbook.py
 release/runtime.Dockerfile
 release/runtime.py
 release/source-files.txt
+release/windows.py
 scripts/README.md
 scripts/lcd-viewer.py
 scripts/wait-ready.py
+scripts/windows_channel.py
+scripts/windows_ready.py
 src/README.md
 src/controller.cpp
 src/controls.cpp
@@ -70,6 +82,16 @@ src/lcd.hpp
 src/main.cpp
 src/storage.cpp
 src/storage.hpp
+src/storage_windows.cpp
+src/windows_channel.cpp
+src/windows_channel.hpp
+src/windows_console.cpp
+src/windows_console.hpp
+src/windows_host.hpp
+src/windows_ready.cpp
+src/windows_ready.hpp
+src/windows_serial.cpp
+src/windows_serial.hpp
 systemd/README.md
 systemd/brewpi-emulator@.service.in
 tests/README.md
@@ -80,6 +102,7 @@ tests/ci/floor.Dockerfile
 tests/ci/gate.py
 tests/ci/linux.py
 tests/ci/native.py
+tests/ci/native_windows.py
 tests/ci/offline.py
 tests/ci/package_fixture.py
 tests/ci/payload.py
@@ -111,7 +134,10 @@ tests/lcd-core.cpp
 tests/lcd_gui_checks.py
 tests/lcd_installed_checks.py
 tests/lcd_tests.py
+tests/macos_runtime.py
+tests/macos_serial.py
 tests/model.cpp
+tests/native_protocol.py
 tests/pacing.py
 tests/qualification/README.md
 tests/qualification/checks.py
@@ -126,3 +152,12 @@ tests/qualification/service.py
 tests/source_inputs.py
 tests/specification.py
 tests/transport.py
+tests/windows-channel-client.py
+tests/windows-channel.cpp
+tests/windows-serial.cpp
+tests/windows-storage.cpp
+tests/windows/CMakeLists.txt
+tests/windows_application.py
+tests/windows_runtime.py
+tests/windows_session0.py
+tests/windows_session0_checks.py

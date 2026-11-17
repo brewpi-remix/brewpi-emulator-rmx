@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
-"""Check a live process and owned raw PTY without consuming serial bytes."""
+"""Check a live native serial endpoint without consuming serial bytes."""
 import argparse
 import os
 from pathlib import Path
 import stat
 import sys
-import termios
+if os.name != 'nt':
+    import termios
 import time
 
 
@@ -31,8 +32,12 @@ def wait_ready(serial, pid, timeout):
                 if (opened.st_dev,opened.st_ino)!=(target.st_dev,target.st_ino) or opened.st_uid!=os.geteuid():
                     raise OSError('serial endpoint changed while opening')
                 attrs=termios.tcgetattr(fd)
-                input_flags=(termios.IGNBRK|termios.BRKINT|termios.PARMRK|termios.ISTRIP|
+                input_flags=(termios.BRKINT|termios.PARMRK|termios.ISTRIP|
                              termios.INLCR|termios.IGNCR|termios.ICRNL|termios.IXON)
+                # Darwin's cfmakeraw() retains IGNBRK. Ignoring a break does
+                # not transform the PTY byte stream; keep Linux's check intact.
+                if sys.platform != 'darwin':
+                    input_flags |= termios.IGNBRK
                 local_flags=termios.ECHO|termios.ECHONL|termios.ICANON|termios.ISIG|termios.IEXTEN
                 if (attrs[0]&input_flags or attrs[1]&termios.OPOST or attrs[3]&local_flags or
                     attrs[2]&termios.CSIZE!=termios.CS8 or attrs[2]&termios.PARENB):
@@ -51,10 +56,22 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial',required=True)
     parser.add_argument('--pid',type=int,required=True)
+    parser.add_argument('--state', help='Windows controller state path')
     parser.add_argument('--timeout',type=float,default=10)
     args=parser.parse_args()
     try:
-        wait_ready(args.serial,args.pid,args.timeout)
+        if os.name == 'nt':
+            import importlib.util
+            sys.dont_write_bytecode = True
+            spec = importlib.util.spec_from_file_location(
+                'rmx_windows_ready', Path(__file__).with_name('windows_ready.py'))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            module.wait_ready(args.serial,args.pid,args.timeout,args.state)
+        else:
+            if args.state is not None:
+                parser.error('--state readiness is Windows-only')
+            wait_ready(args.serial,args.pid,args.timeout)
     except (OSError,ValueError,TimeoutError) as exc:
         print('brewpi-emulator readiness: '+str(exc),file=sys.stderr)
         return 1

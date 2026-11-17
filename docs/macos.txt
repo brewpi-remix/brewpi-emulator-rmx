@@ -1,0 +1,161 @@
+BrewPi Emulator Remix
+Copyright 2026 Lee Bussy
+SPDX-License-Identifier: MIT
+
+Downloads: https://github.com/brewpi-remix/brewpi-emulator-rmx/releases
+
+macOS operation and source builds
+
+The native ARM64 release targets macOS 27.
+
+The native Apple Silicon executable uses a raw PTY and a stable symlink for serial clients. A macOS archive contains the executable under `bin/`, helpers under `libexec/brewpi-emulator-rmx/`, and its operating guide and licenses under `share/doc/brewpi-emulator-rmx/`. Extract the archive into a private directory and run commands from that directory. Binary users do not need a compiler or CMake. Original emulator source, helpers, and tests use the MIT License (LICENSE.md).
+
+Verify the downloaded archive against its accompanying `SHA256SUMS` with `shasum -a 256 --check SHA256SUMS`. Checksums establish integrity. After extraction, verify the executable's signature with `codesign --verify --strict ./bin/brewpi-emulator-rmx`, and inspect its publisher with `codesign -d --verbose=4 ./bin/brewpi-emulator-rmx`. Compare its `TeamIdentifier` and Developer ID authority with the publisher information accompanying that archive. Apple notarization acceptance is a separate check associated with the exact archive; a valid signature alone does not establish it.
+
+For a source build, use Xcode Command Line Tools, a C++17 compiler, and CMake `3.16` or later. Python `3.9` or later is required for development tests and readiness checks; the optional graphical LCD helper also needs a working `tkinter` extension and Tcl/Tk. These dependencies remain external.
+
+cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=27.0 -DCMAKE_OSX_ARCHITECTURES=arm64
+cmake --build build-macos -j2
+(cd build-macos && ctest --output-on-failure)
+
+The deployment target selects the minimum OS recorded in the executable; it does not establish execution on every macOS version. Run terminal/GUI tests in a session that permits access to their private controlling terminals. A sandbox that denies `/dev/tty` can prevent those presentation tests from running correctly.
+
+Use `./bin/brewpi-emulator-rmx` from an extracted archive, or `./build-macos/brewpi-emulator-rmx` after the source build above. Use explicit writable paths for the PTY symlink and controller store. Replace the username and keep each emulator instance's paths separate:
+
+./bin/brewpi-emulator-rmx --serial /Users/example/.local/run/brewpi-emulator/serial --state /Users/example/.local/state/brewpi-emulator/controller.json --lcd terminal
+
+Headless operation uses `--lcd off`. For graphical controls, use `--lcd gui` or `--lcd auto` with the external GUI dependencies available. The operating guide (source archive: docs/operation.md) describes the existing rotary, pushbutton, and door controls. These local controls do not change Arduino serial acceptance or replies.
+
+Configure a serial client on the same Mac with the stable symlink rather than the changing `/dev/ttys...` target:
+
+port = /Users/example/.local/run/brewpi-emulator/serial
+altport = None
+
+Use `57600` baud, eight data bits, no parity, and one stop bit. Configuration values are literal paths; they do not gain shell-variable or `~` expansion. `port = auto` does not discover virtual PTYs. Restarting the emulator replaces the underlying PTY, so clients must close and reopen the configured symlink. Client close/reopen does not itself reboot the controller; `R` requests an explicit controller restart.
+
+The readiness helper (source archive: scripts/wait-ready.py) checks the owned raw PTY without reading startup bytes or changing terminal attributes. On Darwin, `IGNBRK` can remain set by raw mode. A serial client may purge startup bytes when opening or explicitly flushing input; this is distinct from emulator byte loss. LCD serial replies retain raw byte `B0`, which BrewPi decodes as CP437, rather than a UTF-8 degree glyph.
+
+For explicit checkpoint continuation, follow the checkpoint procedure (source archive: docs/operation.md) with writable absolute paths. Drain replies and stop client traffic before clean emulator shutdown. A successful write to an OS buffer is not proof that the client consumed those bytes.
+
+The optional native pySerial regression (source archive: tests/macos_serial.py) requires separately installed pySerial `3.5` and exercises startup purges, flush/drain, readiness, parser waits, close/reopen, and process lifecycle cleanup. See development tests (source archive: tests/README.md). It establishes the tested endpoint behavior, not a native port or qualification of the entire external BrewPi host/panel stack.
+
+Command-line options
+
+| Option | Meaning |
+| --- | --- |
+| `--serial PATH` | Published PTY symlink. Default: `/run/brewpi-emulator/chamber1/serial`. |
+| `--state PATH` | Persistent controller store. Default: `/var/lib/brewpi-emulator/chamber1/controller.json`. |
+| `--scenario PATH` | Read a JSON physical scenario at startup. Mutually exclusive with `--resume`. |
+| `--speed FACTOR` | Wall-time pacing factor from 0 through 1000. Default: 1. Zero pauses scheduled simulated time. |
+| `--checkpoint PATH` | Write a coherent continuation snapshot during clean shutdown. |
+| `--resume PATH` | Start from a checkpoint. Use its matching saved controller state. |
+| `--lcd off` | Headless operation; also the default when `--lcd` is omitted. |
+| `--lcd terminal` | Unicode terminal LCD with local controls. |
+| `--lcd gui` or `--lcd auto` | Try the graphical LCD, then fall back to terminal or headless operation. |
+| `--lcd-keep-on` | Disable local LCD dimming. |
+| `--help` | Print command-line usage. |
+| `--version` | Print application version. Serial `n` identifies the emulated firmware separately. |
+Optional local LCD
+
+The local LCD shows the twenty-column, four-row controller screen. The terminal presentation requires a foreground UTF-8 terminal with a single-cell degree glyph and at least 23 columns by 8 rows. Unsupported terminals display a read-only screen. Headless and terminal operation need no Python or Tcl/Tk.
+
+The graphical LCD requires the installed `lcd-viewer.py` helper, `python3` on `PATH` selecting Python 3.9 or later, working `tkinter`/`_tkinter`, Tcl/Tk 8.6 or later, and a local graphical session. Check that interpreter's setup with `python3 -m tkinter`. Python, Tcl/Tk, fonts, and desktop software are supplied separately. GUI failure falls back to the terminal, then headless mode. Closing the GUI requests normal emulator shutdown.
+Local rotary and door controls
+
+In an interactive terminal, type a command and press `Enter`:
+
+| Command | Action |
+| --- | --- |
+| `cw` | Turn the knob clockwise. |
+| `ccw` | Turn the knob counterclockwise. |
+| `press` | Press the knob/pushbutton. |
+| `door open` | Open the modeled physical door. |
+| `door close` | Close it. |
+| `help` | Display command help. |
+
+`Enter` submits text; only `press` represents a pushbutton action. The GUI provides knob and door controls. Focus the knob and use `Left`/`Right` to turn and `Return`/`Space` to press; the door button is also keyboard accessible. Press opens the menu; turn to browse or edit, and press to confirm. Browsing does not save settings. Drafts expire after ten wall seconds, and background controller work continues while the menu is open. Local confirmation applies bounds without tightening serial command acceptance. Door input affects controller behavior only through the configured devices and modeled plant.
+
+Text dims after more than sixty wall seconds without interaction. A deliberate turn or press wakes the screen and performs the action. `--lcd-keep-on` disables dimming. The terminal prompt stays readable. Local controls use private IPC and do not open another serial reader. Uncommitted menu drafts are excluded from checkpoints.
+Scenarios and simulation time
+
+The source tree provides `config/active-fermentation.json` for fermentation heat and `config/room-cycle.json` for a daily room cycle. Binary users can create a JSON scenario using the configuration guide and pass its path with `--scenario`. See scenario fields (Scenario configuration below) for the supported physical parameters. Scenario files are read without modification.
+
+`--speed 1` uses real-time pacing. Factors such as 10 or 60 accelerate simulated physics and controller time without changing controller thresholds or the integration step. Zero pauses scheduled simulation while synchronous commands and wall-clock token deadlines continue. Host fermentation profiles, CSV dates, and chart timestamps remain wall-clock based; acceleration does not accelerate the host's profile schedule.
+
+The serial parser follows firmware framing and partial-input behavior rather than a general strict JSON API. Incomplete tokens can wait about one wall second. A slow reader defers input/controller work while replies remain queued in order. Drain existing output before expecting another command's response.
+Stop, restart, and checkpoints
+
+Use `Ctrl-C` or `SIGTERM` for clean shutdown. The process removes only its unchanged owned serial symlink. Firmware-saved settings and device slots survive. A normal new process starts a fresh physical scenario; the serial `R` command restarts controller state while keeping the running plant, and `E` initializes controller configuration. Live values need not equal saved values after every command.
+
+For continuation, provide `--checkpoint` from startup:
+
+brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
+  --state "$HOME/.local/state/brewpi-emulator/controller.json" \
+  --checkpoint "$HOME/.local/state/brewpi-emulator/checkpoint.json"
+
+Before stopping, stop the host/client, finish partial commands, and drain serial output. Resume with the same state file and checkpoint:
+
+brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
+  --state "$HOME/.local/state/brewpi-emulator/controller.json" \
+  --resume "$HOME/.local/state/brewpi-emulator/checkpoint.json" \
+  --checkpoint "$HOME/.local/state/brewpi-emulator/checkpoint.json"
+
+Stopped time is not added. `--speed` can override resumed pacing; `--scenario` cannot replace resumed history. Native snapshots require matching saved state and compatible formats/runtime assumptions; arbitrary cross-version or cross-ABI migration is not provided.
+
+A corrupt snapshot, state mismatch, incomplete command, or queued output prevents a checkpoint/resume operation and produces a local error rather than a fabricated Arduino reply. Failure before file replacement preserves the previous checkpoint. An error after rename can leave new bytes with uncertain durability; inspect the error and file before retrying. There is no automatic rollback or older-snapshot fallback.
+Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Permission denied | Use private directories writable by the emulator account and accessible to the host. Default `/run` and `/var/lib` paths need provisioning; the home-directory example avoids that. |
+| Serial path exists or is locked | Check for a running instance. After `SIGKILL`, a stale symlink can remain. Verify the process is gone and instance locks are free, then remove only that instance's symlink. Never delete the PTY character target or another process's paths. |
+| Host stops receiving after a restart | Reopen/restart the host against the newly published PTY. |
+| No devices or `W3` | Initialize through factory reset, then discover and assign the virtual hardware. |
+| A setting changes after restart | Firmware live values and saved values differ by design. Check the command's persistence behavior in the protocol reference. |
+| GUI does not open | Check `python3 -m tkinter`, the helper path, and the graphical session; terminal/headless fallback remains available. |
+| Terminal controls do not respond | Bring the process to the foreground and check terminal size/encoding. `Enter` submits a command; `press` is the pushbutton action. |
+| Checkpoint fails | Drain serial output, complete partial commands, and use the matching state file. Inspect local errors before replacing data. |
+| Replies appear delayed | Check queued output and partial tokens. Do not add a competing serial reader. |
+
+The nonconsuming readiness helper can check a trusted endpoint without consuming startup bytes:
+
+python3 /usr/local/libexec/brewpi-emulator-rmx/wait-ready.py \
+  --serial /path/to/serial --pid EMULATOR_PID --timeout 10
+
+Use the actual emulator PID and installed helper path. This checks a live PID and owned raw PTY; it does not authenticate their relationship, initialize configuration, or isolate other same-account code.
+
+Scenario configuration
+
+Pass a JSON file with `--scenario PATH`. Unknown fields, invalid physical parameters, and input/output path aliases are rejected. Omitted fields use the built-in defaults. Inputs are read without modification. A scenario sets external equipment/initial conditions; it does not change firmware constants or replace a resumed checkpoint history.
+
+The source tree includes active-fermentation.json (source archive: config/active-fermentation.json) and room-cycle.json (source archive: config/room-cycle.json). For a standalone binary, create a scenario file, for example:
+
+{
+  "initial_temperatures_c": {"beer": 20, "chamber": 20, "room": 22},
+  "fermentation_enabled": true,
+  "random_seed": 1
+}
+
+Fields
+
+| Field | Meaning and units |
+| --- | --- |
+| `initial_temperatures_c` | Object with `beer`, `chamber`, and `room` initial temperatures in degrees Celsius. |
+| `beer_liters` | Beer volume in liters; default five US gallons, approximately 18.927 liters. |
+| `beer_density_kg_per_m3`, `beer_specific_heat_j_per_kg_k` | Beer density and specific heat. |
+| `carboy_capacity_j_per_k` | Carboy heat capacity. |
+| `chamber_liters`, `air_capacity_j_per_m3_k`, `cabinet_capacity_j_per_k` | Chamber air volume, volumetric heat capacity, and cabinet heat capacity. |
+| `beer_chamber_conductance_w_per_k`, `chamber_room_conductance_w_per_k` | Thermal coupling between beer/chamber and chamber/room. |
+| `physical_loads` | Array of objects with `pin`, `kind` (`heater`/`cooler`/`light`/`fan`), nonnegative `watts`, and `active_low`. The `cooler` kind removes heat; other kinds add it. Pin assignments must be unique. |
+| `probe_quantization_c`, `probe_lag_seconds`, `noise_amplitude_c` | Probe quantization, lag, and noise magnitude. |
+| `random_seed` | Deterministic pseudo-random seed. |
+| `room_daily_amplitude_c`, `room_daily_phase_hours` | Daily room-temperature sinusoid amplitude and phase. |
+| `door_pin`, `door_open`, `door_extra_conductance_w_per_k` | Modeled door input and added heat transfer when open. |
+| `fermentation_enabled`, `fermentation_age_hours` | Enable fermentation heat and set its initial age. |
+| `active_fermentation_profile` | Object with `maximum_watts` and `breakpoints_hours_watts`, an ordered array of `[hours, watts]` pairs. At least two points are required, hours must increase, and the final power must be zero. |
+| `instance_id` | Hardware identity profile; `chamber1` is the supported value. |
+| `speed_factor` | Initial simulation pacing factor; `--speed` overrides it. |
+
+Use separate files/directories for scenarios, controller stores, checkpoints, PTY links, and locks. Repeatability requires the same configuration, seed, and input/event history. Host profiles and chart timestamps remain wall-clock based.
+
+Examples and scenario documentation are original MIT work. See model details (source archive: engineering/protocol/controller.md) for arithmetic, defaults, and checkpoint behavior.

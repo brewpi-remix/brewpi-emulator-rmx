@@ -24,4 +24,38 @@ The opt-in external-client integration fixture runs the pinned host/panel separa
 
 Use a new output directory. The launcher owns its container and verifies cleanup; reference clients are not imported into the emulator. Its Dockerfile and requirements lock define external test dependencies. [Runtime checks](qualification/README.md) inspect installed files, readiness, recovery, and inert service commands. Generated state, raw client captures, logs, and screenshots are ignored development outputs, not package contents or original MIT assets.
 
+On native macOS ARM64, [macos_serial.py](macos_serial.py) exercises the real PTY with separately installed pySerial `3.5`, including startup purges, flush/drain, readiness, binary LCD bytes, parser waits at `1x`/`10x`/`60x`, close/reopen, and 100 process/client lifecycles. It requires a private test environment and bounds the complete worker process group; its report is endpoint regression evidence, not final signed-package qualification. Use an external virtual environment containing pySerial and a new report path:
+
+```sh
+python3 tests/macos_serial.py build/brewpi-emulator-rmx --output runs/macos-serial.json
+```
+
+[macos_runtime.py](macos_runtime.py) checks a retained signed macOS review package for 300 wall seconds at each of `1x` and `60x`, including real terminal controls, query latency, pacing, resident memory, and exact paused checkpoint continuation. It verifies the complete package before and after execution. Its fixed qualification budgets are one second per ordinary identity query, pacing within 15% of the requested factor, RSS below 128 MiB, and an RSS range below 32 MiB. These are test budgets, not controller policy or emulator memory limits. A shorter `--seconds` run is explicitly classified as a smoke check and does not close the duration gate. It requires an external Python environment with pySerial `3.5` and a session permitting private controlling terminals:
+
+```sh
+python3 tests/macos_runtime.py /path/to/macOS-review-output --source-snapshot SOURCE_SNAPSHOT_SHA256 --output runs/macos-runtime.json
+```
+
+The standalone [Windows boundary build](windows/CMakeLists.txt) exercises native COM I/O, Windows storage, and the private LCD message channel. It requires native Windows, an MSVC-compatible C++17 toolchain, CMake with support for the installed Visual Studio generator, Python `3.9` or later, and an explicitly provisioned HHD virtual COM pair. The following example uses `Visual Studio 18 2026`:
+
+```powershell
+cmake -S tests/windows -B build-windows-boundaries -G "Visual Studio 18 2026" -A x64 "-DRMX_SERIAL_PAIR=C:/path/to/approved-pair.json"
+cmake --build build-windows-boundaries --config Release
+Push-Location build-windows-boundaries
+ctest -C Release --output-on-failure
+Pop-Location
+```
+
+`RMX_SERIAL_PAIR` names an operator-provisioned JSON record in format `brewpi-emulator-serial-pair-v1`, with `provider` set to `hhd-vspt`, `provider_version` set to `7.35.01.1760`, and two `endpoints`. Each endpoint records `port`, `instance_id`, `hardware_id`, `driver_provider`, and `driver_version`; the supported identity profile uses `HHDVIRT\UniversalSerial4`, `HHD Software Ltd.`, and `7.35.0.1753`. Supply the actual canonical `COMn` names and device instance IDs of the approved virtual pair. Checks reject missing, reassigned, unsupported, or busy devices. The opposite-end association is supplied by the operator; device checks do not discover provider wiring. A missing record fails the COM test. The tests neither provision devices nor select a replacement port.
+
+The storage suite creates disposable files under its build directory, including a directory symlink for reparse-point rejection; that fault setup requires Windows symlink permission. The message-channel test launches a separate Python client and checks packet boundaries, binary bytes, nonblocking reads, and launched-process binding. These are development boundary checks; full Windows application, desktop-control, and package qualification remain separate. External compiler/runtime and provider terms are described in [third-party notices](../THIRD_PARTY_NOTICES.md).
+
 Original tests are MIT. No reference helper, routine, or test is copied or translated. Physical Arduino/Pi behavior and system-manager activation are outside these regression claims.
+
+The native Windows [application lifecycle check](windows_application.py) exercises the actual executable and the approved pair with Unicode state paths, readiness, raw replies, parser waits, client reopening, cooperative shutdown, and checkpoints. The [package runtime check](windows_runtime.py) binds the verified unsigned package and runs the declared pacing, resource, and paused-continuation checks. Both require separately supplied pySerial `3.5`; neither installs a driver. Use each helper's `--help` for explicit paths and finite budgets. [Windows build/core CI](ci/native_windows.py) produces its own execution receipt and does not imply provider or desktop acceptance.
+
+The [native public-protocol adapter](native_protocol.py) replays 30 reviewed cases whose initialized, paused preconditions can be established through ordinary serial commands. It uses the original fixture matcher, binds the fixture/helper/executable hashes, and maps the other 18 deterministic cases to the constructed-state source driver. The nine Arduino characterization cases remain unresolved. This public subset supplements the complete 48-case native core run; it neither seeds engine state nor adds a production test API.
+
+The [Session 0 regression](windows_session0.py) runs hidden consoles through SSH on native Windows x64, using the explicit approved virtual pair and separately installed pySerial `3.5`. It checks headless and terminal modes plus missing-Python GUI fallback, complete identity/LCD replies, repeated queries, cooperative shutdown, checkpoints, inactive readiness, and endpoint reacquisition. It requires `--pair`, `--ready-helper`, `--directory` (a new private test directory), and `--output` (a new report path outside the case directory). A supervisor-owned Windows job bounds the worker and all of its descendants. Reads assemble complete lines one byte at a time; the supported HHD driver's finite total timeout does not reliably complete a bulk read after a short reply. This is a provider limitation, not a change to Arduino wire behavior.
+
+Run `python tests/windows_session0_checks.py` for reader failure checks and, on Windows, a fault-injected supervisor timeout that verifies termination of both the worker and its descendant. The Session 0 execution receipt binds the executable, pair record, and original reader/readiness/lifecycle helpers before and after execution.

@@ -9,13 +9,198 @@ from pathlib import Path
 import tempfile
 import tarfile
 import unittest
+import struct
+import stat
+import subprocess
+import zipfile
 from unittest.mock import patch
-from artifacts import archive, unpack, canonical, source_record, source_names, verify_original_files, VERSION as CURRENT_VERSION, STEM
+from artifacts import archive, unpack, canonical, source_record, source_names, verify_original_files, safe_name, VERSION as CURRENT_VERSION, STEM
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests/ci'))
 from payload import source_identity
 from payload import Payload, FILES, LOCAL_CONTROLS_FILES, payload_files
 from local import compare_builds, verify_freeze
+from macos import FILES as MACOS_FILES, inventory as macos_inventory, macho, pack as macos_pack, verify_archive as macos_verify_archive
+from macos import verify as verify_macos, notarize
+
+
+from windows import FILES as WINDOWS_FILES, pe as windows_pe, inventory as windows_inventory
+from windows import archive as windows_archive, verify_zip as windows_verify_zip
+
+
+class WindowsArchives(unittest.TestCase):
+    def test_portable_archive_names_reject_windows_devices_drives_and_aliases(self):
+        for path in ['candidate/C:/outside','candidate/file:stream','candidate/src/NUL.txt',
+                     'candidate/src/com1','candidate/AUX .txt','candidate/CLOCK$.txt','candidate/LPT¹.log','candidate/trailing.',
+                     'candidate/trailing ','candidate/line\nname']:
+            with self.subTest(path=path),self.assertRaises(ValueError):safe_name(path)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            archive_path=root/'invalid.tar.gz'
+            with tarfile.open(archive_path,'w:gz') as output:
+                for name in ['candidate/ordinary.txt','candidate/C:/outside']:
+                    item=tarfile.TarInfo(name);item.mode=0o644;item.size=1
+                    output.addfile(item,io.BytesIO(b'x'))
+            with self.assertRaises(ValueError):unpack(archive_path,root/'output','candidate')
+            self.assertEqual(list((root/'output').iterdir()),[])
+
+    def test_source_archive_rejects_case_and_unicode_aliases_before_writes(self):
+        for names in [['candidate/name','candidate/NAME'],
+                      ['candidate/caf\u00e9','candidate/cafe\u0301'],
+                      ['candidate/PARENT','candidate/parent/child']]:
+            with self.subTest(names=names),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);path=root/'bad.tar.gz'
+                with tarfile.open(path,'w:gz') as output:
+                    for name in names:
+                        item=tarfile.TarInfo(name);item.mode=0o644;item.size=1
+                        output.addfile(item,io.BytesIO(b'x'))
+                with self.assertRaises(ValueError):unpack(path,root/'output','candidate')
+                self.assertEqual(list((root/'output').iterdir()),[])
+
+    def test_complete_windows_archives_reproduce_and_reject_tampering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);tree=root/'payload'
+            for name in WINDOWS_FILES:
+                path=tree/name;path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(('Original Windows package fixture '+name+'\n').encode())
+            rows=windows_inventory(tree)
+            for name in ['first.zip','second.zip']:
+                windows_archive(tree,root/name,'candidate',rows,1234567890)
+                windows_verify_zip(root/name,'candidate',rows)
+            self.assertEqual((root/'first.zip').read_bytes(),(root/'second.zip').read_bytes())
+            rows['bin/brewpi-emulator-rmx.exe']['sha256']='0'*64
+            with self.assertRaises(ValueError):windows_verify_zip(root/'first.zip','candidate',rows)
+            extra=tree/'unexpected.dll';extra.write_bytes(b'original invalid fixture')
+            with self.assertRaises(ValueError):windows_inventory(tree)
+
+    def test_pe_parser_checks_cpu_signature_and_bounded_imports(self):
+        # Independently constructed PE metadata; no compiler/reference bytes.
+        data=bytearray(2048);data[:2]=b'MZ';struct.pack_into('<I',data,0x3c,0x80)
+        data[0x80:0x84]=b'PE\0\0'
+        struct.pack_into('<HH',data,0x84,0x8664,1)
+        struct.pack_into('<HH',data,0x94,240,2)
+        optional=0x98;struct.pack_into('<H',data,optional,0x20b)
+        struct.pack_into('<H',data,optional+68,3)
+        struct.pack_into('<I',data,optional+108,16)
+        struct.pack_into('<II',data,optional+120,0x1000,40)
+        section=optional+240
+        struct.pack_into('<III',data,section+12,0x1000,1024,512)
+        struct.pack_into('<I',data,512+12,0x1080)
+        data[640:653]=b'KERNEL32.dll\0'
+        with tempfile.TemporaryDirectory() as tmp:
+            binary=Path(tmp)/'original-pe-fixture';binary.write_bytes(data)
+            self.assertEqual(windows_pe(binary),['KERNEL32.DLL'])
+            for offset,value,kind in [(0x84,0xaa64,'<H'),(optional+68,2,'<H'),
+                                       (optional+144,1,'<I'),(optional+120,0xffffff00,'<I'),
+                                       (optional+216,0x1000,'<I')]:
+                changed=bytearray(data);struct.pack_into(kind,changed,offset,value);binary.write_bytes(changed)
+                with self.assertRaises(ValueError):windows_pe(binary)
+            changed=bytearray(data);changed[640:653]=b'UNKNOWNX.dll\0';binary.write_bytes(changed)
+            with self.assertRaisesRegex(ValueError,'unreviewed imported'):windows_pe(binary)
+
+
+class MacOSArchives(unittest.TestCase):
+    def test_notarization_auth_failure_does_not_reserve_an_upload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            failure=subprocess.CalledProcessError(69,['original-credential-probe'])
+            with patch('macos.verify',return_value={}),patch('macos.subprocess.run',side_effect=failure),patch('macos.subprocess.check_output') as upload:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    notarize(root,'original-test-profile')
+                upload.assert_not_called()
+            self.assertFalse((root/'notarization-request.json').exists())
+
+    def test_ambiguous_notarization_failure_keeps_request_and_prevents_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'macos-manifest.json').write_text('{}')
+            manifest=dict(archive_sha256='a'*64,archive='original-test.zip')
+            with patch('macos.verify',return_value=manifest),patch('macos.subprocess.run'),patch('macos.subprocess.check_output',side_effect=subprocess.TimeoutExpired('original-upload',120)) as upload:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    notarize(root,'original-test-profile')
+                self.assertTrue((root/'notarization-request.json').exists())
+                with self.assertRaisesRegex(ValueError,'submission already exists'):
+                    notarize(root,'original-test-profile')
+                self.assertEqual(upload.call_count,1)
+
+    def test_source_expectation_is_required_before_native_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            manifest=dict(schema=4,producer='local-native-build',profile='macos-arm64-local-controls-v2',
+                          os='macos',architecture='arm64',version=CURRENT_VERSION,source_commit=None,
+                          identity_role='uncommitted-provisional-snapshot',base_commit='a'*40,
+                          source_snapshot_sha256='b'*64,source_archive_sha256='c'*64)
+            (root/'macos-manifest.json').write_text(json.dumps(manifest))
+            with patch('macos.native'),patch('macos.subprocess.run',side_effect=AssertionError('native execution must remain gated')):
+                for expected in [None,'d'*64]:
+                    with self.assertRaisesRegex(ValueError,'expected source snapshot'):
+                        verify_macos(root,expected_snapshot=expected)
+
+    def payload(self, root):
+        for name in MACOS_FILES:
+            p=root/name;p.parent.mkdir(parents=True,exist_ok=True)
+            p.write_bytes(('Original test payload: '+name+'\n').encode())
+            p.chmod(0o755 if name.startswith(('bin/','libexec/')) else 0o644)
+
+    def test_native_archives_are_deterministic_and_bind_every_byte(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);tree=root/'payload';self.payload(tree)
+            rows=macos_pack(tree,root/'first.zip','candidate',1234567890)
+            macos_pack(tree,root/'second.zip','candidate',1234567890)
+            self.assertEqual((root/'first.zip').read_bytes(),(root/'second.zip').read_bytes())
+            macos_verify_archive(root/'first.zip','candidate',rows)
+            rows['bin/brewpi-emulator-rmx']['sha256']='0'*64
+            with self.assertRaisesRegex(ValueError,'bytes differ'):
+                macos_verify_archive(root/'first.zip','candidate',rows)
+
+    def test_native_archives_reject_missing_duplicate_and_symlink_members(self):
+        for mutation in ['missing','duplicate','symlink']:
+            with self.subTest(mutation=mutation),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);tree=root/'payload';self.payload(tree)
+                rows=macos_pack(tree,root/'base.zip','candidate',1234567890)
+                with zipfile.ZipFile(root/'base.zip') as source,zipfile.ZipFile(root/'bad.zip','w') as bad:
+                    for i,member in enumerate(source.infolist()):
+                        if mutation=='missing' and i==0:continue
+                        if mutation=='symlink' and i==0:member.external_attr=(stat.S_IFLNK|0o755)<<16
+                        bad.writestr(member,source.read(member.filename))
+                        if mutation=='duplicate' and i==0:
+                            import warnings
+                            with warnings.catch_warnings():
+                                warnings.simplefilter('ignore',UserWarning)
+                                bad.writestr(member,source.read(member.filename))
+                with self.assertRaises(ValueError):macos_verify_archive(root/'bad.zip','candidate',rows)
+
+    def test_native_payload_rejects_linux_service_and_symlinks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);tree=root/'payload';self.payload(tree)
+            extra=tree/'share/brewpi-emulator-rmx/systemd/service';extra.parent.mkdir(parents=True);extra.write_text('original test\n')
+            with self.assertRaises(ValueError):macos_inventory(tree)
+            extra.unlink();(tree/'link').symlink_to(tree/'bin/brewpi-emulator-rmx')
+            with self.assertRaises(ValueError):macos_inventory(tree)
+
+    def test_macho_rejects_wrong_cpu_platform_and_truncated_load_commands(self):
+        header=struct.pack('<8I',0xfeedfacf,0x100000c,0,2,1,24,0,0)
+        build=struct.pack('<6I',0x32,24,1,27<<16,27<<16,0)
+        with tempfile.TemporaryDirectory() as tmp:
+            binary=Path(tmp)/'original-macho-fixture';binary.write_bytes(header+build)
+            macho(binary)
+            variants=[b'\x7fELF'+bytes(60),b'MZ'+bytes(62),header+build[:-1],
+                      struct.pack('<8I',0xfeedfacf,0x1000007,0,2,1,24,0,0)+build,
+                      header+struct.pack('<6I',0x32,24,2,15<<16,27<<16,0),
+                      header+struct.pack('<6I',0x32,24,1,26<<16,27<<16,0)]
+            for data in variants:
+                binary.write_bytes(data)
+                with self.assertRaises(ValueError):macho(binary)
+
+    def test_zip_size_limits_apply_before_payload_decompression(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);tree=root/'payload';self.payload(tree)
+            rows=macos_pack(tree,root/'base.zip','candidate',1234567890)
+            with patch('macos.MAX_MEMBER_BYTES',1),patch.object(zipfile.ZipFile,'open',side_effect=AssertionError('member must not be decompressed')):
+                with self.assertRaisesRegex(ValueError,'size limit'):
+                    macos_verify_archive(root/'base.zip','candidate',rows)
+            with patch('macos.MAX_ARCHIVE_BYTES',1),patch('macos.zipfile.ZipFile',side_effect=AssertionError('archive must not be opened')):
+                with self.assertRaisesRegex(ValueError,'size limit'):
+                    macos_verify_archive(root/'base.zip','candidate',rows)
 
 
 class Archives(unittest.TestCase):
@@ -80,6 +265,22 @@ class Archives(unittest.TestCase):
 
 
 class Identity(unittest.TestCase):
+    def test_external_legal_text_cannot_be_relabelled_as_original_mit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);(root/'cmake').mkdir();(root/'release/notices').mkdir(parents=True)
+            (root/'cmake/version.cmake').write_bytes((Path(__file__).resolve().parents[1]/'cmake/version.cmake').read_bytes())
+            legal='release/notices/LLVM-LICENSE.txt';(root/legal).write_text('Original synthetic legal-classification fixture\n')
+            files={name:dict(sha256=hashlib.sha256((root/name).read_bytes()).hexdigest(),mode=0o644) for name in ['cmake/version.cmake',legal]}
+            content=dict(schema=1,spdx_license_identifier='MIT',version=CURRENT_VERSION,base_commit='a'*40,source_commit=None,identity_role='uncommitted-provisional-snapshot',source_date_epoch=1,files=files)
+            def save():
+                (root/'SOURCE.json').write_bytes(canonical(dict(content,source_snapshot_sha256=hashlib.sha256(canonical(content)).hexdigest())))
+            save()
+            with self.assertRaisesRegex(ValueError,'separate provenance'):source_record(root)
+            content.update(license_scope='original-project-material-only',external_legal_texts={legal:dict(origin='https://llvm.org/LICENSE.txt',spdx_license_expression='Apache-2.0 WITH LLVM-exception',sha256=files[legal]['sha256'],purpose='verbatim external legal text; not original MIT prose')})
+            save();source_record(root)
+            content['external_legal_texts'][legal]['spdx_license_expression']='MIT';save()
+            with self.assertRaisesRegex(ValueError,'separate provenance'):source_record(root)
+
     def test_archived_version_requires_explicit_expectation_and_matches_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);(root/'cmake').mkdir()

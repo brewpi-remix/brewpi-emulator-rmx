@@ -1,6 +1,6 @@
 # Package contents
 
-Binary archives contain a single named directory with this prefix-relative layout:
+GNU/Linux binary archives contain a single named directory with this prefix-relative layout:
 
 | Path | Purpose |
 | --- | --- |
@@ -16,6 +16,8 @@ The source archive contains the implementation, build files, scenarios, current 
 
 Obtain source/binary archives, `SHA256SUMS`, `NOTICES`, and the GNU glibc-source companion from the [project release channel](https://github.com/brewpi-remix/brewpi-emulator-rmx/releases). Keep the required notice/source companions with extracted or redistributed binaries. They retain external license terms and are not MIT application source. The source and build scripts support rebuilding/relinking; see [component licensing](../THIRD_PARTY_NOTICES.md).
 
-Verify the downloaded files with `sha256sum --ignore-missing --check SHA256SUMS` before use. Confirm that each downloaded archive reports `OK`; the `ignore-missing` option skips unselected files and does not establish companion completeness. Archives and tags are unsigned; checksums establish integrity, not independent authenticity. Use `brewpi-emulator-rmx --version` to identify the application. Serial `n` reports the separate emulated firmware identity.
+Verify the downloaded files with `sha256sum --ignore-missing --check SHA256SUMS` before use. Confirm that each downloaded archive reports `OK`; the `ignore-missing` option skips unselected files and does not establish companion completeness. GNU/Linux archives and tags are unsigned; checksums establish integrity, not independent authenticity. The [macOS guide](macos.md) describes archive integrity and Developer ID signature checks separately. Use `brewpi-emulator-rmx --version` to identify the application. Serial `n` reports the separate emulated firmware identity.
 
 See the [operating guide](operation.md) for extraction, dependencies, and use.
+
+Native macOS 27 ARM64 archives use the same executable/helper/document directories, omit the Linux service unit, and include the LLVM legal text. They use Developer ID signing and separate Apple notarization. Native Windows 11 x64 ZIPs use `bin/brewpi-emulator-rmx.exe`, include `windows_channel.py` and `windows_ready.py` beside the existing helpers, retain the Microsoft STL legal text, and omit the Linux service unit. Windows remains unsigned. Both platform guides describe their external prerequisites; no COM driver, Python/Tk installation, or runtime DLL is bundled. See [macOS use](macos.md) and [Windows use](windows.md).

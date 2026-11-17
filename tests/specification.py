@@ -5,12 +5,13 @@
 Requires this Git checkout and the prepared sibling reference repositories.
 References are read with git show; no reference code is imported or executed.
 """
-import json,re,subprocess,collections,os,sys
+import json,re,subprocess,collections,os,sys,hashlib
 from urllib.parse import unquote
 if not __debug__ or os.environ.get("PYTHONOPTIMIZE", "") not in ("", "0"):
  raise SystemExit("Python assertions must be enabled")
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]; base=root/'engineering/protocol/test-vectors'
+assert hashlib.sha256((root/'release/notices/LLVM-LICENSE.txt').read_bytes()).hexdigest()=='8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee','external LLVM legal text changed; provenance review required'
 subprocess.run([sys.executable,str(root/'release/runbook.py'),'--check'],check=True)
 def pairs(xs):
  d={}
@@ -89,7 +90,12 @@ files=[root/x for x in subprocess.check_output(['git','-C',str(root),'ls-files',
 local=anchors=source=0;cache={}
 files=[f for f in files if f.is_file()]
 for f in files:
- b=f.read_bytes();assert b.endswith(b'\n') and b'\r' not in b,f
+ b=f.read_bytes()
+ if f.relative_to(root).as_posix()=='release/notices/MSVC-STL-LICENSE.txt':
+  import hashlib
+  assert hashlib.sha256(b).hexdigest()=='1fc6b6db121d4555d8f661937d7f6013693cd8fd67495d5e5d98c1d18fb83eda',f
+  continue
+ assert b.endswith(b'\n') and b'\r' not in b,f
  assert all(line.rstrip()==line for line in b.splitlines()),f
  if f.suffix!='.md':continue
  txt=b.decode()

@@ -14,8 +14,15 @@
 #include <cstring>
 #include <ctime>
 #include <cwchar>
+#ifdef _WIN32
+#include "windows_channel.hpp"
+#include "windows_console.hpp"
+#include "windows_host.hpp"
+#else
 #include <fcntl.h>
+#endif
 #include <filesystem>
+#ifndef _WIN32
 #include <langinfo.h>
 #include <locale.h>
 #include <poll.h>
@@ -27,11 +34,14 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
 
+#ifndef _WIN32
 extern char** environ;
+#endif
 namespace rmx {
 LcdRows unicode_lcd(const LcdRows& raw, bool& replaced) {
     LcdRows result;
@@ -57,6 +67,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 using Time = Clock::time_point;
 using namespace std::chrono_literals;
+#ifndef _WIN32
 struct SignalMask {
     sigset_t old{};
     bool valid;
@@ -92,9 +103,18 @@ bool utf8_terminal() {
     freelocale(loc);
     return ok;
 }
+#endif
 std::filesystem::path executable_path() {
+#ifndef _WIN32
     char buffer[4096];
-#ifdef __APPLE__
+#endif
+#ifdef _WIN32
+    wchar_t path[32768];
+    DWORD size = GetModuleFileNameW(nullptr, path, 32768);
+    if (!size || size >= 32768)
+        return {};
+    return std::filesystem::canonical(path);
+#elif defined(__APPLE__)
     uint32_t size = sizeof buffer;
     if (_NSGetExecutablePath(buffer, &size) != 0)
         return {};
@@ -104,18 +124,45 @@ std::filesystem::path executable_path() {
         return {};
     buffer[size] = 0;
 #endif
+#ifndef _WIN32
     return std::filesystem::canonical(buffer);
+#endif
 }
 std::string helper_path() {
     auto exe = executable_path();
     auto installed = exe.parent_path() / RMX_LCD_INSTALLED_HELPER;
     if (std::filesystem::is_regular_file(installed))
-        return installed.lexically_normal().string();
+        return installed.lexically_normal().u8string();
     // CMake places an original development copy next to its executable. Neither
     // lookup depends on the caller's working directory or embeds a build root.
-    return (exe.parent_path() / "lcd-viewer.py").string();
+    return (exe.parent_path() / "lcd-viewer.py").u8string();
 }
 std::string python_path() {
+#ifdef _WIN32
+    DWORD length = GetEnvironmentVariableW(L"PATH", nullptr, 0);
+    if (!length || length > 32767)
+        return {};
+    std::wstring paths(length, L'\0');
+    DWORD copied = GetEnvironmentVariableW(L"PATH", paths.data(), length);
+    if (!copied || copied >= length)
+        return {};
+    paths.resize(copied);
+    size_t start = 0;
+    while (start <= paths.size()) {
+        size_t end = paths.find(L';', start);
+        auto directory = paths.substr(start, end - start);
+        if (directory.size() >= 2 && directory.front() == L'"' && directory.back() == L'"')
+            directory = directory.substr(1, directory.size() - 2);
+        auto candidate = std::filesystem::absolute(
+            std::filesystem::path(directory.empty() ? L"." : directory) / L"python.exe");
+        if (std::filesystem::is_regular_file(candidate))
+            return candidate.u8string();
+        if (end == std::wstring::npos)
+            break;
+        start = end + 1;
+    }
+    return {};
+#else
     const char* env = getenv("PATH");
     std::string paths = env ? env : "/usr/bin:/bin";
     size_t start = 0;
@@ -132,6 +179,7 @@ std::string python_path() {
         start = end + 1;
     }
     return {};
+#endif
 }
 std::string message(const char* type) {
     return Json(Json::Object{{"version", 2}, {"type", type}}).dump();
@@ -140,8 +188,15 @@ std::string message(const char* type) {
 struct LocalLcd::Impl {
     enum class State { headless, starting, gui, settling, terminal };
     State state = State::headless;
+#ifdef _WIN32
+    std::unique_ptr<WindowsConsole> console;
+    std::unique_ptr<WindowsChannel> pipe;
+    win::Handle process;
+    int64_t child = -1;
+#else
     int tty = -1, channel = -1, diagnostic_fd = -1;
     pid_t child = -1;
+#endif
     bool terminating = false, term_sent = false, killed = false, ansi = false, region = false;
     bool small_reported = false, replacement_reported = false, suspended = false;
     bool shutdown_requested = false;
@@ -151,7 +206,9 @@ struct LocalLcd::Impl {
     Engine* engine = nullptr;
     bool writable = true, keep_on = false, dim = false, shown_dim = false;
     bool raw_input = false, dropping = false, last_cr = false, discard_input = false;
+#ifndef _WIN32
     termios saved_tty{};
+#endif
     std::string input, status = "cw ccw press help", shown_status;
     Time acknowledged{}, activity = Clock::now();
     std::string pending_failure;
@@ -166,6 +223,12 @@ struct LocalLcd::Impl {
                 .count());
     }
     void restore_input() noexcept {
+#ifdef _WIN32
+        if (console)
+            console->restore();
+        raw_input = false;
+        discard_input = true;
+#else
         if (raw_input) {
             SignalMask mask;
             if (mask.valid) {
@@ -178,6 +241,7 @@ struct LocalLcd::Impl {
             }
             discard_input = true;
         }
+#endif
     }
     void cancel() {
         if (engine)
@@ -197,6 +261,14 @@ struct LocalLcd::Impl {
         acknowledged = Clock::now() + 750ms;
     }
     void terminal_input(Time now) {
+#ifdef _WIN32
+        console->enable();
+        raw_input = true;
+        auto bytes = console->input(discard_input);
+        discard_input = false;
+        auto n = bytes.size();
+        const char* buffer = bytes.data();
+#else
         if (!raw_input) {
             if (tcgetattr(tty, &saved_tty) != 0)
                 throw std::runtime_error("cannot read terminal modes");
@@ -218,7 +290,8 @@ struct LocalLcd::Impl {
         ssize_t n = read(tty, buffer, sizeof buffer);
         if (n < 0 && errno != EAGAIN && errno != EINTR)
             throw std::runtime_error("terminal input failed");
-        for (ssize_t i = 0; i < n; ++i) {
+#endif
+        for (decltype(n) i = 0; i < n; ++i) {
             unsigned char c = static_cast<unsigned char>(buffer[i]);
             activity = now;
             if (c == '\n' && last_cr) {
@@ -258,12 +331,20 @@ struct LocalLcd::Impl {
     void start(const std::string& mode, const LcdRows& rows) {
         if (mode == "off")
             return;
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(_WIN32)
         // Linux permits a new open-file description for a redirected pipe.
         // Never set O_NONBLOCK on the caller's shared stderr description.
         diagnostic_fd = open("/proc/self/fd/2", O_WRONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
 #endif
+#ifdef _WIN32
+        try {
+            console = std::make_unique<WindowsConsole>();
+        } catch (const std::exception&) {
+            // A GUI or headless session does not require a console.
+        }
+#else
         tty = open("/dev/tty", O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
+#endif
         bool replaced;
         latest = unicode_lcd(rows, replaced);
         replacement_reported = replaced;
@@ -281,6 +362,14 @@ struct LocalLcd::Impl {
         for (char& c : safe)
             if (static_cast<unsigned char>(c) < 32 || static_cast<unsigned char>(c) > 126)
                 c = '?';
+#ifdef _WIN32
+        try {
+            if (console && terminal_output.empty() && console->output("LCD: " + safe + "\r\n"))
+                region = false;
+        } catch (const std::exception&) {
+            // Optional diagnostics use only the bounded console worker.
+        }
+#else
         std::string line = "LCD: " + safe + "\n";
         if (foreground(tty) && terminal_output.empty()) {
             SignalMask mask;
@@ -300,10 +389,24 @@ struct LocalLcd::Impl {
                                (fstat(STDERR_FILENO, &status) == 0 && S_ISREG(status.st_mode))))
                 (void)write(STDERR_FILENO, line.data(), line.size());
         }
+#endif
     }
+
     void terminal() {
         discard_input = true;
         state = State::headless;
+#ifdef _WIN32
+        if (!console)
+            return;
+        try {
+            console->enable();
+        } catch (const std::exception&) {
+            console->restore();
+            console.reset();
+            return;
+        }
+        ansi = true;
+#else
         if (!foreground(tty)) {
             note("no foreground controlling terminal; continuing headless");
             return;
@@ -317,14 +420,22 @@ struct LocalLcd::Impl {
         ansi = name == "xterm" || name.rfind("xterm-", 0) == 0 || name == "screen" ||
                name.rfind("screen-", 0) == 0 || name == "tmux" || name.rfind("tmux-", 0) == 0 ||
                name == "vt100" || name == "vt220";
+#endif
         if (!ansi && engine)
             note("terminal controls require ANSI cursor rewriting; read-only display");
         state = State::terminal;
         next_frame = Time{};
         shown = {};
     }
-    void terminate_child() {
+    void close_channel() {
+#ifdef _WIN32
+        pipe.reset();
+#else
         close_fd(channel);
+#endif
+    }
+    void terminate_child() {
+        close_channel();
         if (child > 0 && !terminating) {
             // A closed channel can precede waitpid's reserved exit status.
             // Do not replace that status with SIGTERM during interpreter exit.
@@ -336,18 +447,32 @@ struct LocalLcd::Impl {
         cancel();
         shutdown_requested = true;
         state = State::headless;
-        close_fd(channel);
+        close_channel();
+    }
+    std::optional<std::string> receive_packet() {
+#ifdef _WIN32
+        if (!pipe || !pipe->accept(static_cast<uint32_t>(child)))
+            return {};
+        return pipe->receive();
+#else
+        char data[4097];
+        ssize_t count = recv(channel, data, sizeof data, 0);
+        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
+            return {};
+        if (count <= 0 || count > 4096)
+            throw std::runtime_error("invalid GUI message size");
+        return std::string(data, size_t(count));
+#endif
     }
     bool queued_close() {
         // On a channel error, retain explicit close intent but never replay actions.
         for (int i = 0; i < 6; ++i) {
-            char data[4097];
-            ssize_t count = recv(channel, data, sizeof data, 0);
-            if (count <= 0)
-                break;
             try {
-                if (count <= 4096) {
-                    auto j = Json::parse(std::string(data, size_t(count)));
+                auto packet = receive_packet();
+                if (!packet)
+                    break;
+                {
+                    auto j = Json::parse(*packet);
                     if (j.object().size() == 2 && j.at("version").integer() == 2 &&
                         j.at("type").string() == "close")
                         return true;
@@ -370,6 +495,29 @@ struct LocalLcd::Impl {
         }
     }
     void launch() {
+#ifdef _WIN32
+        auto python = python_path(), helper = helper_path();
+        if (python.empty() || !std::filesystem::is_regular_file(std::filesystem::u8path(helper))) {
+            fallback("Python interpreter or LCD helper unavailable");
+            return;
+        }
+        pipe = std::make_unique<WindowsChannel>();
+        auto command = win::quote(win::wide(python)) + L" -I " + win::quote(win::wide(helper)) +
+                       L" --pipe " + win::quote(pipe->name()) + L" --parent-pid " +
+                       std::to_wstring(GetCurrentProcessId());
+        STARTUPINFOW startup{};
+        startup.cb = sizeof startup;
+        PROCESS_INFORMATION result{};
+        if (!CreateProcessW(win::wide(python).c_str(), command.data(), nullptr, nullptr, FALSE,
+                            CREATE_NO_WINDOW, nullptr, nullptr, &startup, &result))
+            throw win::error("launch LCD helper");
+        CloseHandle(result.hThread);
+        process = win::Handle(result.hProcess);
+        child = result.dwProcessId;
+        state = State::starting;
+        started = progress = gui_output_progress = Clock::now();
+        heartbeat = next_frame = Time{};
+#else
         std::string helper = helper_path(), python = python_path();
         if (python.empty() || access(helper.c_str(), R_OK) != 0) {
             fallback("Python interpreter or LCD helper unavailable");
@@ -454,10 +602,27 @@ struct LocalLcd::Impl {
         if (getsockopt(channel, SOL_SOCKET, SO_SNDBUF, &send_buffer, &size) == 0)
             note("GUI interpreter " + python + "; send buffer " + std::to_string(send_buffer) +
                  " bytes");
+#endif
     }
     void reap(Time now) {
         if (child <= 0)
             return;
+#ifdef _WIN32
+        DWORD exit_status = STILL_ACTIVE;
+        if (!GetExitCodeProcess(process.get(), &exit_status))
+            throw win::error("inspect LCD helper");
+        if (WaitForSingleObject(process.get(), 0) == WAIT_OBJECT_0) {
+            child = -1;
+            process.reset();
+            if (exit_status == 10)
+                request_shutdown();
+            if (state == State::starting || state == State::gui)
+                fallback("graphical window closed or viewer exited");
+        } else if (terminating && now >= terminate_at) {
+            if (!TerminateProcess(process.get(), 1))
+                throw win::error("stop owned LCD helper");
+        }
+#else
         int status = 0;
         pid_t result = waitpid(child, &status, WNOHANG);
         if (result == child || (result < 0 && errno == ECHILD)) {
@@ -477,8 +642,15 @@ struct LocalLcd::Impl {
             kill(child, SIGKILL);
             killed = true;
         }
+#endif
     }
     bool send_message(const std::string& bytes) {
+#ifdef _WIN32
+        if (!pipe || !pipe->accept(static_cast<uint32_t>(child)) || !pipe->send(bytes))
+            return false;
+        gui_output_progress = Clock::now();
+        return true;
+#else
         ssize_t count = send(channel, bytes.data(), bytes.size(), 0);
         if (count == ssize_t(bytes.size())) {
             gui_output_progress = Clock::now();
@@ -487,16 +659,14 @@ struct LocalLcd::Impl {
         if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
             return false;
         throw std::runtime_error("GUI channel write failed");
+#endif
     }
     void gui_tick(Time now) {
         for (int i = 0; i < 6; ++i) {
-            char data[4097];
-            ssize_t count = recv(channel, data, sizeof data, 0);
-            if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
+            auto packet = receive_packet();
+            if (!packet)
                 break;
-            if (count <= 0 || count > 4096)
-                throw std::runtime_error("invalid GUI message size");
-            Json j = Json::parse(std::string(data, size_t(count)));
+            Json j = Json::parse(*packet);
             if (j.at("version").integer() != 2)
                 throw std::runtime_error("invalid GUI message schema");
             std::string type = j.at("type").string();
@@ -579,6 +749,13 @@ struct LocalLcd::Impl {
         }
     }
     void terminal_tick(Time now) {
+#ifdef _WIN32
+        if (!console)
+            throw std::runtime_error("console unavailable");
+        console->check();
+        auto dimensions = console->dimensions();
+        unsigned columns = dimensions.first, rows = dimensions.second;
+#else
         if (!foreground(tty)) {
             restore_input();
             cancel();
@@ -591,9 +768,11 @@ struct LocalLcd::Impl {
             throw std::runtime_error("cannot guard terminal operation");
         if (ioctl(tty, TIOCGWINSZ, &size) != 0 || size.ws_col == 0 || size.ws_row == 0)
             throw std::runtime_error("terminal dimensions unavailable");
-        if (width != size.ws_col || height != size.ws_row || suspended) {
-            width = size.ws_col;
-            height = size.ws_row;
+        unsigned columns = size.ws_col, rows = size.ws_row;
+#endif
+        if (width != columns || height != rows || suspended) {
+            width = columns;
+            height = rows;
             terminal_output.clear();
             written = 0;
             region = false;
@@ -632,7 +811,11 @@ struct LocalLcd::Impl {
                 char stamp[40];
                 std::time_t t = std::time(nullptr);
                 std::tm tm{};
+#ifdef _WIN32
+                gmtime_s(&tm, &t);
+#else
                 gmtime_r(&t, &tm);
+#endif
                 std::strftime(stamp, sizeof stamp, "%Y-%m-%d %H:%M:%SZ\r\n", &tm);
                 frame += stamp;
             }
@@ -660,8 +843,12 @@ struct LocalLcd::Impl {
             region = true;
         }
         if (!terminal_output.empty()) {
+#ifdef _WIN32
+            auto n = console->output(terminal_output) ? terminal_output.size() : size_t(0);
+#else
             ssize_t n =
                 write(tty, terminal_output.data() + written, terminal_output.size() - written);
+#endif
             if (n > 0) {
                 written += size_t(n);
                 output_progress = now;
@@ -669,10 +856,13 @@ struct LocalLcd::Impl {
                     terminal_output.clear();
                     written = 0;
                 }
-            } else if (n < 0 && errno == EIO) {
+            }
+#ifndef _WIN32
+            else if (n < 0 && errno == EIO) {
                 suspended = true;
             } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
                 throw std::runtime_error("terminal write failed");
+#endif
             if (now - output_progress >= 5s)
                 throw std::runtime_error("terminal output stalled");
         }
@@ -732,13 +922,23 @@ struct LocalLcd::Impl {
         while (child > 0 && Clock::now() < deadline) {
             reap(Clock::now());
             if (child > 0)
+#ifdef _WIN32
+                Sleep(10);
+#else
                 poll(nullptr, 0, 10);
+#endif
         }
         if (child > 0) {
+#ifdef _WIN32
+            TerminateProcess(process.get(), 1);
+            WaitForSingleObject(process.get(), 5000);
+#else
             kill(child, SIGKILL);
             while (waitpid(child, nullptr, 0) < 0 && errno == EINTR) {
             }
+#endif
         }
+#ifndef _WIN32
         if (foreground(tty)) {
             SignalMask mask;
             if (mask.valid)
@@ -746,6 +946,7 @@ struct LocalLcd::Impl {
         }
         close_fd(tty);
         close_fd(diagnostic_fd);
+#endif
     }
 };
 LocalLcd::LocalLcd(const std::string& mode, const LcdRows& initial, Engine* engine, bool keep_on) {

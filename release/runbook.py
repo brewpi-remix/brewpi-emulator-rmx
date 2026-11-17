@@ -8,10 +8,15 @@ import re
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def render(root):
+def render(root, platform='linux'):
     root=Path(root).resolve()
     sections=[]
-    for name in ['docs/operation.md','config/README.md']:
+    if platform not in ['linux','macos','windows']:
+        raise ValueError('unsupported operating guide platform')
+    names=['docs/operation.md','config/README.md']
+    if platform in ['macos','windows']:
+        names.insert(0,'docs/'+platform+'.md')
+    for name in names:
         path=root/name
 
         def link(match):
@@ -26,7 +31,16 @@ def render(root):
                 return label+' (Scenario configuration below)'
             return label+' (source archive: '+relative+')'
 
-        text=re.sub(r'\[([^\]]+)\]\(([^)]+)\)',link,path.read_text())
+        markdown=path.read_text()
+        if platform in ['macos','windows'] and name=='docs/operation.md':
+            portable={'Command-line options','Optional local LCD','Local rotary and door controls',
+                      'Scenarios and simulation time','Stop, restart, and checkpoints','Troubleshooting'}
+            if platform=='windows':
+                portable={'Local rotary and door controls','Scenarios and simulation time'}
+            chunks=re.split(r'(?=^## )',markdown,flags=re.M)
+            markdown='\n'.join(chunk.rstrip() for chunk in chunks
+                               if chunk.splitlines()[0].removeprefix('## ') in portable)
+        text=re.sub(r'\[([^\]]+)\]\(([^)]+)\)',link,markdown)
         text=re.sub(r'^#+ ','',text,flags=re.M)
         text=re.sub(r'^```[^\n]*\n','',text,flags=re.M)
         sections.append(text.rstrip())
@@ -39,11 +53,12 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check',action='store_true',help='fail if the installed guide is stale')
     args=parser.parse_args()
-    target=ROOT/'docs/operation.txt';expected=render(ROOT)
-    if args.check:
-        if not target.is_file() or target.read_text()!=expected:
-            raise SystemExit('Installed guide is stale; run python3 release/runbook.py')
-    else:target.write_text(expected)
+    for filename,platform in [('operation.txt','linux'),('macos.txt','macos'),('windows.txt','windows')]:
+        target=ROOT/'docs'/filename;expected=render(ROOT,platform)
+        if args.check:
+            if not target.is_file() or target.read_text()!=expected:
+                raise SystemExit('Installed guide is stale; run python3 release/runbook.py')
+        else:target.write_text(expected)
 
 
 if __name__=='__main__':main()

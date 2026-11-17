@@ -8,6 +8,7 @@ import importlib.util
 import os
 from pathlib import Path
 import pty
+import sys
 import tempfile
 import termios
 import tty
@@ -67,6 +68,25 @@ class ReadinessChecks(unittest.TestCase):
 
     def test_dead_process_is_rejected(self):
         with self.assertRaises(ProcessLookupError):readiness.wait_ready('/absent',99999999,.1)
+
+    def test_ignored_break_matches_native_raw_mode_without_consuming_bytes(self):
+        master,slave=pty.openpty()
+        try:
+            tty.setraw(slave)
+            attrs=termios.tcgetattr(slave);attrs[0]|=termios.IGNBRK
+            termios.tcsetattr(slave,termios.TCSANOW,attrs)
+            before=termios.tcgetattr(slave)
+            with tempfile.TemporaryDirectory() as temporary:
+                link=Path(temporary)/'serial';link.symlink_to(os.ttyname(slave))
+                expected=b'N:unchanged\r\n';os.write(master,expected)
+                if sys.platform=='darwin':
+                    readiness.wait_ready(link,os.getpid(),.2)
+                else:
+                    with self.assertRaises(TimeoutError):readiness.wait_ready(link,os.getpid(),.03)
+                self.assertEqual(termios.tcgetattr(slave),before)
+                self.assertEqual(os.read(slave,4096),expected)
+        finally:
+            os.close(master);os.close(slave)
 
     def test_invalid_limits_are_rejected(self):
         for pid,timeout in [(0,1),(-1,1),(os.getpid(),0),(os.getpid(),float('nan')),(os.getpid(),301)]:
