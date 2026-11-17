@@ -2,6 +2,8 @@
 
 Original MIT defaults and [machine-readable data](test-vectors/defaults-v1.json) for the normal Uno/RevC profile in the [behavioral contract](behavioral-contract.md).
 
+The `i2c` profile uses the same numeric/control defaults and synthetic probe ROMs, with bus pin `14`, output inventory 5, 6, 2, 10, and default virtual heater/cooler/light/fan pins 6/5/2/10. Explicit scenario loads override these physical defaults. Profile selection does not simulate an electrical LCD bus; see the [profile table and persistence rules](../../docs/operation.md#connect-brewpi-remix).
+
 ## Numeric categories and representation
 
 The controller uses signed 16-bit temperatures/factors with 512 internal units per degree and a temperature offset: absolute `C` = raw/512 + 48. Raw -32768 and -32767 are invalid/disabled absolute-temperature sentinels and print `null`. Other raw values are data, so zero-initialized absolute peak variables print 48 C rather than `null`. Difference/factor values have no offset. Output positive numeric text has a leading space; negative text has a minus sign. Rounding occurs at the firmware's fixed-point and final decimal stages. JSON semantic comparisons preserve number-versus-string/`null` types; explicit byte vectors additionally preserve padding and framing. Sources: [formats](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/TemperatureFormats.h#L46) and [formatting](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/TemperatureFormats.cpp#L46).

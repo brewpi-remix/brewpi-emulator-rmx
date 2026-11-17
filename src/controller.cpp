@@ -509,6 +509,7 @@ Json Engine::checkpoint() const {
     for (auto& r : screen)
         rows.emplace_back(hex(r));
     return Json::Object{{"format", "brewpi-emulator-engine-checkpoint-v1"},
+                        {"profile", profile_name(profile)},
                         {"store", store_image()},
                         {"settings", pack(settings)},
                         {"constants", pack(constants)},
@@ -543,7 +544,10 @@ Json Engine::checkpoint() const {
 void Engine::restore_checkpoint(const Json& j) {
     if (j.at("format").string() != "brewpi-emulator-engine-checkpoint-v1")
         throw std::runtime_error("unsupported checkpoint format");
-    Engine copy(output);
+    Profile captured = j.has("profile") ? parse_profile(j.at("profile").string()) : Profile::revc;
+    if (captured != profile)
+        throw std::runtime_error("checkpoint profile mismatch");
+    Engine copy(output, profile);
     copy.load_store(j.at("store"));
     // Validate live words using the native store schema without applying a
     // firmware reload or mutating the captured saved configuration.
@@ -551,7 +555,7 @@ void Engine::restore_checkpoint(const Json& j) {
     live_store["controller_version"] = 4;
     live_store["settings_raw"] = j.at("settings");
     live_store["constants_raw"] = j.at("constants");
-    Engine live([](const std::string&) {});
+    Engine live([](const std::string&) {}, profile);
     live.load_store(live_store);
     copy.settings = live.saved_settings;
     copy.constants = live.saved_constants;

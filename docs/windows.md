@@ -29,6 +29,7 @@ Provide explicit `--serial`, `--serial-pair`, and writable `--state` arguments. 
 | `--serial COMn` | Required selected emulator endpoint from the pair record. |
 | `--serial-pair PATH` | Required operator-provisioned pair record. |
 | `--state PATH` | Required writable local-drive controller store. |
+| `--profile revc` or `--profile i2c` | Controller personality; default `revc`. See the [profile pin map and saved-state rules](operation.md#connect-brewpi-remix). |
 | `--scenario PATH` | Read-only physical scenario input, excluded when resuming. |
 | `--speed FACTOR` | Simulated pacing from `0` through `1000`; default `1`, or the scenario/checkpoint value. |
 | `--checkpoint PATH` | Save a checkpoint on eligible orderly shutdown. |

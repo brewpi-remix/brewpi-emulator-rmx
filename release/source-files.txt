@@ -81,6 +81,7 @@ src/json.hpp
 src/lcd.cpp
 src/lcd.hpp
 src/main.cpp
+src/profile.hpp
 src/storage.cpp
 src/storage.hpp
 src/storage_windows.cpp

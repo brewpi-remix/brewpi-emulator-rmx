@@ -158,13 +158,14 @@ int application_main(int argc, char** argv) {
                     store = "/var/lib/brewpi-emulator/chamber1/controller.json";
 #endif
         std::string scenario_path, resume_path, checkpoint_path, lcd_mode = "off";
+        rmx::Profile profile = rmx::Profile::revc;
         double speed = 1, pacing_fraction = 0;
         bool speed_supplied = false, lcd_keep_on = false;
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--help") {
                 std::cout << "Usage: brewpi-emulator-rmx [--serial PATH] [--state PATH] "
-                             "[--scenario PATH]\n"
+                             "[--scenario PATH] [--profile revc|i2c]\n"
                              "       [--speed FACTOR] [--resume PATH] [--checkpoint PATH]\n"
                              "       [--lcd off|terminal|gui|auto] [--lcd-keep-on]\n"
 #ifdef _WIN32
@@ -194,6 +195,8 @@ int application_main(int argc, char** argv) {
 #endif
             else if (arg == "--state")
                 store = val;
+            else if (arg == "--profile")
+                profile = rmx::parse_profile(val);
             else if (arg == "--scenario")
                 scenario_path = val;
             else if (arg == "--resume")
@@ -257,7 +260,7 @@ int application_main(int argc, char** argv) {
             checkpoint_file =
                 std::make_unique<rmx::Storage>(std::filesystem::u8path(checkpoint_path));
         std::string pending;
-        rmx::Engine engine([&](const std::string& s) { pending += s; });
+        rmx::Engine engine([&](const std::string& s) { pending += s; }, profile);
         auto saved = storage.load();
         if (!resume_path.empty()) {
             std::optional<rmx::Json> snapshot;
@@ -270,7 +273,7 @@ int application_main(int argc, char** argv) {
                 throw std::runtime_error("missing or incompatible checkpoint");
             engine.restore_checkpoint(snapshot->at("engine"));
             if (saved) {
-                rmx::Engine current([](const std::string&) {});
+                rmx::Engine current([](const std::string&) {}, profile);
                 current.load_store(*saved);
                 if (current.store_image().dump() != engine.store_image().dump())
                     throw std::runtime_error("checkpoint does not match saved controller store");

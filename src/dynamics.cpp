@@ -137,7 +137,7 @@ void SensorHistory::restore(const Json& j) {
     connected = j.at("connected").boolean();
 }
 
-Plant::Plant() {
+Plant::Plant(Profile selected) : profile(selected) {
     configure(Json::Object{});
 }
 void Plant::configure(const Json& config) {
@@ -254,7 +254,11 @@ void Plant::configure(const Json& config) {
     elapsed_ms = 0;
     energy_from_loads = energy_from_fermentation = energy_from_room = 0;
     available.fill(true);
-    loads = {{5, 25, true}, {6, -60, true}, {2, 0, true}, {19, 0, true}};
+    const auto hardware = profile_hardware(profile);
+    loads = {{hardware.heater, 25, true},
+             {hardware.cooler, -60, true},
+             {hardware.light, 0, true},
+             {hardware.fan, 0, true}};
     if (config.has("physical_loads")) {
         loads.clear();
         std::map<int, bool> used;

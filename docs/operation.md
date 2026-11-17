@@ -35,7 +35,7 @@ Configure the host's `port` as the exact `--serial` path, `altport=None`, and op
 
 A new absent state file represents erased controller configuration. The `W3` startup warning is expected. Use the panel's factory reset, which sends `E`, then discover and assign virtual probes and outputs. Initialization does not create automatic assignments. The virtual hardware inventory and controller defaults are in the [protocol reference](../engineering/protocol/README.md).
 
-The default physical assignments are:
+The default RevC physical assignments are:
 
 | Discovered address or pin | Physical role |
 | --- | --- |
@@ -47,6 +47,19 @@ The default physical assignments are:
 | Pin 2 | Light output; no added heat by default. |
 | Pin 19 | Fan output; no added heat by default. |
 
+Choose `--profile revc` (the default) or `--profile i2c` at startup. This selects the emulated Uno shield identity and pin map; the local LCD presentation is shared and does not drive a physical display bus.
+
+| Profile | Serial identity `s` | Probe bus | Output discovery order | Default heater / cooler / light / fan |
+| --- | --- | --- | --- | --- |
+| `revc` | `2` | A4 (`18`) | 2, 5, 6, 19 | 5 / 6 / 2 / 19 |
+| `i2c` | `5` | A0 (`14`) | 5, 6, 2, 10 | 6 / 5 / 2 / 10 |
+
+For an I2C bench comparison, add `--profile i2c` to the startup command and use a new dedicated `--state` path. Probe ROMs, control logic, serial grammar, and thermal parameters remain shared. Explicit scenario `physical_loads` replace the profile's default load wiring without being remapped. Assign discovered pins for the selected profile through the host after initialization.
+
+Stores and checkpoints record the selected `profile`. Always supply `--profile i2c` when restarting or resuming an I2C instance; the option defaults to RevC even when reading saved files. A profile mismatch fails locally before opening the serial interface, without rewriting assignments. Existing files without profile metadata are interpreted as RevC. There is no automatic profile conversion: retain existing stores/checkpoints, and initialize a separate state file for another profile. These checks protect emulator files; they do not add Arduino serial diagnostics or stricter digital-pin validation.
+
+RevC controller stores retain format `brewpi-emulator-store-v1`. I2C stores use `brewpi-emulator-store-v2` with an explicit `profile: i2c` tag, so older RevC-only executables reject them. An untagged V2 store is invalid, not a legacy RevC file. Checkpoints embed the corresponding store and record the profile too.
+
 Use the discovered active-low/inverted setting for the default outputs. Function assignments do not move probes or change physical load wiring. Door input uses pin 4, which is not included in ordinary output discovery; local door commands change that modeled physical input. Scenarios can change physical loads and the door pin.
 
 After replacing the emulator process, reopen or restart the host against the new serial path. An existing open descriptor still points to the old PTY. USB discovery, USB reset, firmware flashing, and automatic host reconnection are not provided.
@@ -57,6 +70,7 @@ After replacing the emulator process, reopen or restart the host against the new
 | --- | --- |
 | `--serial PATH` | Published PTY symlink. Default: `/run/brewpi-emulator/chamber1/serial`. |
 | `--state PATH` | Persistent controller store. Default: `/var/lib/brewpi-emulator/chamber1/controller.json`. |
+| `--profile revc` or `--profile i2c` | Uno shield identity, probe bus, output inventory, and default virtual load wiring. Default: `revc`. Use the same profile for saved state and checkpoint resume. |
 | `--scenario PATH` | Read a JSON physical scenario at startup. Mutually exclusive with `--resume`. |
 | `--speed FACTOR` | Wall-time pacing factor from 0 through 1000. Default: 1. Zero pauses scheduled simulated time. |
 | `--checkpoint PATH` | Write a coherent continuation snapshot during clean shutdown. |

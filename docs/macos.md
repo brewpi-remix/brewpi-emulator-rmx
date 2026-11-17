@@ -24,6 +24,8 @@ Use `./bin/brewpi-emulator-rmx` from an extracted archive, or `./build-macos/bre
 
 Headless operation uses `--lcd off`. For graphical controls, use `--lcd gui` or `--lcd auto` with the external GUI dependencies available. The [operating guide](operation.md#local-rotary-and-door-controls) describes the existing rotary, pushbutton, and door controls. These local controls do not change Arduino serial acceptance or replies.
 
+The controller defaults to RevC. Add `--profile i2c` for the Uno I2C pin map, with A0 probes and the I2C shield identity. Use a separate state file, and keep the same profile on restart and checkpoint resume; see [profile pin maps and saved-state rules](operation.md#connect-brewpi-remix).
+
 Configure a serial client on the same Mac with the stable symlink rather than the changing `/dev/ttys...` target:
 
 ```ini

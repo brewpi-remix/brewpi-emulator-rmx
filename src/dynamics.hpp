@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "json.hpp"
+#include "profile.hpp"
 
 #include <array>
 #include <cstdint>
@@ -45,6 +46,7 @@ struct SensorHistory {
 
 // Independent equipment energy model; no controller decisions reside here.
 class Plant {
+    Profile profile;
     Json scenario;
     std::array<double, 3> temperature{{20, 20, 20}}, lagged{{20, 20, 20}};
     std::array<int, 3> probe{{-14336, -14336, -14336}};
@@ -69,7 +71,7 @@ class Plant {
   public:
     uint64_t elapsed_ms = 0;
     double energy_from_loads = 0, energy_from_fermentation = 0, energy_from_room = 0;
-    Plant();
+    explicit Plant(Profile profile = Profile::revc);
     void configure(const Json& config);
     void step(const std::map<int, bool>& pins); // fixed 100 ms
     std::optional<int> read(size_t index) const;

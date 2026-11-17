@@ -1,5 +1,7 @@
 # Development tests
 
+The model suite also covers RevC/I2C identity, discovery order, A4/A0 probe validation, persistence/checkpoint profile isolation, legacy RevC files, and profile-specific thermal load wiring. The process suite exercises the public `--profile` option, restart/resume, and rejection before PTY publication. The 48 original source-defined fixtures remain RevC cases; the nine characterization cases remain unresolved.
+
 The six CTest suites exercise model arithmetic, dynamics/controller behavior, process pacing/checkpoints, protocol fixtures, edge cases, and real PTY/file ownership. Build and run them using the [development guide](../docs/development.md). Reports distinguish deterministic source-defined cases from unresolved physical/artifact-dependent behavior.
 
 The original [fixture driver](driver.cpp) provides controlled internal state for semantic tests. The shipped executable has no such test interface. PTY/process tests exercise the public executable separately. [Fixture data](../engineering/protocol/test-vectors/README.md) describes byte matching and characterization limits.

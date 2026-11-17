@@ -1,6 +1,6 @@
 # Protocol reference
 
-The emulator follows the normal Uno/RevC BrewPi Remix controller personality over a PTY. Serial commands preserve firmware types, byte framing, mutation order, diagnostics, timing, and deterministic quirks. Native scenario/store/checkpoint JSON is a separate interface.
+The emulator defaults to the normal Uno/RevC BrewPi Remix controller personality; `--profile i2c` selects the Uno I2C identity and pin map. Serial commands preserve firmware types, byte framing, mutation order, diagnostics, timing, and deterministic quirks. The virtual LCD does not simulate electrical SPI or I²C transport. Native scenario/store/checkpoint JSON is a separate interface.
 
 - [Behavioral contract](behavioral-contract.md)
 - [Command details](commands.md)

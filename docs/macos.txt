@@ -26,6 +26,8 @@ Use `./bin/brewpi-emulator-rmx` from an extracted archive, or `./build-macos/bre
 
 Headless operation uses `--lcd off`. For graphical controls, use `--lcd gui` or `--lcd auto` with the external GUI dependencies available. The operating guide (source archive: docs/operation.md) describes the existing rotary, pushbutton, and door controls. These local controls do not change Arduino serial acceptance or replies.
 
+The controller defaults to RevC. Add `--profile i2c` for the Uno I2C pin map, with A0 probes and the I2C shield identity. Use a separate state file, and keep the same profile on restart and checkpoint resume; see profile pin maps and saved-state rules (source archive: docs/operation.md).
+
 Configure a serial client on the same Mac with the stable symlink rather than the changing `/dev/ttys...` target:
 
 port = /Users/example/.local/run/brewpi-emulator/serial
@@ -45,6 +47,7 @@ Command-line options
 | --- | --- |
 | `--serial PATH` | Published PTY symlink. Default: `/run/brewpi-emulator/chamber1/serial`. |
 | `--state PATH` | Persistent controller store. Default: `/var/lib/brewpi-emulator/chamber1/controller.json`. |
+| `--profile revc` or `--profile i2c` | Uno shield identity, probe bus, output inventory, and default virtual load wiring. Default: `revc`. Use the same profile for saved state and checkpoint resume. |
 | `--scenario PATH` | Read a JSON physical scenario at startup. Mutually exclusive with `--resume`. |
 | `--speed FACTOR` | Wall-time pacing factor from 0 through 1000. Default: 1. Zero pauses scheduled simulated time. |
 | `--checkpoint PATH` | Write a coherent continuation snapshot during clean shutdown. |
@@ -127,6 +130,8 @@ Use the actual emulator PID and installed helper path. This checks a live PID an
 Scenario configuration
 
 Pass a JSON file with `--scenario PATH`. Unknown fields, invalid physical parameters, and input/output path aliases are rejected. Omitted fields use the built-in defaults. Inputs are read without modification. A scenario sets external equipment/initial conditions; it does not change firmware constants or replace a resumed checkpoint history.
+
+Select the controller personality separately with `--profile revc|i2c`; the default is `revc`. When `physical_loads` is omitted, default heater/cooler/light/fan pins are 5/6/2/19 for RevC and 6/5/2/10 for I2C. An explicit load list is used exactly as written in either profile. `instance_id` continues to select the supported synthetic probe identities, not the controller profile. See the profile and saved-state rules (source archive: docs/operation.md).
 
 The source tree includes active-fermentation.json (source archive: config/active-fermentation.json) and room-cycle.json (source archive: config/room-cycle.json). For a standalone binary, create a scenario file, for example:
 

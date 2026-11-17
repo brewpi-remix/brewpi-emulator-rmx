@@ -4,6 +4,8 @@ BrewPi Emulator Remix replaces an Arduino controller with a native Linux, macOS,
 
 Run it alongside BrewPi Remix's host and web panel. The host connects to the emulator's serial path just as it connects to a controller. No Arduino, USB serial adapter, GPIO, sensors, or relays are needed.
 
+The default Uno/RevC personality is retained. Select `--profile i2c` for the Uno I2C identity and A0 probe bus; see the [profile pin maps and saved-state rules](docs/operation.md#connect-brewpi-remix).
+
 ## Quick start
 
 Use the binary archive for your Linux architecture from the [downloads](https://github.com/brewpi-remix/brewpi-emulator-rmx/releases). The supported binary baseline is 64-bit Debian 12 on amd64 or ARM64, with its C/C++ runtime libraries. See [installation](docs/operation.md#installation) for archive verification, dependencies, and source builds.

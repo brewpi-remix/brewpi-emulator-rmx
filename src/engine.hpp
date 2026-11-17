@@ -18,7 +18,7 @@ struct Device {
 class Engine {
   public:
     using Sink = std::function<void(const std::string&)>;
-    explicit Engine(Sink sink);
+    explicit Engine(Sink sink, Profile profile = Profile::revc);
     void feed(const std::string& bytes);
     void read_timeout();
     bool reading() const {
@@ -67,6 +67,7 @@ class Engine {
     }
 
   private:
+    Profile profile;
     uint64_t local_epoch = 0;
     struct LocalMenu {
         enum Page { idle, setting, mode, beer, fridge } page = idle;

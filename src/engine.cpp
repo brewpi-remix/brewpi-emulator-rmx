@@ -124,7 +124,8 @@ std::map<std::string, int> read_map(const Json& j) {
     return m;
 }
 } // namespace
-Engine::Engine(Sink sink) : output(std::move(sink)) {
+Engine::Engine(Sink sink, Profile selected)
+    : profile(selected), output(std::move(sink)), plant(selected) {
     defaults(true, true);
     for (auto& k : vkeys)
         variables[k] = 0;
@@ -514,7 +515,7 @@ void Engine::byte(unsigned char c) {
     case 'n':
         frame('N', object({{"v", "\"0.2.13\""},
                            {"n", "\"8f1fa12\""},
-                           {"s", "2"},
+                           {"s", std::to_string(profile_hardware(profile).shield)},
                            {"y", "0"},
                            {"b", "\"s\""},
                            {"l", "\"3\""}}));
@@ -657,7 +658,7 @@ int Engine::validate(const Device& d) {
         diagnostic('E', 8, {t, d.h});
         return 8;
     }
-    if (d.h == 2 && d.p != 18) {
+    if (d.h == 2 && d.p != probe_pin(profile)) {
         diagnostic('E', 9, {d.p});
         return 9;
     }
@@ -789,12 +790,12 @@ void Engine::discover() {
     for (auto rom : {"28A1010000000204", "28A10100000001E6", "28A101000000035A"}) {
         Device d;
         d.h = 2;
-        d.p = 18;
+        d.p = probe_pin(profile);
         d.c = 1;
         d.rom = rom;
         inventory.push_back(d);
     }
-    for (int p : {2, 5, 6, 19}) {
+    for (int p : output_pins(profile)) {
         Device d;
         d.h = 1;
         d.p = p;
@@ -948,15 +949,28 @@ Json Engine::store_image() const {
     Json::Array ds;
     for (auto& d : slots)
         ds.push_back(encode_device(d));
-    return Json::Object{{"format", "brewpi-emulator-store-v1"},
+    return Json::Object{{"format", profile == Profile::i2c ? "brewpi-emulator-store-v2"
+                                                           : "brewpi-emulator-store-v1"},
+                        {"profile", profile_name(profile)},
                         {"controller_version", valid ? 4 : 255},
                         {"settings_raw", map_json(saved_settings)},
                         {"constants_raw", map_json(saved_constants)},
                         {"devices", ds}};
 }
 void Engine::load_store(const Json& image) {
-    if (image.at("format").string() != "brewpi-emulator-store-v1")
+    const auto format = image.at("format").string();
+    if (format != "brewpi-emulator-store-v1" && format != "brewpi-emulator-store-v2")
         throw std::runtime_error("unrecognized emulator store format");
+    // Older stores belong to the original RevC personality. Never reinterpret
+    // pin assignments by silently changing the controller's hardware profile.
+    Profile stored_profile =
+        image.has("profile") ? parse_profile(image.at("profile").string()) : Profile::revc;
+    // V2 protects I2C stores from older RevC-only executables, which reject the
+    // format before they can clear or rewrite unfamiliar pin assignments.
+    if ((format == "brewpi-emulator-store-v2") != (stored_profile == Profile::i2c))
+        throw std::runtime_error("controller store format/profile mismatch");
+    if (stored_profile != profile)
+        throw std::runtime_error("controller store profile mismatch");
     int version = image.at("controller_version").integer();
     valid = version == 4;
     if (!valid)
@@ -1030,7 +1044,7 @@ void Engine::construct(const Json& spec) {
     integral_counter = 0;
     integral_branches = 0;
     positive_pending = negative_pending = door_open = false;
-    plant = Plant{};
+    plant = Plant{profile};
     if (spec.has("scenario"))
         plant.configure(spec.at("scenario"));
     sensors = {{5, {}}, {6, {}}, {9, {}}};

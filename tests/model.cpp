@@ -1,6 +1,6 @@
 // Copyright 2026 Lee Bussy
 // SPDX-License-Identifier: MIT
-#include "dynamics.hpp"
+#include "engine.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -10,8 +10,227 @@ void require(bool condition, const char* message) {
     if (!condition)
         throw std::runtime_error(message);
 }
+Json without_profile(const Json& value) {
+    Json::Object fields;
+    for (const auto& entry : value.object())
+        if (entry.first != "profile")
+            fields.push_back(entry);
+    return fields;
+}
+void profiles() {
+    std::string implicit_output, explicit_output;
+    Engine implicit([&](const std::string& s) { implicit_output += s; });
+    Engine explicit_revc([&](const std::string& s) { explicit_output += s; }, Profile::revc);
+    implicit.feed("Enh{}");
+    explicit_revc.feed("Enh{}");
+    require(implicit_output == explicit_output &&
+                implicit.checkpoint().dump() == explicit_revc.checkpoint().dump(),
+            "default and explicit RevC differ");
+    for (auto profile : {Profile::revc, Profile::i2c}) {
+        bool i2c = profile == Profile::i2c;
+        int bus = i2c ? 14 : 18;
+        std::string output;
+        Engine engine([&](const std::string& s) { output += s; }, profile);
+        auto request = [&](const std::string& command) {
+            output.clear();
+            engine.feed(command);
+            return Json::parse(output.substr(2));
+        };
+        const Json expected_identity =
+            Json::Object{{"v", "0.2.13"}, {"n", "8f1fa12"}, {"s", i2c ? 5 : 2},
+                         {"y", 0},        {"b", "s"},       {"l", "3"}};
+        require(request("n").dump() == expected_identity.dump(), "wrong profile identity");
+        engine.feed("E");
+        auto inventory = request("h{}").array();
+        require(inventory.size() == 7, "profile inventory size changed");
+        const std::array<int, 4> expected =
+            i2c ? std::array<int, 4>{5, 6, 2, 10} : std::array<int, 4>{2, 5, 6, 19};
+        const std::array<std::string, 3> roms{"28A1010000000204", "28A10100000001E6",
+                                              "28A101000000035A"};
+        for (size_t i = 0; i < 3; ++i) {
+            require(inventory[i].at("p").integer() == bus, "wrong probe bus inventory");
+            require(inventory[i].at("a").string() == roms[i], "probe search order changed");
+        }
+        for (size_t i = 0; i < 4; ++i)
+            require(inventory[i + 3].at("p").integer() == expected[i], "wrong output order");
+        auto installed = request("U{i:0,f:9,h:2,p:" + std::to_string(bus) + ",a:28A10100000001E6}");
+        require(installed.at("p").integer() == bus && installed.at("f").integer() == 9,
+                "profile probe assignment failed");
+        require(request("t").at("BeerTemp").number() == 20, "assigned probe did not read");
+        output.clear();
+        engine.feed("U{i:0,f:9,h:2,p:" + std::to_string(i2c ? 18 : 14) + ",a:28A10100000001E6}");
+        require(output.find("\"logID\":9") != std::string::npos,
+                "other profile's OneWire bus was accepted");
+        require(request("d{i:0}").array()[0].at("p").integer() == bus,
+                "failed assignment changed slot");
+        // Digital acceptance remains firmware-like, not restricted to discovery.
+        auto digital = request("U{i:1,f:2,h:1,p:18,x:1}");
+        require(digital.at("p").integer() == 18, "profile tightened digital validation");
+        // Exercise the real controller/output/plant path as well as the plant
+        // equation below; advancing time must heat on the selected profile pin.
+        request("U{i:2,f:2,h:1,p:" + std::to_string(i2c ? 6 : 5) + ",x:1}");
+        engine.feed("j{mode:t}d{i:2,w:1}");
+        engine.advance_ms(1000);
+        require(engine.observations().at("plant").at("load_energy_j").number() == 25,
+                "profile actuator did not drive its physical load");
+        // Continue a running, energized system, including histories and thermal state.
+        Engine active_copy([](const std::string&) {}, profile);
+        active_copy.restore_checkpoint(engine.checkpoint());
+        engine.advance_ms(1300);
+        active_copy.advance_ms(1300);
+        require(active_copy.checkpoint().dump() == engine.checkpoint().dump(),
+                "active profile checkpoint continuation diverged");
+        Engine cooler([](const std::string&) {}, profile);
+        cooler.feed("EU{i:0,f:3,h:1,p:" + std::to_string(i2c ? 5 : 6) + ",x:1}j{mode:t}d{i:0,w:1}");
+        cooler.advance_ms(1000);
+        require(cooler.observations().at("plant").at("load_energy_j").number() == -60,
+                "profile cooling actuator did not drive its physical load");
+        auto before_restart = engine.store_image();
+        engine.feed("R");
+        engine.restart();
+        require(engine.store_image().dump() == before_restart.dump(), "R changed saved profile");
+        auto store = engine.store_image();
+        require(store.at("profile").string() == profile_name(profile), "store lost profile");
+        require(store.at("format").string() ==
+                    (i2c ? "brewpi-emulator-store-v2" : "brewpi-emulator-store-v1"),
+                "I2C store is not protected from older executables");
+        Engine loaded([](const std::string&) {}, profile);
+        loaded.load_store(store);
+        loaded.boot();
+        require(loaded.store_image().dump() == store.dump(), "store reload changed assignments");
+        // A saved record on the other bus is discarded by firmware-style boot validation.
+        auto wrong_bus = store;
+        auto devices = wrong_bus.at("devices").array();
+        devices[0]["p"] = i2c ? 18 : 14;
+        wrong_bus["devices"] = devices;
+        Engine invalid_slot([](const std::string&) {}, profile);
+        invalid_slot.load_store(wrong_bus);
+        invalid_slot.boot();
+        require(invalid_slot.store_image().at("devices").array()[0].at("f").integer() == 0,
+                "saved probe bypassed selected-bus validation");
+        auto checkpoint = engine.checkpoint();
+        Engine continued([](const std::string&) {}, profile);
+        continued.restore_checkpoint(checkpoint);
+        require(continued.checkpoint().dump() == checkpoint.dump(),
+                "checkpoint changed profile state");
+        engine.restart();
+        require(request("n").at("s").integer() == (i2c ? 5 : 2), "restart lost profile");
+        require(request("d{i:0}").array()[0].at("p").integer() == bus, "restart lost probe");
+        Engine other([](const std::string&) {}, i2c ? Profile::revc : Profile::i2c);
+        auto before = other.checkpoint().dump();
+        for (bool snapshot : {false, true}) {
+            bool rejected = false;
+            try {
+                if (snapshot)
+                    other.restore_checkpoint(checkpoint);
+                else
+                    other.load_store(store);
+            } catch (const std::runtime_error&) {
+                rejected = true;
+            }
+            require(rejected && other.checkpoint().dump() == before,
+                    "profile mismatch was accepted or mutated state");
+        }
+        auto legacy_store = without_profile(store);
+        auto legacy_checkpoint = without_profile(checkpoint);
+        legacy_checkpoint["store"] = legacy_store;
+        Engine legacy([](const std::string&) {}, profile);
+        for (bool snapshot : {false, true}) {
+            bool rejected = false;
+            try {
+                if (snapshot)
+                    legacy.restore_checkpoint(legacy_checkpoint);
+                else
+                    legacy.load_store(legacy_store);
+            } catch (const std::runtime_error&) {
+                rejected = true;
+            }
+            require(rejected == i2c, "legacy profile interpretation changed");
+        }
+        if (i2c) {
+            Engine revc([](const std::string&) {});
+            bool refused = false;
+            try {
+                revc.load_store(legacy_store);
+            } catch (const std::runtime_error&) {
+                refused = true;
+            }
+            require(refused, "untagged I2C store was interpreted as RevC");
+        }
+        for (const auto& bad_tag : {Json("bogus"), Json(5), Json(nullptr)}) {
+            auto malformed = store;
+            malformed["profile"] = bad_tag;
+            bool rejected = false;
+            try {
+                loaded.load_store(malformed);
+            } catch (const std::exception&) {
+                rejected = true;
+            }
+            require(rejected && loaded.store_image().dump() == store.dump(),
+                    "invalid profile metadata was accepted or changed saved state");
+            auto malformed_checkpoint = checkpoint;
+            malformed_checkpoint["profile"] = bad_tag;
+            const auto unchanged = continued.checkpoint().dump();
+            rejected = false;
+            try {
+                continued.restore_checkpoint(malformed_checkpoint);
+            } catch (const std::exception&) {
+                rejected = true;
+            }
+            require(rejected && continued.checkpoint().dump() == unchanged,
+                    "invalid checkpoint profile was accepted or changed live state");
+        }
+        auto conflicting_format = store;
+        conflicting_format["format"] =
+            i2c ? "brewpi-emulator-store-v1" : "brewpi-emulator-store-v2";
+        bool format_rejected = false;
+        try {
+            loaded.load_store(conflicting_format);
+        } catch (const std::runtime_error&) {
+            format_rejected = true;
+        }
+        require(format_rejected && loaded.store_image().dump() == store.dump(),
+                "conflicting format/profile was accepted or changed saved state");
+        auto contradictory = checkpoint;
+        contradictory["store"]["profile"] = i2c ? "revc" : "i2c";
+        auto original = continued.checkpoint().dump();
+        bool rejected = false;
+        try {
+            continued.restore_checkpoint(contradictory);
+        } catch (const std::runtime_error&) {
+            rejected = true;
+        }
+        require(rejected && continued.checkpoint().dump() == original,
+                "contradictory checkpoint tags were accepted or changed live state");
+        Plant plant(profile);
+        plant.configure(Json::Object{{"beer_chamber_conductance_w_per_k", 0},
+                                     {"chamber_room_conductance_w_per_k", 0}});
+        for (int i = 0; i < 10; ++i)
+            plant.step({{i2c ? 6 : 5, false}});
+        require(plant.observations().at("load_energy_j").number() == 25,
+                "profile heater wiring did not deliver expected energy");
+        Plant cooling(profile);
+        for (int i = 0; i < 10; ++i)
+            cooling.step({{i2c ? 5 : 6, false}});
+        require(cooling.observations().at("load_energy_j").number() == -60,
+                "profile cooler wiring did not remove expected energy");
+        // Explicit physical wiring remains an operator choice in either profile.
+        plant.configure(Json::Object{
+            {"physical_loads",
+             Json::Array{Json::Object{
+                 {"pin", 19}, {"kind", "heater"}, {"watts", 10}, {"active_low", true}}}}});
+        plant.step({{19, false}, {5, false}, {6, false}});
+        require(plant.observations().at("load_energy_j").number() == 1,
+                "profile replaced explicit scenario wiring");
+        plant.configure(Json::Object{{"physical_loads", Json::Array{}}});
+        plant.step({{19, false}, {5, false}, {6, false}});
+        require(plant.observations().at("load_energy_j").number() == 0,
+                "profile ignored explicit empty physical loads");
+    }
+}
 int main() {
     try {
+        profiles();
         // Closed-form independent oracle: with b=0 the triple cascade is
         // (1+z^-1)^6 / [4096*(1-z^-1/2)^6]. Expand this binomial transfer
         // function for a 2^25 precise-unit impulse; the first nine outputs

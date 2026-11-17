@@ -26,6 +26,68 @@ def run():
     checks=[]
     with tempfile.TemporaryDirectory(prefix='rmx-pacing-') as tmp:
         root=Path(tmp)
+        for profile, shield, bus, pins in [('revc', 2, 18, [2,5,6,19]),
+                                           ('i2c', 5, 14, [5,6,2,10])]:
+            directory=root/profile;directory.mkdir()
+            checkpoint=directory/'checkpoint.json'
+            options=['--profile',profile,'--speed','0','--checkpoint',str(checkpoint)]
+            s=Session(directory,options=options)
+            try:
+                s.write(b'Enh{}')
+                s.expect('D',dict(logType='I',logID=15,V=[]))
+                assert s.expect('N')['s']==shield
+                inventory=s.expect('h')
+                assert [d['p'] for d in inventory]==[bus]*3+pins
+                s.write(('U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}'%bus).encode())
+                assert s.expect('U')['p']==bus
+            finally:s.close()
+            image=json.loads((directory/'controller.json').read_text())
+            assert image['profile']==profile
+            snapshot=json.loads(checkpoint.read_text())
+            resumed=directory/'resumed.json'
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0',
+                      '--resume',str(checkpoint),'--checkpoint',str(resumed)])
+            try:
+                s.write(b'nd{i:0}')
+                assert s.expect('N')['s']==shield
+                assert s.expect('d')[0]['p']==bus
+            finally:s.close()
+            assert json.loads(resumed.read_text())['engine']==snapshot['engine']
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0'])
+            try:
+                s.write(b'nd{i:0}')
+                assert s.expect('N')['s']==shield
+                assert s.expect('d')[0]['p']==bus
+            finally:s.close()
+            original=(directory/'controller.json').read_bytes()
+            for extra in [[],['--resume',str(checkpoint)]]:
+                result=subprocess.run([EXE,'--serial',str(directory/'serial'),
+                    '--state',str(directory/'controller.json'),'--profile',
+                    'i2c' if profile=='revc' else 'revc',*extra],capture_output=True,timeout=5)
+                assert result.returncode!=0 and b'profile mismatch' in result.stderr
+                assert (directory/'controller.json').read_bytes()==original
+                assert not (directory/'serial').is_symlink()
+            # Exercise local metadata failures through the public application too.
+            for bad_tag in ['bogus',5,None]:
+                malformed=dict(image,profile=bad_tag)
+                state=directory/'controller.json'
+                state.write_text(json.dumps(malformed))
+                invalid_bytes=state.read_bytes()
+                result=subprocess.run([EXE,'--serial',str(directory/'serial'),
+                    '--state',str(state),'--profile',profile],capture_output=True,timeout=5)
+                assert result.returncode!=0
+                assert state.read_bytes()==invalid_bytes
+                assert not (directory/'serial').is_symlink()
+            state.write_bytes(original)
+        checks.append('explicit RevC/I2C profiles preserve identity, inventory, assignments, and checkpoint state; mismatches fail without publishing a PTY or changing stores')
+        for index, arguments in enumerate([['--profile','I2C'], ['--profile',''],
+                                             ['--profile'], ['--profile','--speed','0']]):
+            directory=root/('invalid-profile-%d'%index);directory.mkdir()
+            result=subprocess.run([EXE,'--serial',str(directory/'serial'),
+                '--state',str(directory/'controller.json'),*arguments],capture_output=True,timeout=5)
+            assert result.returncode!=0
+            assert list(directory.iterdir())==[]
+        checks.append('unknown, empty, missing, and option-shaped profile values fail before creating runtime files')
         for factor in [1,10,60]:
             directory=root/str(factor);directory.mkdir()
             checkpoint=directory/'checkpoint.json'
