@@ -70,8 +70,9 @@ def contains(actual, expected):
 
 
 class Driver:
-    def __init__(self, executable):
-        self.p = subprocess.Popen([executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    def __init__(self, executable, profile=None):
+        args = [executable] + ([profile] if profile is not None else [])
+        self.p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
     def call(self, op, **args):
         self.p.stdin.write(json.dumps(dict(op=op, **args)) + '\n')

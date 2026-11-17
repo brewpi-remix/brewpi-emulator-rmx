@@ -275,7 +275,7 @@ bool Engine::sense_switch(const Device& device) const {
     if (device.d)
         return false;
     bool electrical = device.p == plant.door_input_pin()
-                          ? plant.door_open()
+                          ? plant.door_open() != profile_hardware(profile).door_active_low
                           : (pins.count(device.p) ? pins.at(device.p) : false);
     return electrical != bool(device.x);
 }

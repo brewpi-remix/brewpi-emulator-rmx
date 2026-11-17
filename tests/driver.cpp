@@ -7,9 +7,19 @@
 #include <memory>
 #include <stdexcept>
 using rmx::Json;
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 2)
+        return 2;
     std::string wire;
-    rmx::Engine engine([&](const std::string& s) { wire += s; });
+    auto profile = rmx::Profile::revc;
+    try {
+        if (argc == 2)
+            profile = rmx::parse_profile(argv[1]);
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+        return 2;
+    }
+    rmx::Engine engine([&](const std::string& s) { wire += s; }, profile);
     std::string line;
     while (std::getline(std::cin, line)) {
         try {

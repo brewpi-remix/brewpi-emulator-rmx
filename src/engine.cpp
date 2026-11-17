@@ -514,7 +514,7 @@ void Engine::byte(unsigned char c) {
         return;
     case 'n':
         frame('N', object({{"v", "\"0.2.13\""},
-                           {"n", "\"8f1fa12\""},
+                           {"n", wire_string(profile_revision(profile))},
                            {"s", std::to_string(profile_hardware(profile).shield)},
                            {"y", "0"},
                            {"b", "\"s\""},

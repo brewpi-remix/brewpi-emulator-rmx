@@ -5,11 +5,190 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from fixtures import Driver, decode_frames
+from fixtures import Driver, decode_frames, equal
 
 
 def records(wire):
     return decode_frames(wire)
+
+
+def i2c_observations(executable):
+    """Original assertions from recorded Uno I2C observations, never raw captures.
+
+    Synthetic probe ROMs substitute for bench IDs in the same enumeration/role
+    order. Temperatures are fixed at 20 C; uncontrolled bench temperatures and
+    host delivery intervals are deliberately not numerical parity expectations.
+    """
+    d = Driver(executable, profile='i2c')
+    checks = []
+    roms = ('28A1010000000204', '28A10100000001E6', '28A101000000035A')
+
+    def send(command):
+        return records(d.call('feed', bytes=command)[0])
+
+    def one(command, prefix):
+        rows = [value for kind, value in send(command) if kind == prefix]
+        assert len(rows) == 1, (command, rows)
+        return rows[0]
+
+    def fresh():
+        d.call('construct', state=dict(valid=True, slots=[]))
+        for index, function in enumerate((9, 5, 6)):
+            row = one('U{i:%d,f:%d,h:2,p:14,a:%s}' % (index, function, roms[index]), 'U')
+            assert row['p'] == 14 and row['f'] == function
+        telemetry = one('t','T')
+        assert all(equal(telemetry[k],20) for k in ('BeerTemp','FridgeTemp','RoomTemp'))
+
+    def reboot():
+        assert d.call('feed', bytes='R')[0] == b''
+        d.call('restart')
+
+    def diagnostics(rows):
+        return [value for kind, value in rows if kind == 'D']
+
+    try:
+        fresh()
+        wire, _ = d.call('feed', bytes='n')
+        assert wire == b'N:{"v":"0.2.13","n":"da7e14a9","s":5,"y":0,"b":"s","l":"3"}\r\n', wire
+        rows = send('h{v:1}')
+        assert diagnostics(rows) == []
+        inventory = next(value for kind,value in rows if kind=='h')
+        assert [r['p'] for r in inventory] == [14,14,14,5,6,2,10]
+        assert all('v' in r for r in inventory[:3])
+        assert all('v' not in r for r in inventory[3:])
+        wire, _ = d.call('feed', bytes='l')
+        assert wire.count(b'\xdf') == 2 and b'\xb0' not in wire
+        checks.append('i2c.identity_inventory_degree')
+
+        rows = send('j{Kp:6,unknownBenchKey:1,Ki:0.5,Kp:7}')
+        assert equal(diagnostics(rows), [dict(logType='I',logID=12,V=['Kp','6']),
+            dict(logType='I',logID=12,V=['unknownBenchKey','1']),dict(logType='W',logID=0,V=[]),
+            dict(logType='I',logID=12,V=['Ki','0.5']),dict(logType='I',logID=12,V=['Kp','7'])])
+        constants = one('c','C')
+        assert equal(constants['Kp'],7) and equal(constants['Ki'],.5)
+        assert d.call('feed',bytes='j{Kp:8')[0] == b''
+        rows = records(d.call('timeout')[0])
+        assert equal(diagnostics(rows), [dict(logType='I',logID=12,V=['Kp','8'])])
+        assert rows[-1][1]['Kp'] == 8
+        rows = send('j{Kp:7,' + 'q'*30 + ':1}')
+        assert equal(diagnostics(rows), [dict(logType='I',logID=12,V=['Kp','7']),
+            dict(logType='I',logID=12,V=['q'*29,'7']),dict(logType='W',logID=0,V=[]),
+            *[dict(logType='W',logID=1,V=[v]) for v in (58,49,125)]])
+        checks.append('i2c.incremental_partial_long_key')
+
+        send('j{Kp:6}')
+        rows = send('j{Kp:+7,Ki:1e2}')
+        assert equal(diagnostics(rows), [dict(logType='I',logID=12,V=['Kp','+7']),
+                                        dict(logType='I',logID=12,V=['Ki','1e2'])])
+        constants = one('c','C')
+        assert equal(constants['Kp'],6) and equal(constants['Ki'],.5)
+        send('j{maxHeatTimeForEst:70000}')
+        assert one('c','C')['maxHeatTimeForEst'] == 65535
+        send('j{maxHeatTimeForEst:-1}')
+        assert one('c','C')['maxHeatTimeForEst'] == 65535
+        send('j{beerFastFilt:257}')
+        assert equal(one('c','C')['beerFastFilt'],1)
+        checks.append('i2c.scalar_and_byte_conversions')
+
+        fresh()
+        before = one('d{i:0}','d')[0]
+        rows = send('U{i:0,j:0.5}')
+        assert equal(diagnostics(rows), [dict(logType='E',logID=7,V=[2,0,1]),dict(logType='E',logID=3,V=[])])
+        assert equal([value for kind,value in rows if kind=='U'], [before])
+        row = one('U{i:0,f:9,c:127,b:127,h:2,p:14,a:'+roms[0]+'}','U')
+        assert equal(row['c'],1) and equal(row['b'],1) and row['a'] == roms[0]
+        one('U{i:0,f:9,j:0.5}','U')
+        assert equal(one('U{i:0,f:9,j:-0.0625}','U')['j'],.5)
+        one('U{i:0,f:9,j:0}','U')
+        checks.append('i2c.ownership_and_calibration')
+
+        one('U{i:2,f:0}','U')
+        all_rows = one('h{h:2,p:14,u:0}','h')
+        assert [(r['i'],r['f']) for r in all_rows] == [(0,9),(1,5),(-1,5)]
+        assert all_rows[-1]['a'] == roms[2] and all_rows[-1]['t'] == 1
+        assert equal(one('h{h:2,p:14,u:-1}','h'), [dict(i=-1,t=0,c=1,b=0,f=0,h=2,d=0,p=14,a=roms[2],j=0)])
+        one('U{i:2,f:6,h:2,p:14,a:'+roms[2]+'}','U')
+        assert equal(one('t','T')['RoomTemp'],20)
+        row = one('U{i:8,f:5,h:2,p:14,a:'+roms[0]+'}','U')
+        assert row['a'] == roms[0] and row['f'] == 5
+        assert sum(r['f']==5 for r in one('d{e:1}','d')) == 2
+        one('U{i:8,f:0}','U')
+        one('U{i:1,f:5,h:2,p:14,a:'+roms[1]+'}','U')
+        one('U{i:2,f:6,h:2,p:14,a:0000000000000000}','U')
+        assert 'RoomTemp' not in one('t','T')
+        assert one('h{h:2,p:14}','h')[-1]['a'] == '0000000000000000'
+        assert equal(one('d{i:0,r:1,w:0}','d')[0]['v'],20)
+        checks.append('i2c.discovery_duplicates_zero_rom_selectors')
+
+        fresh()
+        send('j{Kp:7}');send('C')
+        assert equal(one('c','C')['Kp'],5)
+        reboot()
+        assert equal(one('c','C')['Kp'],7)
+        variables = one('v','V')
+        assert all(equal(variables[k],48) for k in ('estPeak','negPeakEst','posPeakEst','negPeak','posPeak'))
+        assert all(equal(variables[k],0) for k in ('beerDiff','diffIntegral','beerSlope','p','i','d'))
+        send('j{mode:p,beerSet:20,heatEst:0.5}');send('S')
+        assert equal(one('s','S')['heatEst'],.199)
+        reboot()
+        assert equal(one('s','S')['heatEst'],.5)
+        send('j{mode:p,beerSet:20}');send('j{beerSet:20.25}')
+        assert equal(one('s','S')['beerSet'],20.25)
+        reboot()
+        assert equal(one('s','S')['beerSet'],20)
+        send('j{mode:p,beerSet:20}');send('j{beerSet:20.3125}')
+        reboot()
+        assert equal(one('s','S')['beerSet'],20.31)
+        send('j{mode:o,beerSet:21}');send('j{mode:o}')
+        assert equal(one('s','S')['beerSet'],21)
+        reboot()
+        assert one('s','S')['beerSet'] is None
+        checks.append('i2c.persistence_cold_values_off_noop')
+
+        fresh();send('j{mode:t}')
+        for slot,function,pin in ((3,3,5),(4,2,6),(5,4,2),(6,7,10)):
+            one('U{i:%d,f:%d,h:1,p:%d,x:1,d:0}'%(slot,function,pin),'U')
+            for active in (1,0):
+                assert 'v' not in one('d{i:%d,w:%d}'%(slot,active),'d')[0]
+                assert equal(one('d{i:%d,r:1}'%slot,'d'),
+                    [dict(i=slot,t=3,c=1,b=0,f=function,h=1,d=0,p=pin,v=active,x=1)])
+        send('d{i:4,w:1}');one('U{i:4,f:0}','U');send('j{mode:o}')
+        _,obs=d.call('outputs')
+        assert dict(obs['pins'])[6] is False
+        one('U{i:4,f:2,h:1,p:6,x:1,d:0}','U');send('d{i:4,w:0}')
+        assert equal(one('d{i:4,r:1}','d')[0]['v'],0)
+        checks.append('i2c.logical_outputs_and_removed_pin')
+
+        one('U{i:7,f:1,h:1,p:4,x:1,d:0}','U')
+        for opened,active in ((True,1),(False,0)):
+            # Model the physical door; the observed I2C contact grounds D4 when open.
+            d.call('precondition',fields={'door_open':opened})
+            d.call('advance',milliseconds=1000)
+            assert equal(one('d{i:7,r:1}','d'),[dict(i=7,t=2,c=1,b=0,f=1,h=1,d=0,p=4,v=active,x=1)])
+            assert equal(one('d{i:5,r:1}','d'),[dict(i=5,t=3,c=1,b=0,f=4,h=1,d=0,p=2,v=active,x=1)])
+            assert equal(one('t','T')['State'],0)
+            assert one('l','L')[3].startswith('Door open') == bool(active)
+        checks.append('i2c.door_light_and_lcd_override')
+
+        for test_mode in (False,True):
+            fresh()
+            one('U{i:5,f:4,h:1,p:2,x:1,d:0}','U')
+            send('j{mode:o,lah:0}');send('d{i:-2,w:0}');send('d{i:-2,w:1}')
+            d.call('outputs')
+            assert equal(one('d{i:5,r:1}','d')[0]['v'],1)
+            if test_mode:
+                send('j{mode:t}');d.call('advance',milliseconds=615000)
+                assert equal(one('d{i:5,r:1}','d')[0]['v'],1)
+                send('j{mode:o}');d.call('outputs')
+            else:
+                d.call('advance',milliseconds=590000)
+                assert equal(one('d{i:5,r:1}','d')[0]['v'],1)
+                d.call('advance',milliseconds=13000)
+            assert equal(one('d{i:5,r:1}','d')[0]['v'],0)
+        checks.append('i2c.camera_ordinary_expiry_and_test_retention')
+        return checks
+    finally:
+        d.close()
 
 
 def run(executable):
@@ -135,6 +314,7 @@ def run(executable):
 
     finally:
         d.close()
+    checks.extend(i2c_observations(executable))
     out = Path('test-results')
     out.mkdir(exist_ok=True)
     (out / 'protocol-edges.json').write_text(json.dumps(dict(status='passed', checks=checks), indent=2) + '\n')

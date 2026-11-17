@@ -9,7 +9,33 @@ void require(bool ok, const char* what) {
     if (!ok)
         throw std::runtime_error(what);
 }
+void profile_doors() {
+    for (auto profile : {Profile::revc, Profile::i2c}) {
+        std::string wire;
+        Engine door([&](const std::string& text) { wire += text; }, profile);
+        int inversion = profile == Profile::i2c ? 1 : 0;
+        door.feed("EU{i:5,f:4,h:1,p:2,x:1}U{i:7,f:1,h:1,p:4,x:" + std::to_string(inversion) +
+                  "}j{mode:o}");
+        auto reading = [&](int slot) {
+            wire.clear();
+            door.feed("d{i:" + std::to_string(slot) + ",r:1}");
+            return Json::parse(wire.substr(2)).array()[0].at("v").integer();
+        };
+        door.advance_ms(1000);
+        require(!door.local_door() && reading(7) == 0 && reading(5) == 0,
+                "closed physical door did not release its configured contact");
+        for (bool open : {true, false}) {
+            door.local_action(open ? "door open" : "door close", 1);
+            door.advance_ms(1000);
+            require(door.local_door() == open && reading(7) == int(open) && reading(5) == int(open),
+                    "physical door action disagrees with controller door/light readback");
+        }
+        door.feed("U{i:7,f:1,x:" + std::to_string(1 - inversion) + "}");
+        require(reading(7) == 1, "door wiring fix bypassed firmware inversion");
+    }
+}
 int main() {
+    profile_doors();
     std::string output;
     Engine engine([&](const std::string& s) { output += s; });
     engine.boot();

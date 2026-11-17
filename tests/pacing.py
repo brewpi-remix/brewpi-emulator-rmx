@@ -28,6 +28,8 @@ def run():
         root=Path(tmp)
         for profile, shield, bus, pins in [('revc', 2, 18, [2,5,6,19]),
                                            ('i2c', 5, 14, [5,6,2,10])]:
+            expected_identity=dict(v='0.2.13',n='da7e14a9' if profile=='i2c' else '8f1fa12',
+                                   s=shield,y=0,b='s',l='3')
             directory=root/profile;directory.mkdir()
             checkpoint=directory/'checkpoint.json'
             options=['--profile',profile,'--speed','0','--checkpoint',str(checkpoint)]
@@ -35,7 +37,7 @@ def run():
             try:
                 s.write(b'Enh{}')
                 s.expect('D',dict(logType='I',logID=15,V=[]))
-                assert s.expect('N')['s']==shield
+                assert s.expect('N')==expected_identity
                 inventory=s.expect('h')
                 assert [d['p'] for d in inventory]==[bus]*3+pins
                 s.write(('U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}'%bus).encode())
@@ -49,14 +51,14 @@ def run():
                       '--resume',str(checkpoint),'--checkpoint',str(resumed)])
             try:
                 s.write(b'nd{i:0}')
-                assert s.expect('N')['s']==shield
+                assert s.expect('N')==expected_identity
                 assert s.expect('d')[0]['p']==bus
             finally:s.close()
             assert json.loads(resumed.read_text())['engine']==snapshot['engine']
             s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0'])
             try:
                 s.write(b'nd{i:0}')
-                assert s.expect('N')['s']==shield
+                assert s.expect('N')==expected_identity
                 assert s.expect('d')[0]['p']==bus
             finally:s.close()
             original=(directory/'controller.json').read_bytes()
