@@ -754,7 +754,12 @@ void Engine::query_slots() {
                 continue;
             std::optional<std::string> v;
             auto live = targets.find(d.f);
-            if (live != targets.end() && live_target(d)) {
+            if (live == targets.end() && live_target(d) && type_of(d.f) == 3) {
+                if (q['w'] >= 0)
+                    fallback = q['w'] != 0;
+                else if (q['r'] == 1)
+                    v = std::to_string(int(fallback));
+            } else if (live != targets.end() && live_target(d)) {
                 auto& target = live->second;
                 if (q['w'] >= 0 && type_of(d.f) == 3) {
                     if (target.d)

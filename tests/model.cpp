@@ -228,9 +228,71 @@ void profiles() {
                 "profile ignored explicit empty physical loads");
     }
 }
+void duplicate_actuator_fallback() {
+    // These four I2C histories were observed on D6/D10 through independent inputs.
+    // Raw bench captures remain external; these expectations are original descriptions.
+    for (bool initially_active : {false, true}) {
+        for (bool remove_older_first : {false, true}) {
+            std::string output;
+            Engine engine([&](const std::string& text) { output += text; }, Profile::i2c);
+            auto request = [&](const std::string& command) {
+                output.clear();
+                engine.feed(command);
+                return Json::parse(output.substr(2));
+            };
+            auto pin = [&](int number) {
+                auto observed = engine.observations();
+                for (const auto& row : observed.at("pins").array())
+                    if (row.array()[0].integer() == number)
+                        return row.array()[1].boolean();
+                throw std::runtime_error("expected actuator pin is missing");
+            };
+            engine.feed("Ej{mode:t}U{i:4,f:2,h:1,p:6,x:1,d:0}");
+            request(std::string("d{i:4,w:") + (initially_active ? "1}" : "0}"));
+            request("U{i:8,f:2,h:1,p:10,x:1,d:0}");
+            require(pin(6) == !initially_active && pin(10), "duplicate changed old pin history");
+            for (int slot : {4, 8}) {
+                for (int active : {1, 0}) {
+                    request("d{i:" + std::to_string(slot) + ",w:" + std::to_string(active) + "}");
+                    for (int alias : {4, 8})
+                        require(request("d{i:" + std::to_string(alias) + ",r:1}")
+                                        .array()[0]
+                                        .at("v")
+                                        .integer() == active,
+                                "duplicate alias did not read the shared live actuator");
+                    require(pin(6) == !initially_active && pin(10) == !active,
+                            "duplicate alias drove the wrong physical pin");
+                }
+            }
+            request("d{i:8,w:1}");
+            int removed = remove_older_first ? 4 : 8;
+            int survivor = remove_older_first ? 8 : 4;
+            request("U{i:" + std::to_string(removed) + ",f:0}");
+            require(
+                request("d{i:" + std::to_string(survivor) + ",r:1}").array()[0].at("v").integer() ==
+                    0,
+                "surviving alias omitted the fallback's initial reading");
+            for (int active : {1, 0}) {
+                request("d{i:" + std::to_string(survivor) + ",w:" + std::to_string(active) + "}");
+                require(request("d{i:" + std::to_string(survivor) + ",r:1}")
+                                .array()[0]
+                                .at("v")
+                                .integer() == active,
+                        "surviving alias did not read/write the fallback");
+                require(pin(6) == !initially_active && !pin(10),
+                        "fallback write changed an orphaned physical pin");
+            }
+            request("U{i:" + std::to_string(survivor) + ",f:0}");
+            require(pin(6) == !initially_active && !pin(10),
+                    "assignment removal reset an orphaned pin");
+        }
+    }
+}
+
 int main() {
     try {
         profiles();
+        duplicate_actuator_fallback();
         // Closed-form independent oracle: with b=0 the triple cascade is
         // (1+z^-1)^6 / [4096*(1-z^-1/2)^6]. Expand this binomial transfer
         // function for a 2^25 precise-unit impulse; the first nine outputs
