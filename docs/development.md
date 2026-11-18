@@ -25,7 +25,7 @@ The second command adds the optional Python helper. Use a fresh stage directory 
 
 For Apple Silicon source builds, explicit PTY/state paths, and native serial-client checks, see the [macOS guide](macos.md). macOS installations include its standalone operating guide and the LLVM legal text instead of a Linux service definition. The graphical helper requires a Python interpreter with a working `tkinter` extension; an importable `tkinter` package alone does not establish that the native extension is installed.
 
-CTest runs six native suites covering protocol fixtures, malformed/partial input, PTY ownership/recovery, dynamics, filters, controller behavior, thermal balance, clock arithmetic, and checkpoints. Fixture reports distinguish 48 source-defined cases from nine unresolved characterization cases. A passing native suite does not establish physical Arduino or Pi equivalence.
+CTest runs six native suites covering protocol fixtures, malformed/partial input, PTY ownership/recovery, dynamics, filters, controller behavior, thermal balance, clock arithmetic, and checkpoints. Fixture reports distinguish 48 source-defined cases from nine nonpassing characterization placeholders. The [qualification reconciliation](../engineering/protocol/firmware-findings.md#characterization-reconciliation) separates their covered subclaims from genuinely unqualified outcomes; the nine placeholders do not mean nine wholly untested behaviors. A passing native suite does not establish physical Arduino or Pi equivalence.
 
 ```sh
 cmake -S . -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DRMX_SANITIZERS=ON
