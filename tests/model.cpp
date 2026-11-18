@@ -37,9 +37,8 @@ void profiles() {
             return Json::parse(output.substr(2));
         };
         const Json expected_identity =
-            Json::Object{{"v", "0.2.13"},    {"n", i2c ? "da7e14a9" : "8f1fa12"},
-                         {"s", i2c ? 5 : 2}, {"y", 0},
-                         {"b", "s"},         {"l", "3"}};
+            Json::Object{{"v", "0.2.13"}, {"n", "da7e14a9"}, {"s", i2c ? 5 : 2},
+                         {"y", 0},        {"b", "s"},        {"l", "3"}};
         require(request("n").dump() == expected_identity.dump(), "wrong profile identity");
         engine.feed("E");
         auto inventory = request("h{}").array();

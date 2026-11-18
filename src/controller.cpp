@@ -189,7 +189,7 @@ void Engine::evaluate_state() {
          fridge_mode = settings.at("mode") == 'f';
     auto present = [&](int f) {
         auto t = targets.find(f);
-        return t != targets.end() && reading_raw(t->second).has_value();
+        return t != targets.end() && reading_raw(t->second, true).has_value();
     };
     bool forced = settings.at("mode") == 'o';
     if (forced)
@@ -365,20 +365,41 @@ void Engine::loop_evaluation() {
     render_display();
 }
 void Engine::service_controller(bool allowed) {
-    if (allowed && !reading() && !restart_requested &&
-        uint32_t(uint32_t(seconds()) - last_lcd_reset) >= 3600) {
-        last_lcd_reset = seconds();
+    bool completed_reset = false;
+    auto repaint = [&]() {
         for (auto& row : screen)
             row = std::string(20, ' ');
         screen_state = -1;
         screen_room = false;
         stationary_display();
         render_state();
+    };
+    if (display_reset_busy) {
+        if (!allowed || uint32_t(controller_ms - display_reset_started_ms) < revc_display_wait_ms)
+            return;
+        display_reset_busy = false;
+        completed_reset = true;
+        repaint();
+    }
+    if (!completed_reset && allowed && !reading() && !restart_requested &&
+        uint32_t(uint32_t(seconds()) - last_lcd_reset) >= 3600) {
+        last_lcd_reset = seconds();
+        if (profile == Profile::revc) {
+            display_reset_busy = true;
+            display_reset_started_ms = controller_ms;
+            return;
+        }
+        repaint();
     }
     if (allowed && !reading() && !restart_requested &&
         uint32_t(controller_ms - last_evaluation_ms) >= 1000) {
         last_evaluation_ms = controller_ms;
         loop_evaluation();
+    }
+    if (completed_reset) {
+        auto queued = std::move(deferred_serial);
+        deferred_serial.clear();
+        feed(queued);
     }
 }
 void Engine::advance_ms(uint64_t ms, bool allowed) {
@@ -430,7 +451,16 @@ void Engine::render_display() {
     };
     auto read = [&](int f) {
         auto t = targets.find(f);
-        return t == targets.end() ? std::optional<int>{} : reading_raw(t->second, true);
+        if (t == targets.end())
+            return std::optional<int>{};
+        if (f == 6) {
+            std::string diagnostic;
+            auto raw = read_probe(t->second, diagnostic);
+            if (!diagnostic.empty())
+                output(diagnostic);
+            return raw;
+        }
+        return reading_raw(t->second, true);
     };
     bool room = (seconds() & 8) == 0 && read(6).has_value();
     if (room != screen_room) {
@@ -508,38 +538,42 @@ Json Engine::checkpoint() const {
         ps.emplace_back(Json::Array{p.first, p.second});
     for (auto& r : screen)
         rows.emplace_back(hex(r));
-    return Json::Object{{"format", "brewpi-emulator-engine-checkpoint-v1"},
-                        {"profile", profile_name(profile)},
-                        {"store", store_image()},
-                        {"settings", pack(settings)},
-                        {"constants", pack(constants)},
-                        {"variables", pack(variables)},
-                        {"targets", ts},
-                        {"histories", hs},
-                        {"pins", ps},
-                        {"plant", plant.snapshot()},
-                        {"controller_ms", double(controller_ms)},
-                        {"last_evaluation_ms", double(last_evaluation_ms)},
-                        {"last_lcd_reset", double(last_lcd_reset)},
-                        {"pending_ms", double(pending_ms)},
-                        {"last_idle", int(last_idle)},
-                        {"last_heat", int(last_heat)},
-                        {"last_cool", int(last_cool)},
-                        {"camera_last", int(camera_last)},
-                        {"wait", int(wait_seconds)},
-                        {"state", state},
-                        {"last_saved_target", last_saved_target},
-                        {"integral_counter", int(integral_counter)},
-                        {"integral_branches", double(integral_branches)},
-                        {"camera", camera},
-                        {"alarm", alarm},
-                        {"fallback", fallback},
-                        {"door", door_open},
-                        {"positive_pending", positive_pending},
-                        {"negative_pending", negative_pending},
-                        {"screen", rows},
-                        {"screen_state", screen_state},
-                        {"screen_room", screen_room}};
+    Json result = Json::Object{{"format", "brewpi-emulator-engine-checkpoint-v1"},
+                               {"profile", profile_name(profile)},
+                               {"store", store_image()},
+                               {"settings", pack(settings)},
+                               {"constants", pack(constants)},
+                               {"variables", pack(variables)},
+                               {"targets", ts},
+                               {"histories", hs},
+                               {"pins", ps},
+                               {"plant", plant.snapshot()},
+                               {"controller_ms", double(controller_ms)},
+                               {"last_evaluation_ms", double(last_evaluation_ms)},
+                               {"last_lcd_reset", double(last_lcd_reset)},
+                               {"pending_ms", double(pending_ms)},
+                               {"last_idle", int(last_idle)},
+                               {"last_heat", int(last_heat)},
+                               {"last_cool", int(last_cool)},
+                               {"camera_last", int(camera_last)},
+                               {"wait", int(wait_seconds)},
+                               {"state", state},
+                               {"last_saved_target", last_saved_target},
+                               {"integral_counter", int(integral_counter)},
+                               {"integral_branches", double(integral_branches)},
+                               {"camera", camera},
+                               {"alarm", alarm},
+                               {"fallback", fallback},
+                               {"door", door_open},
+                               {"positive_pending", positive_pending},
+                               {"negative_pending", negative_pending},
+                               {"screen", rows},
+                               {"screen_state", screen_state},
+                               {"screen_room", screen_room}};
+    if (display_reset_busy)
+        result["display_reset"] = Json::Object{{"started_ms", double(display_reset_started_ms)},
+                                               {"queued_hex", hex(deferred_serial)}};
+    return result;
 }
 void Engine::restore_checkpoint(const Json& j) {
     if (j.at("format").string() != "brewpi-emulator-engine-checkpoint-v1")
@@ -604,6 +638,18 @@ void Engine::restore_checkpoint(const Json& j) {
     copy.controller_ms = u32(j.at("controller_ms"));
     copy.last_evaluation_ms = u32(j.at("last_evaluation_ms"));
     copy.last_lcd_reset = u32(j.at("last_lcd_reset"));
+    if (j.has("display_reset")) {
+        auto& pause = j.at("display_reset");
+        if (profile != Profile::revc || pause.object().size() != 2)
+            throw std::runtime_error("invalid checkpoint display reset");
+        copy.display_reset_started_ms = u32(pause.at("started_ms"));
+        copy.deferred_serial = unhex(pause.at("queued_hex").string());
+        if (copy.deferred_serial.size() > 65536 ||
+            uint32_t(copy.controller_ms - copy.display_reset_started_ms) > 0x7fffffffu ||
+            copy.last_lcd_reset != uint16_t(copy.display_reset_started_ms / 1000))
+            throw std::runtime_error("invalid checkpoint display reset history");
+        copy.display_reset_busy = true;
+    }
     copy.pending_ms = u32(j.at("pending_ms"));
     if (copy.pending_ms >= 100)
         throw std::runtime_error("invalid checkpoint fractional clock");

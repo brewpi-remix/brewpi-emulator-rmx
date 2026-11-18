@@ -12,6 +12,195 @@ def records(wire):
     return decode_frames(wire)
 
 
+def nested_discovery_observation(executable, profile):
+    """Original byte assertion for the observed Uno zero-ROM discovery reply."""
+    bus = 14 if profile == 'i2c' else 18
+    d = Driver(executable, profile=profile)
+    try:
+        d.call('construct', state=dict(valid=True, slots=[]))
+        for index, function, rom in [(0,9,'28A1010000000204'),
+                                     (1,5,'28A10100000001E6'),
+                                     (2,6,'0000000000000000')]:
+            d.call('feed', bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}' % (index,function,bus,rom))
+        wire, _ = d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)
+        expected = (
+            b'h:[{"i":0,"t":1,"c":1,"b":1,"f":9,"h":2,"d":0,"p":14,"v": 20.000,"a":"28A1010000000204","j": 0.000},'
+            b'{"i":1,"t":1,"c":1,"b":0,"f":5,"h":2,"d":0,"p":14,"v": 20.000,"a":"28A10100000001E6","j": 0.000}'
+            b'D:{"logType":"W","logID":2,"V":[14,"0000000000000000"]}\r\n'
+            b',{"i":2,"t":1,"c":1,"b":0,"f":6,"h":2,"d":0,"p":14,"v":null,"a":"0000000000000000","j": 0.000}]\r\n')
+        expected = expected.replace(b'"p":14', ('"p":%d' % bus).encode()).replace(
+            b'"V":[14,', ('"V":[%d,' % bus).encode())
+        assert wire == expected, wire
+        # A repeated discovery creates the same temporary failed reader again.
+        assert d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)[0] == expected
+        wire, _ = d.call('feed', bytes='h{h:2,p:%d,v:0,u:0}' % bus)
+        assert len(records(wire)[0][1]) == 3 and b'D:' not in wire
+        assert 'RoomTemp' not in records(d.call('feed', bytes='t')[0])[0][1]
+        d.call('feed', bytes='U{i:2,f:6,h:2,p:%d,a:28A101000000035A}' % bus)
+        wire, _ = d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)
+        assert b'D:' not in wire and records(wire)[0][1][2]['v'] == 20
+    finally:
+        d.close()
+    return ['%s.zero_rom_embedded_discovery_diagnostic' % profile]
+
+
+def read_time_loss_observation(executable):
+    """Original byte assertions for RevC loss first noticed by serial reads.
+
+    The control loop is paused between physical loss and the reads, matching
+    the observed cached T values and nested ambient/beer/chamber warnings.
+    """
+    d = Driver(executable, profile='revc')
+    roms = ['28A1010000000204', '28A10100000001E6', '28A101000000035A']
+    def warning(rom):
+        return ('D:{"logType":"W","logID":2,"V":[18,"%s"]}\r\n' % rom).encode()
+    def row(i, f, b):
+        return ('{"i":%d,"t":1,"c":1,"b":%d,"f":%d,"h":2,"d":0,"p":18,"v":null,"a":"%s","j": 0.000}' % (i,b,f,roms[i])).encode()
+    prefix = (b'T:{"BeerTemp": 20.00,"BeerSet":null,"BeerAnn":null,'
+              b'"FridgeTemp": 20.00,"FridgeSet":null,"FridgeAnn":null')
+    try:
+        d.call('construct', state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
+        for i,f in enumerate((9,5,6)):
+            d.call('feed', bytes='U{i:%d,f:%d,h:2,p:18,a:%s}' % (i,f,roms[i]))
+        normal = d.call('feed', bytes='t')[0]
+        d.call('precondition', fields={'connected':[False,False,False]})
+        wire = d.call('feed', bytes='t')[0]
+        assert wire == prefix + warning(roms[2]) + b',"State":0}\r\n', ('read-time T bytes', wire)
+        wire = d.call('feed', bytes='d{r:1}')[0]
+        expected = (b'd:[' + warning(roms[0]) + row(0,9,1) + warning(roms[1]) +
+                    b',' + row(1,5,0) + b',' + row(2,6,0) + b']\r\n')
+        assert wire == expected, ('read-time d bytes', wire)
+        assert normal == prefix + b',"RoomTemp": 20.00,"State":0}\r\n'
+        wire = d.call('feed', bytes='td{r:1}')[0]
+        readings = dict(records(wire))
+        assert b'D:' not in wire and readings['T']['BeerTemp'] is None and readings['T']['FridgeTemp'] is None
+        assert 'RoomTemp' not in readings['T'] and all(v['v'] is None for v in readings['d'])
+        wire,_ = d.call('advance', milliseconds=1000)
+        assert b'D:' not in wire, 'Read-time transitions must not be logged again by the next ordinary evaluation'
+        d.call('precondition', fields={'connected':[True,True,True]})
+        wire,_ = d.call('advance', milliseconds=1000)
+        assert [v for p,v in records(wire) if p=='D'] == [
+            dict(logType='I',logID=0,V=[18,rom]) for rom in roms]
+        # The ordinary-demand capture first noticed all three losses in d.
+        d.call('precondition', fields={'connected':[False,False,False]})
+        wire = d.call('feed', bytes='d{r:1}')[0]
+        assert wire == (b'd:[' + warning(roms[0]) + row(0,9,1) + warning(roms[1]) +
+                        b',' + row(1,5,0) + warning(roms[2]) + b',' + row(2,6,0) + b']\r\n')
+        following = d.call('feed', bytes='t')[0]
+        assert b'D:' not in following and records(following)[0][1]['BeerTemp'] is None
+    finally:
+        d.close()
+    return ['revc.observed_read_time_nested_loss_diagnostics_and_cached_fast_values']
+
+
+def shared_loss_observation(executable, profile):
+    """Observable shared-DATA loss, including required-probe shutdown during heat.
+
+    Physical sensor values are substituted with constant synthetic 20 C inputs;
+    this asserts presence, records, diagnostics, and control, not filter reseeding.
+    """
+    bus = 14 if profile=='i2c' else 18
+    pins = (5,6,2,10) if profile=='i2c' else (6,5,2,19)
+    d = Driver(executable, profile=profile)
+    roms = ['28A1010000000204','28A10100000001E6','28A101000000035A']
+    try:
+        for heating in (False, True):
+            d.call('construct', state=dict(valid=True, slots=[],scenario={'physical_loads':[]}))
+            for i, function in enumerate((9,5,6)):
+                d.call('feed', bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}' % (i,function,bus,roms[i]))
+            for i, function, pin in [(3,3,pins[0]),(4,2,pins[1]),(5,4,pins[2]),(6,7,pins[3])]:
+                d.call('feed', bytes='U{i:%d,f:%d,h:1,p:%d,x:1}' % (i,function,pin))
+            before = records(d.call('feed', bytes='d{r:1}')[0])[0][1]
+            if heating:
+                d.call('advance', milliseconds=600000)
+                d.call('feed', bytes='j{mode:f,fridgeSet:23}')
+                d.call('advance', milliseconds=1000)
+                assert records(d.call('feed',bytes='t')[0])[0][1]['State'] == 3
+                assert records(d.call('feed',bytes='d{i:4,r:1}')[0])[0][1][0]['v'] == 1
+                d.call('advance',milliseconds=60000)
+            d.call('precondition', fields={'connected':[False,False,False]})
+            wire, _ = d.call('advance',milliseconds=1000)
+            diagnostics = [r for p,r in records(wire) if p=='D']
+            assert equal(diagnostics,[dict(logType='W',logID=2,V=[bus,rom]) for rom in roms])
+            telemetry = records(d.call('feed',bytes='t')[0])[0][1]
+            assert telemetry['State']==0 and telemetry['BeerTemp'] is None and telemetry['FridgeTemp'] is None
+            assert 'RoomTemp' not in telemetry
+            lost = records(d.call('feed',bytes='d{r:1}')[0])[0][1]
+            assert all(row['v'] is None for row in lost[:3])
+            assert all(row['v']==0 for row in lost[3:])
+            assert [{k:v for k,v in r.items() if k!='v'} for r in lost] == [
+                {k:v for k,v in r.items() if k!='v'} for r in before]
+            wire, _ = d.call('advance',milliseconds=5000)
+            assert not [r for p,r in records(wire) if p=='D']
+            d.call('precondition',fields={'connected':[True,True,True]})
+            wire, _ = d.call('advance',milliseconds=1000)
+            diagnostics = [r for p,r in records(wire) if p=='D']
+            assert equal(diagnostics,[dict(logType='I',logID=0,V=[bus,rom]) for rom in roms])
+            telemetry = records(d.call('feed',bytes='t')[0])[0][1]
+            assert all(telemetry[k]==20 for k in ('BeerTemp','FridgeTemp','RoomTemp'))
+            assert telemetry['State']==(6 if heating else 0)
+            restored = records(d.call('feed',bytes='d{r:1}')[0])[0][1]
+            assert all(row['v']==0 for row in restored[3:])
+            wire, _ = d.call('advance',milliseconds=3000)
+            assert not [r for p,r in records(wire) if p=='D']
+    finally:
+        d.close()
+    return [profile+'.shared_data_loss_off_and_heating_recovery']
+
+
+def revc_periodic_dispatch_pause(executable):
+    """The observed hourly RevC pause defers reads and skips catch-up work.
+
+    Mandatory driver waits total at least2201 ms; the engine's existing100 ms
+    clock grid releases at2300 ms. This is not an exact SPI-wire latency claim.
+    """
+    d=Driver(executable,profile='revc')
+    try:
+        d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
+        for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
+            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:18,a:%s}'%(i,f,rom))
+        d.call('feed',bytes='U{i:3,f:2,h:1,p:5,x:1}')
+        d.call('feed',bytes='j{Kp:0,Ki:0,Kd:0,mode:b,beerSet:20}')
+        d.call('feed',bytes='R');d.call('restart')
+        d.call('advance',milliseconds=3599900)
+        # A direct pin write just before the reset is latched until the next
+        # ordinary output evaluation; initialization must not clear it early.
+        d.call('feed',bytes='d{i:3,w:1}')
+        before=d.call('checkpoint')[1]['checkpoint']
+        assert dict(before['pins'])[5] is False
+        d.call('advance',milliseconds=100)
+        assert d.call('feed',bytes='n')[0]==b'', 'RevC must defer serial dispatch during periodic display initialization'
+        paused=d.call('checkpoint')[1]['checkpoint']
+        assert paused['last_evaluation_ms']==before['last_evaluation_ms']
+        assert d.call('advance',milliseconds=2200)[0]==b''
+        assert dict(d.call('checkpoint')[1]['checkpoint']['pins'])[5] is False
+        wire,_=d.call('advance',milliseconds=100)
+        assert [p for p,v in records(wire)]==['N']
+        after=d.call('checkpoint')[1]['checkpoint']
+        assert after['last_evaluation_ms']==after['controller_ms']
+        assert dict(after['pins'])[5] is True
+        assert after['integral_counter']==(before['integral_counter']+1)%61
+        for f in (5,9):
+            old=next(v['history']['countdown'] for v in before['histories'] if v['function']==f)
+            new=next(v['history']['countdown'] for v in after['histories'] if v['function']==f)
+            next_count=(old-1)&255
+            assert new==(3 if next_count==0 else next_count), (f,old,new)
+        assert after['plant']['age_ms']==before['plant']['age_ms']+2400
+        # A suspended request survives checkpoint continuation without dispatch.
+        d.call('restore',snapshot=paused)
+        for field,bad in [('started_ms',-1),('started_ms',3600100),('queued_hex','0Z')]:
+            corrupt=json.loads(json.dumps(paused));corrupt['display_reset'][field]=bad
+            try:d.call('restore',snapshot=corrupt)
+            except AssertionError:pass
+            else:raise AssertionError('Invalid suspended checkpoint accepted')
+            assert d.call('checkpoint')[1]['checkpoint']==paused
+        assert d.call('feed',bytes='c')[0]==b''
+        wire,_=d.call('advance',milliseconds=2300)
+        assert [p for p,v in records(wire)]==['N','C']
+    finally:d.close()
+    return ['revc.observed_periodic_display_pause_defers_serial_without_catchup']
+
+
 def i2c_observations(executable):
     """Original assertions from recorded Uno I2C observations, never raw captures.
 
@@ -315,6 +504,12 @@ def run(executable):
     finally:
         d.close()
     checks.extend(i2c_observations(executable))
+    checks.extend(nested_discovery_observation(executable, 'i2c'))
+    checks.extend(nested_discovery_observation(executable, 'revc'))
+    checks.extend(read_time_loss_observation(executable))
+    checks.extend(revc_periodic_dispatch_pause(executable))
+    for profile in ('i2c','revc'):
+        checks.extend(shared_loss_observation(executable, profile))
     out = Path('test-results')
     out.mkdir(exist_ok=True)
     (out / 'protocol-edges.json').write_text(json.dumps(dict(status='passed', checks=checks), indent=2) + '\n')

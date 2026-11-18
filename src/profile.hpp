@@ -10,8 +10,10 @@ enum class Profile { revc, i2c };
 inline const char* profile_name(Profile profile) {
     return profile == Profile::i2c ? "i2c" : "revc";
 }
-inline const char* profile_revision(Profile profile) {
-    return profile == Profile::i2c ? "da7e14a9" : "8f1fa12";
+// Both selected prebuilt Uno images carry this stamp. The source reference
+// commit is separate from the emulated artifact identity.
+inline const char* profile_revision(Profile) {
+    return "da7e14a9";
 }
 inline Profile parse_profile(const std::string& name) {
     if (name == "revc")

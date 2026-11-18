@@ -4,6 +4,7 @@
   "copyright": "2026 Lee Bussy",
   "authorship": "Original project specification data; source-informed interoperability facts, not captured or reference-generated output.",
   "reference_firmware_revision": "8f1fa1213cbbfc1f987fada5168d01925e1a2ee8",
+  "identity_provenance": "Selected prebuilt Uno RevC artifact stamp da7e14a9; see ../firmware-findings.md#physical-uno-artifact-identities. The source reference revision is separate from the artifact build stamp.",
   "reference_host_revision": "d183fb5319b928f78b4c0eb6f05fe3620610ffff",
   "reference_panel_revision": "f79631830a99575e250403f08a19be8bf944596c",
   "execution_status": "not_executed_against_emulator_or_reference",
@@ -153,7 +154,7 @@
           ],
           "input_display": "ns",
           "expected": {
-            "raw_hex": "4E3A7B2276223A22302E322E3133222C226E223A2238663166613132222C2273223A322C2279223A302C2262223A2273222C226C223A2233227D0D0A533A7B226D6F6465223A226F222C2262656572536574223A6E756C6C2C22667269646765536574223A6E756C6C2C2268656174457374223A20302E3139392C22636F6F6C457374223A20352E3030307D0D0A"
+            "raw_hex": "4E3A7B2276223A22302E322E3133222C226E223A226461376531346139222C2273223A322C2279223A302C2262223A2273222C226C223A2233227D0D0A533A7B226D6F6465223A226F222C2262656572536574223A6E756C6C2C22667269646765536574223A6E756C6C2C2268656174457374223A20302E3139392C22636F6F6C457374223A20352E3030307D0D0A"
           }
         }
       ]

@@ -26,6 +26,18 @@ std::string object(const Fields& fields) {
 std::string wire_string(const std::string& s) {
     return '"' + s + '"';
 }
+std::string diagnostic_body(char type, int id, const Json::Array& args) {
+    std::string values = "[";
+    for (auto& arg : args) {
+        if (values.size() > 1)
+            values += ',';
+        values +=
+            std::holds_alternative<std::string>(arg.value) ? wire_string(arg.string()) : arg.dump();
+    }
+    return object({{"logType", wire_string(std::string(1, type))},
+                   {"logID", std::to_string(id)},
+                   {"V", values + ']'}});
+}
 long long ratio(long long n, long long divisor) {
     return n < 0 ? -((-n + divisor / 2) / divisor) : (n + divisor / 2) / divisor;
 }
@@ -171,16 +183,7 @@ void Engine::frame(char prefix, const std::string& body) {
     output(std::string(1, prefix) + ':' + body + "\r\n");
 }
 void Engine::diagnostic(char type, int id, Json::Array args) {
-    std::string values = "[";
-    for (auto& arg : args) {
-        if (values.size() > 1)
-            values += ',';
-        values +=
-            std::holds_alternative<std::string>(arg.value) ? wire_string(arg.string()) : arg.dump();
-    }
-    frame('D', object({{"logType", wire_string(std::string(1, type))},
-                       {"logID", std::to_string(id)},
-                       {"V", values + ']'}}));
+    frame('D', diagnostic_body(type, id, args));
 }
 
 bool Engine::fahrenheit() const {
@@ -294,11 +297,19 @@ void Engine::telemetry(const std::string& beer, const std::string& fridge) {
                 {"BeerAnn", beer.empty() ? "null" : wire_string(beer.substr(0, 31))},
                 {"FridgeTemp", temp(5)},
                 {"FridgeSet", number(settings.at("fridgeSet"), 2, 1)},
-                {"FridgeAnn", fridge.empty() ? "null" : wire_string(fridge.substr(0, 31))},
-                {"State", std::to_string(state)}};
-    if (temp(6) != "null")
-        f.emplace_back("RoomTemp", temp(6));
-    frame('T', object(f));
+                {"FridgeAnn", fridge.empty() ? "null" : wire_string(fridge.substr(0, 31))}};
+    std::string out = object(f);
+    out.pop_back();
+    std::string nested;
+    auto room = targets.find(6);
+    if (room != targets.end()) {
+        auto raw = read_probe(room->second, nested);
+        out += nested;
+        if (raw)
+            out += ",\"RoomTemp\":" + number(*raw, 2, 1);
+    }
+    out += ",\"State\":" + std::to_string(state) + '}';
+    frame('T', out);
 }
 void Engine::save(bool cc) {
     if (!valid)
@@ -587,6 +598,13 @@ void Engine::byte(unsigned char c) {
     }
 }
 void Engine::feed(const std::string& bytes) {
+    if (display_reset_busy) {
+        if (bytes.size() > 65536 - deferred_serial.size())
+            throw std::runtime_error("fidelity gap: serial receive overflow during display reset "
+                                     "requires characterization");
+        deferred_serial += bytes;
+        return;
+    }
     for (char c : bytes) {
         if (restart_requested)
             break;
@@ -605,15 +623,29 @@ bool Engine::live_target(const Device& d) const {
 std::optional<int> Engine::reading_raw(const Device& d, bool filtered_value) const {
     if (d.d || !live_target(d) || d.h != 2)
         return {};
+    if (filtered_value && (d.f == 5 || d.f == 9))
+        return sensors.at(d.f).connected ? std::optional<int>{filtered(d.f, 0)} : std::nullopt;
     auto index = physical_index(d);
     if (!index)
         return {};
     auto raw = plant.read(*index);
     if (!raw)
         return {};
-    if (filtered_value && (d.f == 5 || d.f == 9))
-        return filtered(d.f, 0);
     return word16(*raw + d.cal * 32);
+}
+
+std::optional<int> Engine::read_probe(const Device& d, std::string& nested_diagnostic) {
+    auto history = sensors.find(d.f);
+    if (d.d || history == sensors.end() || !history->second.connected)
+        return {};
+    auto raw = reading_raw(d);
+    if (!raw) {
+        // Availability can change during a raw serial read, before the next
+        // ordinary filter evaluation. Keep the warning inside its open reply.
+        history->second.connected = false;
+        nested_diagnostic += "D:" + diagnostic_body('W', 2, {d.p, d.rom}) + "\r\n";
+    }
+    return raw;
 }
 
 void Engine::install(const Device& d) {
@@ -752,6 +784,8 @@ void Engine::query_slots() {
                 continue;
             if (q['i'] == -1 && !q['e'] && d.f == 0)
                 continue;
+            const bool separator = out.size() > 1;
+            std::string nested;
             std::optional<std::string> v;
             auto live = targets.find(d.f);
             if (live == targets.end() && live_target(d) && type_of(d.f) == 3) {
@@ -768,7 +802,7 @@ void Engine::query_slots() {
                         pins[target.p] = (q['w'] != 0) != bool(target.x);
                 } else if (q['r'] == 1) {
                     if (type_of(d.f) == 1) {
-                        auto r = reading_raw(target);
+                        auto r = read_probe(target, nested);
                         v = r ? number(*r, 3, 1) : "null";
                     } else if (type_of(d.f) == 3)
                         v = std::to_string(target.d ? int(fallback)
@@ -777,7 +811,8 @@ void Engine::query_slots() {
                         v = std::to_string(int(sense_switch(target)));
                 }
             }
-            if (out.size() > 1)
+            out += nested;
+            if (separator)
                 out += ',';
             out += device_wire(d, i, v);
         }
@@ -845,18 +880,26 @@ void Engine::discover() {
             }
         if (index >= 0 && q['u'])
             continue;
+        const bool separator = out.size() > 1;
         std::optional<std::string> val;
         if (q['v'] && hardware.h == 2) {
-            if (carry.rom != hardware.rom)
+            if (carry.rom != hardware.rom && carry.rom == "0000000000000000") {
+                // The observed temporary zero-ROM reader logs before the row's
+                // comma, while the discovery list is still open.
+                out += "D:" + diagnostic_body('W', 2, {carry.p, carry.rom}) + "\r\n";
+                val = "null";
+            } else if (carry.rom != hardware.rom)
                 throw std::runtime_error(
                     "fidelity gap: nested discovery diagnostics require characterization");
-            auto index = physical_index(hardware);
-            auto raw = plant.read(*index);
-            if (!raw)
-                continue;
-            val = number(*raw, 3, 1);
+            else {
+                auto index = physical_index(hardware);
+                auto raw = plant.read(*index);
+                if (!raw)
+                    continue;
+                val = number(*raw, 3, 1);
+            }
         }
-        if (out.size() > 1)
+        if (separator)
             out += ',';
         out += device_wire(carry, index, val);
     }
@@ -910,6 +953,9 @@ void Engine::restart() {
     controller_ms = 0;
     last_evaluation_ms = uint32_t(-1000);
     last_lcd_reset = 0;
+    display_reset_busy = false;
+    display_reset_started_ms = 0;
+    deferred_serial.clear();
     last_idle = last_heat = last_cool = wait_seconds = camera_last = 0;
     integral_counter = 0;
     integral_branches = 0;
@@ -1044,6 +1090,9 @@ void Engine::construct(const Json& spec) {
     controller_ms = 0;
     last_evaluation_ms = uint32_t(-1000);
     last_lcd_reset = 0;
+    display_reset_busy = false;
+    display_reset_started_ms = 0;
+    deferred_serial.clear();
     pending_ms = 0;
     last_idle = last_heat = last_cool = wait_seconds = camera_last = 0;
     integral_counter = 0;

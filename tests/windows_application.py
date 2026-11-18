@@ -93,7 +93,7 @@ def execute(binary, pair, cycles, ready_helper, directory):
 
                     send(b'nlE')
                     identity, lcd, initialized = line(), line(), line()
-                    assert identity == b'N:{"v":"0.2.13","n":"8f1fa12","s":2,"y":0,"b":"s","l":"3"}\r\n'
+                    assert identity == b'N:{"v":"0.2.13","n":"da7e14a9","s":2,"y":0,"b":"s","l":"3"}\r\n'
                     assert lcd.startswith(b'L:') and b'\xb0' in lcd and b'\xc2\xb0' not in lcd
                     assert json.loads(initialized[2:]) == dict(logType='I', logID=15, V=[])
                     waited = None

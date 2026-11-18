@@ -28,7 +28,7 @@ def run():
         root=Path(tmp)
         for profile, shield, bus, pins in [('revc', 2, 18, [2,5,6,19]),
                                            ('i2c', 5, 14, [5,6,2,10])]:
-            expected_identity=dict(v='0.2.13',n='da7e14a9' if profile=='i2c' else '8f1fa12',
+            expected_identity=dict(v='0.2.13',n='da7e14a9',
                                    s=shield,y=0,b='s',l='3')
             directory=root/profile;directory.mkdir()
             checkpoint=directory/'checkpoint.json'
@@ -139,6 +139,27 @@ def run():
             s.close()
         assert json.loads(checkpoint.read_text())['engine']['controller_ms']==0
         checks.append('pause stops simulated time but retains real wall-clock token waiting and command effects')
+        # Resume a known suspended short command at1x. The parser's wall-clock
+        # timeout begins when dispatch resumes, rather than during the bus wait.
+        directory=root/'display-pause';directory.mkdir()
+        captured=directory/'captured.json'
+        s=Session(directory,options=['--speed','0','--checkpoint',str(captured)])
+        try:
+            s.write(b'E');s.expect('D',dict(logType='I',logID=15,V=[]))
+        finally:s.close()
+        image=json.loads(captured.read_text());engine=image['engine']
+        engine['controller_ms']=3600000;engine['last_evaluation_ms']=3599000;engine['last_lcd_reset']=3600
+        engine['display_reset']=dict(started_ms=3600000,queued_hex=b'j{Kp:7'.hex().upper())
+        suspended=directory/'suspended.json';suspended.write_text(json.dumps(image))
+        s=Session(directory,fresh=False,options=['--speed','1','--resume',str(suspended)])
+        start=time.monotonic()
+        try:
+            first=s.line(timeout=5)
+            assert first.startswith(b'D:') and json.loads(first[2:])==dict(logType='I',logID=12,V=['Kp','7'])
+            assert 2.9<time.monotonic()-start<4.8
+            s.expect('S');assert s.expect('C')['Kp']==7
+        finally:s.close()
+        checks.append('suspended RevC serial input survives resume and gets a fresh wall-clock token timeout after dispatch resumes')
         # Resume must not silently mix a checkpoint with subsequently changed saved configuration.
         state=root/'1'/'controller.json'
         mismatched_checkpoint=root/'1'/'checkpoint.json'

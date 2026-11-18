@@ -332,6 +332,7 @@ int application_main(int argc, char** argv) {
         size_t sent = 0;
         auto wall_anchor = Clock::now();
         auto advance_wall = [&]() {
+            bool suspended = engine.dispatch_suspended();
             auto wall_now = Clock::now();
             double elapsed =
                 std::chrono::duration<double, std::milli>(wall_now - wall_anchor).count();
@@ -341,6 +342,8 @@ int application_main(int argc, char** argv) {
             pacing_fraction -= double(simulated);
             if (speed > 0)
                 engine.advance_ms(simulated, pending.size() - sent < 65536);
+            if (suspended && !engine.dispatch_suspended())
+                deadline = Clock::now() + std::chrono::seconds(1);
         };
         while (!stopping) {
 #ifdef _WIN32

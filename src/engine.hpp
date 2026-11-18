@@ -24,6 +24,9 @@ class Engine {
     bool reading() const {
         return phase != Phase::dispatch;
     }
+    bool dispatch_suspended() const {
+        return display_reset_busy;
+    }
     bool restarting() const {
         return restart_requested;
     }
@@ -95,6 +98,11 @@ class Engine {
     std::map<int, SensorHistory> sensors{{5, {}}, {6, {}}, {9, {}}};
     uint32_t controller_ms = 0, last_evaluation_ms = uint32_t(-1000), last_lcd_reset = 0;
     uint64_t pending_ms = 0, integral_branches = 0;
+    // Observed RevC periodic initialization suspends dispatch and loop work.
+    static constexpr uint32_t revc_display_wait_ms = 2201;
+    bool display_reset_busy = false;
+    uint32_t display_reset_started_ms = 0;
+    std::string deferred_serial;
     uint16_t last_idle = 0, last_heat = 0, last_cool = 0, wait_seconds = 0, camera_last = 0;
     unsigned integral_counter = 0;
     bool positive_pending = false, negative_pending = false, door_open = false;
@@ -143,6 +151,7 @@ class Engine {
     void install(const Device& d);
     bool live_target(const Device& d) const;
     std::optional<int> reading_raw(const Device& d, bool filtered = false) const;
+    std::optional<int> read_probe(const Device& d, std::string& nested_diagnostic);
     std::string device_wire(const Device& d, int index, std::optional<std::string> val = {}) const;
     void update_device();
     void query_slots();

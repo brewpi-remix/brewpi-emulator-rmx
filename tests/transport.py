@@ -100,7 +100,7 @@ def run():
         try:
             s.write(b'ns')
             identity = s.expect('N')
-            assert identity == dict(v='0.2.13', n='8f1fa12', s=2, y=0, b='s', l='3')
+            assert identity == dict(v='0.2.13', n='da7e14a9', s=2, y=0, b='s', l='3')
             initial = s.expect('S')
             assert initial == dict(mode='o', beerSet=None, fridgeSet=None, heatEst=.199, coolEst=5)
             checks.append('real raw PTY, identity, and erased boot')

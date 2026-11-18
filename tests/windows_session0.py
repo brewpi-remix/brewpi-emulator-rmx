@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-IDENTITY = b'N:{"v":"0.2.13","n":"8f1fa12","s":2,"y":0,"b":"s","l":"3"}\r\n'
+IDENTITY = b'N:{"v":"0.2.13","n":"da7e14a9","s":2,"y":0,"b":"s","l":"3"}\r\n'
 
 
 def line(client, process):
