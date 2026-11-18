@@ -44,6 +44,17 @@ def wire_observation_equivalence(executable):
         assert full.call('advance',milliseconds=2000)[0]==lean.call('advance',milliseconds=2000)[0]
         assert full.call('checkpoint')[1]['checkpoint']==lean.call('checkpoint')[1]['checkpoint']
         assert full.call('feed',bytes='n')[1]==lean.call('feed',bytes='n',observe=True)[1]
+        reference=Driver(executable,profile='i2c')
+        try:
+            state={'valid':True,'slots':[]}
+            reference.call('construct',state=state)
+            for d in (full,lean):
+                d.call('feed',bytes='Ad{i:-2,w:1}j{tempFormat:F}')
+                d.call('precondition',fields={'door_open':True,'probe_reset':[True,False,False]})
+                d.call('feed',bytes='j{Kp:7')
+                d.call('construct',fresh=True,state=state)
+                assert d.call('checkpoint')[1]['checkpoint']==reference.call('checkpoint')[1]['checkpoint']
+        finally:reference.close()
     finally:full.close();lean.close()
     return ['wire_only_driver_retains_identical_replies_and_checkpoints']
 
@@ -54,10 +65,10 @@ def source_sensor_recovery(executable, profile):
     Counts are failed controller reads, not elapsed seconds on a physical bus.
     """
     bus=14 if profile=='i2c' else 18
-    for absent in (1,59,60,61,255):
-        d=Driver(executable,profile=profile,observe=False)
-        try:
-            d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+    d=Driver(executable,profile=profile,observe=False)
+    try:
+        for absent in (1,59,60,61,255):
+            d.call('construct',fresh=True,state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
             d.call('feed',bytes='U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}'%bus)
             snap=d.call('checkpoint')[1]['checkpoint']
             history=next(x['history'] for x in snap['histories'] if x['function']==9)
@@ -86,7 +97,7 @@ def source_sensor_recovery(executable, profile):
             assert d.call('sensors')[0]==b''
             later=d.call('checkpoint')[1]['checkpoint']
             assert next(x['history']['countdown'] for x in later['histories'] if x['function']==9)==1
-        finally:d.close()
+    finally:d.close()
     return [profile+'.source_recovery_read_order_threshold_and_slope_phase']
 
 
@@ -244,12 +255,12 @@ def source_repeated_faults(executable, profile):
 
 def source_sensor_roles(executable, profile):
     bus=14 if profile=='i2c' else 18
-    for mode in ('b','p','f'):
-        for missing in range(3):
-            for state in (3,4):
-                d=Driver(executable,profile=profile)
-                try:
-                    d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+    d=Driver(executable,profile=profile)
+    try:
+        for mode in ('b','p','f'):
+            for missing in range(3):
+                for state in (3,4):
+                    d.call('construct',fresh=True,state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
                     for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204'),(2,6,'28A101000000035A')]:
                         d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
                     d.call('feed',bytes='U{i:3,f:2,h:1,p:6,x:1}U{i:4,f:3,h:1,p:5,x:1}')
@@ -265,7 +276,7 @@ def source_sensor_roles(executable, profile):
                     assert pins[6 if state==3 else 5] is required
                     t=decode_frames(d.call('feed',bytes='t')[0])[0][1]
                     assert ('RoomTemp' in t)==(missing!=2)
-                finally:d.close()
+    finally:d.close()
     return [profile+'.source_individual_role_loss_mode_and_output_policy']
 
 
@@ -951,6 +962,7 @@ def run(executable):
         checks.extend(source_sensor_roles(executable, profile))
         checks.extend(source_startup_and_discovery(executable, profile))
         checks.extend(source_repeated_faults(executable, profile))
+    print('Shared sensor recovery cases completed',flush=True)
     checks.extend(observed_revc_long_loss_recovery(executable))
     checks.extend(wire_observation_equivalence(executable))
     for profile in ('i2c','revc'):

@@ -26,9 +26,11 @@ int main(int argc, char** argv) {
             auto request = Json::parse(line);
             auto op = request.at("op").string();
             wire.clear();
-            if (op == "construct")
+            if (op == "construct") {
+                if (request.has("fresh") && request.at("fresh").boolean())
+                    engine = rmx::Engine([&](const std::string& bytes) { wire += bytes; }, profile);
                 engine.construct(request.at("state"));
-            else if (op == "feed") {
+            } else if (op == "feed") {
                 std::string bytes;
                 if (request.has("bytes_hex")) {
                     std::string hex = request.at("bytes_hex").string();
