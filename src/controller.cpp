@@ -375,7 +375,8 @@ void Engine::service_controller(bool allowed) {
         render_state();
     };
     if (display_reset_busy) {
-        if (!allowed || uint32_t(controller_ms - display_reset_started_ms) < revc_display_wait_ms)
+        uint32_t wait_ms = profile == Profile::i2c ? i2c_display_wait_ms : revc_display_wait_ms;
+        if (!allowed || uint32_t(controller_ms - display_reset_started_ms) < wait_ms)
             return;
         display_reset_busy = false;
         completed_reset = true;
@@ -384,12 +385,9 @@ void Engine::service_controller(bool allowed) {
     if (!completed_reset && allowed && !reading() && !restart_requested &&
         uint32_t(uint32_t(seconds()) - last_lcd_reset) >= 3600) {
         last_lcd_reset = seconds();
-        if (profile == Profile::revc) {
-            display_reset_busy = true;
-            display_reset_started_ms = controller_ms;
-            return;
-        }
-        repaint();
+        display_reset_busy = true;
+        display_reset_started_ms = controller_ms;
+        return;
     }
     if (allowed && !reading() && !restart_requested &&
         uint32_t(controller_ms - last_evaluation_ms) >= 1000) {
@@ -640,7 +638,7 @@ void Engine::restore_checkpoint(const Json& j) {
     copy.last_lcd_reset = u32(j.at("last_lcd_reset"));
     if (j.has("display_reset")) {
         auto& pause = j.at("display_reset");
-        if (profile != Profile::revc || pause.object().size() != 2)
+        if (pause.object().size() != 2)
             throw std::runtime_error("invalid checkpoint display reset");
         copy.display_reset_started_ms = u32(pause.at("started_ms"));
         copy.deferred_serial = unhex(pause.at("queued_hex").string());

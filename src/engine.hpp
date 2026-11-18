@@ -98,8 +98,10 @@ class Engine {
     std::map<int, SensorHistory> sensors{{5, {}}, {6, {}}, {9, {}}};
     uint32_t controller_ms = 0, last_evaluation_ms = uint32_t(-1000), last_lcd_reset = 0;
     uint64_t pending_ms = 0, integral_branches = 0;
-    // Observed RevC periodic initialization suspends dispatch and loop work.
+    // Mandatory periodic initialization waits, excluding peripheral overhead.
     static constexpr uint32_t revc_display_wait_ms = 2201;
+    // I2C fixed waits total 2128.3 ms; completion requires a whole clock tick.
+    static constexpr uint32_t i2c_display_wait_ms = 2129;
     bool display_reset_busy = false;
     uint32_t display_reset_started_ms = 0;
     std::string deferred_serial;

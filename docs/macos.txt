@@ -91,7 +91,7 @@ The source tree provides `config/active-fermentation.json` for fermentation heat
 
 The serial parser follows firmware framing and partial-input behavior rather than a general strict JSON API. Incomplete tokens can wait about one wall second. A slow reader defers input/controller work while replies remain queued in order. Drain existing output before expecting another command's response.
 
-RevC's hourly display initialization briefly defers serial commands while simulated time continues. A checkpoint taken during this pause retains its pending input; resuming it at `--speed 0` holds dispatch until simulated time advances. Use positive pacing to finish that pause. See the qualified behavior and timing limits (source archive: engineering/protocol/firmware-findings.md).
+Both personalities' hourly display initialization briefly defers serial commands while simulated time continues. A checkpoint taken during this pause retains its pending input; resuming it at `--speed 0` holds dispatch until simulated time advances. Use positive pacing to finish that pause. See the qualified behavior and timing limits (source archive: engineering/protocol/firmware-findings.md).
 Stop, restart, and checkpoints
 
 Use `Ctrl-C` or `SIGTERM` for clean shutdown. The process removes only its unchanged owned serial symlink. Firmware-saved settings and device slots survive. A normal new process starts a fresh physical scenario; the serial `R` command restarts controller state while keeping the running plant, and `E` initializes controller configuration. Live values need not equal saved values after every command.

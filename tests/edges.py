@@ -148,57 +148,61 @@ def shared_loss_observation(executable, profile):
     return [profile+'.shared_data_loss_off_and_heating_recovery']
 
 
-def revc_periodic_dispatch_pause(executable):
-    """The observed hourly RevC pause defers reads and skips catch-up work.
+def periodic_dispatch_pause(executable, profile):
+    """Periodic initialization defers dispatch, output writes, and filter work.
 
-    Mandatory driver waits total at least2201 ms; the engine's existing100 ms
-    clock grid releases at2300 ms. This is not an exact SPI-wire latency claim.
+    RevC's reached suspension and I2C's source-defined mandatory waits have
+    different completion ticks on the existing100 ms integration grid.
+    Neither comparison claims exact peripheral-wire latency.
     """
-    d=Driver(executable,profile='revc')
+    bus, heater, wait_ms = (14, 6, 2200) if profile == 'i2c' else (18, 5, 2300)
+    d=Driver(executable,profile=profile)
     try:
         d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
-            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:18,a:%s}'%(i,f,rom))
-        d.call('feed',bytes='U{i:3,f:2,h:1,p:5,x:1}')
+            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
+        d.call('feed',bytes='U{i:3,f:2,h:1,p:%d,x:1}'%heater)
         d.call('feed',bytes='j{Kp:0,Ki:0,Kd:0,mode:b,beerSet:20}')
         d.call('feed',bytes='R');d.call('restart')
         d.call('advance',milliseconds=3599900)
-        # A direct pin write just before the reset is latched until the next
-        # ordinary output evaluation; initialization must not clear it early.
+        # Initialization leaves the previously driven active-low pin latched.
         d.call('feed',bytes='d{i:3,w:1}')
         before=d.call('checkpoint')[1]['checkpoint']
-        assert dict(before['pins'])[5] is False
+        assert dict(before['pins'])[heater] is False
         d.call('advance',milliseconds=100)
-        assert d.call('feed',bytes='n')[0]==b'', 'RevC must defer serial dispatch during periodic display initialization'
+        assert d.call('feed',bytes='n')[0]==b'', profile+' must defer serial dispatch during periodic display initialization'
+        assert d.call('advance',milliseconds=500)[0]==b''
         paused=d.call('checkpoint')[1]['checkpoint']
         assert paused['last_evaluation_ms']==before['last_evaluation_ms']
-        assert d.call('advance',milliseconds=2200)[0]==b''
-        assert dict(d.call('checkpoint')[1]['checkpoint']['pins'])[5] is False
+        assert d.call('advance',milliseconds=wait_ms-600)[0]==b''
+        assert dict(d.call('checkpoint')[1]['checkpoint']['pins'])[heater] is False
         wire,_=d.call('advance',milliseconds=100)
         assert [p for p,v in records(wire)]==['N']
         after=d.call('checkpoint')[1]['checkpoint']
         assert after['last_evaluation_ms']==after['controller_ms']
-        assert dict(after['pins'])[5] is True
+        assert dict(after['pins'])[heater] is True
         assert after['integral_counter']==(before['integral_counter']+1)%61
         for f in (5,9):
             old=next(v['history']['countdown'] for v in before['histories'] if v['function']==f)
             new=next(v['history']['countdown'] for v in after['histories'] if v['function']==f)
             next_count=(old-1)&255
             assert new==(3 if next_count==0 else next_count), (f,old,new)
-        assert after['plant']['age_ms']==before['plant']['age_ms']+2400
-        # A suspended request survives checkpoint continuation without dispatch.
+        assert after['plant']['age_ms']==before['plant']['age_ms']+100+wait_ms
+        assert 'display_reset' not in after
+        # Resume halfway through the wait, preserving only its remaining time.
         d.call('restore',snapshot=paused)
-        for field,bad in [('started_ms',-1),('started_ms',3600100),('queued_hex','0Z')]:
+        for field,bad in [('started_ms',-1),('started_ms',3600600),('queued_hex','0Z')]:
             corrupt=json.loads(json.dumps(paused));corrupt['display_reset'][field]=bad
             try:d.call('restore',snapshot=corrupt)
             except AssertionError:pass
             else:raise AssertionError('Invalid suspended checkpoint accepted')
             assert d.call('checkpoint')[1]['checkpoint']==paused
         assert d.call('feed',bytes='c')[0]==b''
-        wire,_=d.call('advance',milliseconds=2300)
+        assert d.call('advance',milliseconds=wait_ms-600)[0]==b''
+        wire,_=d.call('advance',milliseconds=100)
         assert [p for p,v in records(wire)]==['N','C']
     finally:d.close()
-    return ['revc.observed_periodic_display_pause_defers_serial_without_catchup']
+    return [profile+'.periodic_display_pause_defers_serial_without_catchup']
 
 
 def i2c_observations(executable):
@@ -507,7 +511,8 @@ def run(executable):
     checks.extend(nested_discovery_observation(executable, 'i2c'))
     checks.extend(nested_discovery_observation(executable, 'revc'))
     checks.extend(read_time_loss_observation(executable))
-    checks.extend(revc_periodic_dispatch_pause(executable))
+    for profile in ('revc','i2c'):
+        checks.extend(periodic_dispatch_pause(executable,profile))
     for profile in ('i2c','revc'):
         checks.extend(shared_loss_observation(executable, profile))
     out = Path('test-results')
