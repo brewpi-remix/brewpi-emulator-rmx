@@ -330,10 +330,30 @@ void startup_events(Profile profile) {
     Bench b(profile);
     b.engine.feed("R");
     b.engine.restart(true);
+    b.wire.clear();
+    b.engine.feed(std::string(100, 'n'));
+    auto before_uart = b.snap();
+    require(before_uart.at("display_reset").at("queued_hex").string().empty(),
+            "disabled application UART retained early input");
+    auto impossible = before_uart;
+    impossible["display_reset"]["queued_hex"] = "6E";
+    bool rejected = false;
+    try {
+        b.engine.restore_checkpoint(impossible);
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected && b.snap().dump() == before_uart.dump(),
+            "checkpoint accepted input before UART enable");
     require(b.engine.local_action("press", 0) == "Encoder unavailable during startup",
             "logical encoder ran before UI initialization");
     b.elapse(2300);
     require(!b.snap().has("menu"), "pre-init push was replayed after startup");
+    require(b.wire.find("N:") == std::string::npos,
+            "pre-enable bytes were dispatched after startup");
+    b.wire.clear();
+    b.engine.feed("n");
+    require(b.wire.rfind("N:", 0) == 0, "RX was not enabled after display initialization");
     b.engine.feed("j{");
     b.act("press");
     auto pending = b.engine.local_action("cw", 0);
@@ -344,30 +364,89 @@ void startup_events(Profile profile) {
     b.act("cancel");
 }
 void receive_limits(Profile profile) {
-    Bench b(profile);
-    b.act("press");
-    b.engine.feed(std::string(65536, ' '));
-    auto full = b.snap();
-    bool rejected = false;
-    try {
-        b.engine.feed("n");
-    } catch (const std::exception& e) {
-        rejected = std::string(e.what()).find("fidelity gap") != std::string::npos;
+    for (const std::string suspension : {"menu", "display_reset", "sensor_initialization"}) {
+        Bench b(profile);
+        if (suspension == "menu")
+            b.act("press");
+        else if (suspension == "display_reset") {
+            auto snapshot = b.snap();
+            snapshot["controller_ms"] = 3600000;
+            snapshot["last_evaluation_ms"] = 3600000;
+            snapshot["last_lcd_reset"] = 3600;
+            snapshot["display_reset"] = Json::Object{{"started_ms", 3600000}, {"queued_hex", ""}};
+            b.engine.restore_checkpoint(snapshot);
+        } else {
+            b.engine.precondition(Json::Object{{"probe_reset", Json::Array{true, false, false}}});
+            int bus = profile == Profile::i2c ? 14 : 18;
+            b.engine.feed("U{i:0,f:9,h:2,p:" + std::to_string(bus) + ",a:28A10100000001E6}");
+        }
+        require(b.engine.dispatch_suspended(), "RX test did not establish a blocked consumer");
+        b.wire.clear();
+        // All these decoded byte arrivals occur while the consumer is blocked.
+        b.engine.feed(std::string(62, 'n'));
+        require(b.snap().at(suspension).at("queued_hex").string().size() == 124,
+                "62-byte UART prefix was not retained");
+        b.engine.feed("sc"); // byte63 fits; byte64 must be discarded independently
+        auto full = b.snap();
+        require(full.at(suspension).at("queued_hex").string().size() == 126,
+                "artifact RX capacity is not63 bytes");
+        b.engine.feed("v");
+        require(b.snap().dump() == full.dump() && b.wire.empty(),
+                "full UART RX did not silently discard newest arrivals");
+        Engine resumed([](const std::string&) {}, profile);
+        resumed.restore_checkpoint(full);
+        require(resumed.checkpoint().dump() == full.dump(), "full RX queue did not resume exactly");
+        auto oversized = full;
+        oversized[suspension]["queued_hex"] = std::string(128, '6');
+        bool rejected = false;
+        try {
+            resumed.restore_checkpoint(oversized);
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        require(rejected && resumed.checkpoint().dump() == full.dump(),
+                "oversized UART snapshot was clipped or mutated the engine");
+        if (suspension == "menu")
+            b.act("cancel");
+        else
+            b.elapse(suspension == "display_reset" ? 2300 : 800);
+        std::string prefixes;
+        size_t start = 0;
+        while (start < b.wire.size()) {
+            prefixes += b.wire[start];
+            auto end = b.wire.find("\r\n", start);
+            require(end != std::string::npos, "unterminated resumed UART reply");
+            start = end + 2;
+        }
+        require(prefixes ==
+                    (suspension == "sensor_initialization" ? "U" : "") + std::string(62, 'N') + "S",
+                "RX queue did not retain oldest bytes or fabricated an overflow diagnostic");
+        b.wire.clear();
+        b.engine.feed("v");
+        require(b.wire.rfind("V:", 0) == 0, "RX did not accept input after draining");
     }
-    require(rejected && b.snap().dump() == full.dump(),
-            "native queue overflow mutated retained input");
-    b.wire.clear();
-    b.elapse(10000);
-    require(b.wire.empty(), "native queue limit fabricated Arduino diagnostic");
+    Bench partial(profile);
+    partial.act("press");
+    partial.engine.feed(std::string(57, ' ') + "j{Kp:7}"); // closing brace is byte64
+    partial.act("cancel");
+    require(partial.engine.reading() && partial.wire.empty(),
+            "RX overflow invented framing recovery");
+    partial.engine.read_timeout();
+    require(!partial.engine.reading() &&
+                partial.snap().at("constants").at("Kp").integer() == 3584 &&
+                partial.wire.find("\"logID\":12") != std::string::npos,
+            "truncated RX token did not follow ordinary parser timeout/application");
+    Bench b(profile);
     std::string bulk;
     for (int i = 0; i < 100; ++i)
         bulk += "ns";
+    b.wire.clear();
     b.engine.feed(bulk);
     std::string expected = b.wire;
     b.wire.clear();
     for (char c : bulk)
         b.engine.feed(std::string(1, c));
-    require(b.wire == expected, "ordinary native feed batches introduced byte loss");
+    require(b.wire == expected, "unblocked ingress was truncated by host batch size");
 }
 int main(int argc, char** argv) {
     try {

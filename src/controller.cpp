@@ -723,7 +723,7 @@ void Engine::restore_checkpoint(const Json& j) {
             throw std::runtime_error("invalid checkpoint display reset");
         copy.display_reset_started_ms = u32(pause.at("started_ms"));
         copy.deferred_serial = unhex(pause.at("queued_hex").string());
-        if (copy.deferred_serial.size() > 65536 ||
+        if (copy.deferred_serial.size() > uart_receive_capacity ||
             uint32_t(copy.controller_ms - copy.display_reset_started_ms) > 0x7fffffffu ||
             copy.last_lcd_reset != uint16_t(copy.display_reset_started_ms / 1000))
             throw std::runtime_error("invalid checkpoint display reset history");
@@ -794,7 +794,7 @@ void Engine::restore_checkpoint(const Json& j) {
             encode_device(copy.slots[size_t(slot)]).dump() != encode_device(device).dump())
             throw std::runtime_error("invalid checkpoint boot device");
         copy.deferred_serial = unhex(init.at("queued_hex").string());
-        if (copy.deferred_serial.size() > 65536)
+        if (copy.deferred_serial.size() > uart_receive_capacity)
             throw std::runtime_error("invalid checkpoint initialization queue");
         copy.fields.clear();
         for (const auto& entry : init.at("fields").object()) {
@@ -862,7 +862,7 @@ void Engine::restore_checkpoint(const Json& j) {
             copy.menu.old_mode > 255 || copy.screen_room ||
             uint16_t(copy.menu.blink_started / 1000) != copy.menu.changed ||
             uint32_t(copy.controller_ms - copy.menu.blink_started) > 0x7fffffffu ||
-            copy.deferred_serial.size() > 65536)
+            copy.deferred_serial.size() > uart_receive_capacity)
             throw std::runtime_error("invalid checkpoint menu history");
         bool top = page == int(LocalMenu::setting), mode_page = page == int(LocalMenu::mode);
         int low = top || mode_page ? 0 : copy.local_to_tenths(copy.constants.at("tempSetMin"));
@@ -877,6 +877,8 @@ void Engine::restore_checkpoint(const Json& j) {
             (mode_page && std::string("bfpo").find(char(copy.menu.old_mode)) == std::string::npos))
             throw std::runtime_error("invalid checkpoint menu range");
     }
+    if (copy.startup_display && !copy.deferred_serial.empty())
+        throw std::runtime_error("checkpoint contains input before application UART enable");
     copy.save_callback = save_callback;
     copy.local_epoch = local_epoch + 1;
     *this = std::move(copy);

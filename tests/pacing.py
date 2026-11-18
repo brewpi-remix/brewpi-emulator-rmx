@@ -58,8 +58,8 @@ def run():
             assert json.loads(resumed.read_text())['engine']==snapshot['engine']
             s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0'])
             try:
-                s.write(b'nd{i:0}')
-                assert s.expect('N')==expected_identity
+                s.identify(expected_identity)
+                s.write(b'd{i:0}')
                 assert s.expect('d')[0]['p']==bus
             finally:s.close()
             original=(directory/'controller.json').read_bytes()
@@ -207,7 +207,6 @@ def run():
                 driver.call('feed',bytes='j{mode:b,beerSet:20}')
                 driver.call('local',action='press')
                 driver.call('advance',milliseconds=9000)
-                driver.call('feed',bytes='nj{Kp:7')
                 menu=driver.call('checkpoint')[1]['checkpoint']
             finally:driver.close()
             image={'format':'brewpi-emulator-checkpoint-v1','engine':menu,'speed':0,'pacing_fraction_ms':0}
@@ -217,10 +216,17 @@ def run():
             s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0',
                       '--resume',str(captured),'--checkpoint',str(frozen),'--lcd','auto'],
                       env=dict(os.environ,PATH='/nonexistent'))
-            try:s.silent(1.15)
+            # All64 decoded arrivals occur inside a paused, already-entered menu.
+            burst=b' '*56+b'nj{Kp:7}'
+            assert len(burst)==64
+            try:
+                s.write(burst)
+                s.silent(1.15)
             finally:s.close()
-            assert json.loads(frozen.read_text())['engine']==menu
-            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','1','--resume',str(captured)])
+            expected=json.loads(json.dumps(menu))
+            expected['menu']['queued_hex']=burst[:63].hex().upper()
+            assert json.loads(frozen.read_text())['engine']==expected
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','1','--resume',str(frozen)])
             try:
                 s.expect('N')
                 # The token gets its own wall deadline after the blocking menu returns.

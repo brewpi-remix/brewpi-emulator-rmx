@@ -117,6 +117,8 @@ class Engine {
     bool display_reset_busy = false, startup = false, startup_display = false;
     uint64_t dispatch_generation = 0;
     uint32_t display_reset_started_ms = 0;
+    // Verified usable software RX capacity in both retained Uno artifacts.
+    static constexpr size_t uart_receive_capacity = 63;
     std::string deferred_serial;
     enum class InitPurpose { sensors, loop, device, boot, discovery };
     struct Initialization {

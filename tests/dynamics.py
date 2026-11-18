@@ -171,8 +171,9 @@ def source_startup_and_discovery(executable, profile):
         d.call('restore',snapshot=paused)
         assert d.call('advance',milliseconds=delay-100)[0]==b''
         wire,_=d.call('advance',milliseconds=100)
-        assert [p for p,v in decode_frames(wire)]==['D','N']
+        assert [p for p,v in decode_frames(wire)]==['D']
         assert decode_frames(wire)[0][1]['logID']==3
+        assert decode_frames(d.call('feed',bytes='n')[0])[0][0]=='N'
         d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204'),(2,6,'28A101000000035A')]:
             d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
@@ -182,6 +183,9 @@ def source_startup_and_discovery(executable, profile):
         assert d.call('advance',milliseconds=delay)[0]==b''
         paused=d.call('checkpoint')[1]['checkpoint']
         assert paused['startup']=='sensors'
+        # RX is now enabled even while installed probes finish conversion.
+        assert d.call('feed',bytes='n')[0]==b''
+        paused=d.call('checkpoint')[1]['checkpoint']
         d.call('restore',snapshot=paused)
         assert d.call('advance',milliseconds=2300)[0]==b''
         wire,_=d.call('advance',milliseconds=100)

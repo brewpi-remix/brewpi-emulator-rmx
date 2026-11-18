@@ -595,12 +595,14 @@ void Engine::byte(unsigned char c) {
     }
 }
 void Engine::feed(const std::string& bytes) {
+    // Application RX is enabled after startup display initialization.
+    if (startup_display)
+        return;
     if (dispatch_suspended()) {
-        if (bytes.size() > 65536 - deferred_serial.size())
-            throw std::runtime_error(
-                "fidelity gap: serial receive overflow during controller suspension "
-                "requires characterization");
-        deferred_serial += bytes;
+        // Decoded arrivals during a known consumer suspension retain the oldest
+        // prefix. A full artifact RX queue silently discards the new byte.
+        auto accepted = std::min(bytes.size(), uart_receive_capacity - deferred_serial.size());
+        deferred_serial.append(bytes, 0, accepted);
         return;
     }
     for (size_t index = 0; index < bytes.size(); ++index) {

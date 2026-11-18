@@ -72,6 +72,15 @@ class Session:
             assert result == payload, (result, payload)
         return result
 
+    def identify(self, expected, timeout=5):
+        # Fresh startup and R can discard arrivals before application RX enable.
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            self.write(b'n')
+            if select.select([self.fd], [], [], .25)[0]:
+                return self.expect('N', expected)
+        raise AssertionError('controller did not identify after application RX enable')
+
     def silent(self, timeout=.08):
         assert not self.buffer, self.buffer
         assert not select.select([self.fd], [], [], timeout)[0], 'unexpected output'
@@ -162,6 +171,7 @@ def run():
             s.expect('D', dict(logType='I', logID=13, V=[]))
             s.write(b'R')
             s.silent()
+            s.identify(identity)
             s.write(b'cd{r:1}')
             assert s.expect('C')['Kp'] == 7
             devices = s.expect('d')
@@ -171,6 +181,7 @@ def run():
             s.close()
         s = Session(root, fresh=False)
         try:
+            s.identify(identity)
             s.write(b'cd{}')
             constants = s.expect('C')
             assert constants['Kp'] == 7 and constants['Ki'] == .5

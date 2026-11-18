@@ -109,6 +109,8 @@ In an interactive terminal, type a command and press `Enter`:
 
 Text dims after more than sixty wall seconds without interaction. A deliberate turn or press wakes the screen and performs the action. `--lcd-keep-on` disables dimming. The terminal prompt stays readable. Local controls use private IPC and do not open another serial reader. Active menu state, retained logical encoder state, and queued serial bytes survive checkpoints. Presentation failure or close does not silently cancel the firmware menu or revert its live/saved changes. The emulator-only `cancel` action closes the menu without rolling back those changes. Physical encoder bounce, sub-grid blink phase, AVR UART overflow, and electrical display timing remain outside this logical menu comparison.
 
+During a modeled controller wait, decoded serial input retains at most 63 bytes in arrival order; further arrivals are silently dropped as in the retained Uno firmware. Input delivered during startup display initialization is discarded before application RX is enabled. After startup or `R`, retry `n` until `N` arrives before sending dependent commands. Unblocked native batches are not capped at 63 bytes. This models software RX buffering at native ingress, not physical wire timestamps, parity/overrun errors, USB buffering, or timed TX-induced controller stalls; see the [UART evidence and limits](../engineering/protocol/firmware-findings.md#artifact-uart-buffering).
+
 ## Scenarios and simulation time
 
 The source tree provides `config/active-fermentation.json` for fermentation heat and `config/room-cycle.json` for a daily room cycle. Binary users can create a JSON scenario using the configuration guide and pass its path with `--scenario`. See [scenario fields](../config/README.md) for the supported physical parameters. Scenario files are read without modification.
@@ -144,7 +146,7 @@ brewpi-emulator-rmx --serial "$HOME/.local/run/brewpi-emulator/serial" \
 
 Stopped time is not added. `--speed` can override resumed pacing; `--scenario` cannot replace resumed history. Native snapshots require matching saved state and compatible formats/runtime assumptions; arbitrary cross-version or cross-ABI migration is not provided.
 
-A corrupt snapshot, state mismatch, active partial-token parse, or queued output prevents a checkpoint/resume operation and produces a local error rather than a fabricated Arduino reply. Failure before file replacement preserves the previous checkpoint. An error after rename can leave new bytes with uncertain durability; inspect the error and file before retrying. There is no automatic rollback or older-snapshot fallback.
+A snapshot with more than 63 queued RX bytes or queued input before application RX enable is incompatible and rejected without clipping, including snapshots from older versions. A corrupt snapshot, state mismatch, active partial-token parse, or queued output prevents a checkpoint/resume operation and produces a local error rather than a fabricated Arduino reply. Failure before file replacement preserves the previous checkpoint. An error after rename can leave new bytes with uncertain durability; inspect the error and file before retrying. There is no automatic rollback or older-snapshot fallback.
 
 ## Troubleshooting
 
