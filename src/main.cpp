@@ -22,13 +22,13 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
+#include <thread>
 #ifndef _WIN32
 #include <poll.h>
-#include <stdexcept>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <termios.h>
-#include <thread>
 #include <unistd.h>
 #endif
 
