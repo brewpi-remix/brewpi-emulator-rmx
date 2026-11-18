@@ -8,6 +8,90 @@ import sys
 from fixtures import Driver, decode_frames, equal
 
 
+def artifact_input_words(executable, profile):
+    """Exact-artifact conversion facts, with original boundary expectations."""
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':True,'slots':[]})
+        for token,expected in [('2147483648',0),('4294967295',255),('4294967296',0),
+                               ('-2147483649',255),('99999999999999999999999999999',255)]:
+            wire,_=d.call('feed',bytes='j{beerFastFilt:'+token+'}')
+            assert decode_frames(wire)[-1][1]['beerFastFilt']==expected,(token,wire)
+        for token,expected in [('4194304',-63.996),('8388608',0),('2147483648',0),
+                               ('0.4194304',-.418),('4194303.9999999',63.998)]:
+            wire,_=d.call('feed',bytes='j{Kp:'+token+'}')
+            assert decode_frames(wire)[-1][1]['Kp']==expected,(token,wire)
+        d.call('feed',bytes='j{lah:1,maxHeatTimeForEst:600}')
+        wire,_=d.call('feed',bytes='j{lah:4294967296,maxHeatTimeForEst:4294967296}')
+        assert decode_frames(wire)[-1][1]['lah']==0
+        assert decode_frames(wire)[-1][1]['maxHeatTimeForEst']==0
+        wire,_=d.call('feed',bytes='j{maxHeatTimeForEst:2147483648}')
+        assert decode_frames(wire)[-1][1]['maxHeatTimeForEst']==0
+        # The wrapped signed-long result is negative and leaves the old time intact.
+        wire,_=d.call('feed',bytes='h{h:4294967297}')
+        assert len(decode_frames(wire)[0][1])==4
+        d.call('feed',bytes='j{tempFormat:F}')
+        wire,_=d.call('feed',bytes='j{beerSet:1000000}')
+        assert decode_frames(wire)[-2][1]['beerSet']==3.21,wire
+        d.call('feed',bytes='j{tempFormat:C}')
+        wire,_=d.call('feed',bytes='j{beerSet:4194304}')
+        assert decode_frames(wire)[-2][1]['beerSet']==112.0,wire
+    finally:d.close()
+    return [profile+'.artifact_numeric_word_boundaries']
+
+
+def artifact_device_bytes(executable, profile):
+    """Byte flags remain bytes; original tests use an isolated synthetic pin."""
+    pin=6 if profile=='i2c' else 5
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
+        d.call('feed',bytes='j{mode:t}')
+        for invert in range(128):
+            wire,_=d.call('feed',bytes='U{i:3,f:2,h:1,p:%d,d:0,x:%d}'%(pin,invert))
+            assert decode_frames(wire)[-1][1]['x']==invert
+            for active in (1,0):
+                d.call('feed',bytes='d{i:3,w:%d}'%active)
+                wire,obs=d.call('feed',bytes='d{i:3,r:1}')
+                expected=active if invert<=1 else (invert^1)
+                assert decode_frames(wire)[0][1][0]['v']==expected,(invert,active,wire)
+                assert dict(obs['pins'])[pin]==bool(active^invert)
+        for deactivated in (1,2,3,7,127):
+            d.call('feed',bytes='U{i:3,f:2,h:1,p:%d,x:1,d:%d}'%(pin,deactivated))
+            for active in (1,0):
+                d.call('feed',bytes='d{i:3,w:%d}'%active)
+                wire,_=d.call('feed',bytes='d{i:3,r:1}')
+                assert decode_frames(wire)[0][1][0]['v']==active
+        d.call('feed',bytes='U{i:3,f:2,h:1,p:%d,x:7,d:0}'%pin)
+        saved=d.call('checkpoint')[1]['checkpoint']
+        d.call('restore',snapshot=saved)
+        assert d.call('checkpoint')[1]['checkpoint']==saved
+        d.call('feed',bytes='R');d.call('restart')
+        wire,_=d.call('feed',bytes='d{i:3,r:1}')
+        assert decode_frames(wire)[0][1][0]['v']==6
+    finally:d.close()
+    return [profile+'.artifact_digital_flag_bytes_and_continuation']
+
+
+def artifact_bounded_rom(executable, profile):
+    """Even bounded text is converted permissively, without an address overrun."""
+    bus=14 if profile=='i2c' else 18
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':True,'slots':[]})
+        for text,address in [('GG','10FFFFFFFFFFFFFF'),('gg','30FFFFFFFFFFFFFF'),
+                             ('ZZ','33FFFFFFFFFFFFFF'),('0z','43FFFFFFFFFFFFFF'),
+                             ('28//00@@00000001','28FF001000000001')]:
+            wire,_=d.call('feed',bytes='U{i:0,f:6,h:2,p:%d,a:%s}'%(bus,text))
+            assert decode_frames(wire)[-1][1]['a']==address,(text,wire)
+            d.call('feed',bytes='U{i:0,f:0}')
+        raw=('U{i:0,f:6,h:2,p:%d,a:'%bus).encode()+b'28\x80\xff00AA00000001}'
+        wire,_=d.call('feed',bytes_hex=raw.hex())
+        assert decode_frames(wire)[-1][1]['a']=='28CF00AA00000001'
+    finally:d.close()
+    return [profile+'.artifact_bounded_nonhex_rom_text']
+
+
 def records(wire):
     return decode_frames(wire)
 
@@ -545,6 +629,10 @@ def run(executable):
 
     finally:
         d.close()
+    for profile in ('revc','i2c'):
+        checks.extend(artifact_input_words(executable,profile))
+        checks.extend(artifact_device_bytes(executable,profile))
+        checks.extend(artifact_bounded_rom(executable,profile))
     checks.extend(i2c_observations(executable))
     checks.extend(nested_discovery_observation(executable, 'i2c'))
     checks.extend(nested_discovery_observation(executable, 'revc'))

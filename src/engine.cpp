@@ -49,6 +49,11 @@ int narrow16(long long n) {
     int b = int(n & 65535);
     return b >= 32768 ? b - 65536 : b;
 }
+long long token_word(long long n) {
+    auto bits = static_cast<uint64_t>(n) & 0xffffffffULL;
+    return bits >= 0x80000000ULL ? static_cast<long long>(bits) - 0x100000000LL
+                                 : static_cast<long long>(bits);
+}
 long long integer_token(const std::string& s) {
     size_t n = 0;
     bool minus = false;
@@ -59,11 +64,9 @@ long long integer_token(const std::string& s) {
     }
     long long v = 0;
     while (n < s.size() && s[n] >= '0' && s[n] <= '9') {
-        if (v > 214748364LL || (v == 214748364LL && s[n] > (minus ? '8' : '7')))
-            throw std::runtime_error("fidelity gap: AVR long overflow requires characterization");
-        v = v * 10 + s[n++] - '0';
+        v = token_word(v * 10 + s[n++] - '0');
     }
-    return minus ? -v : v;
+    return token_word(minus ? -v : v);
 }
 struct NumericPrefix {
     long long value;
@@ -78,13 +81,10 @@ std::optional<NumericPrefix> custom_prefix(const std::string& text) {
     digits.erase(std::remove(digits.begin(), digits.end(), '-'), digits.end());
     if (digits.empty())
         return {};
-    auto leading = digits.find_first_not_of('0');
-    digits = leading == std::string::npos ? "0" : digits.substr(leading);
-    const std::string limit = negative ? "2147483648" : "2147483647";
-    if (digits.size() > limit.size() || (digits.size() == limit.size() && digits > limit))
-        throw std::runtime_error("fidelity gap: numeric prefix overflow requires characterization");
-    long long n = std::stoll(digits);
-    return NumericPrefix{negative ? -n : n, end};
+    long long n = 0;
+    for (char digit : digits)
+        n = token_word(n * 10 + digit - '0');
+    return NumericPrefix{token_word(negative ? -n : n), end};
 }
 int type_of(int f) {
     if (f == 5 || f == 6 || f == 9 || f == 10)
@@ -212,8 +212,6 @@ std::optional<int> Engine::convert(const std::string& text, int category) const 
     auto whole = custom_prefix(text);
     if (!whole || (whole->end < text.size() && text[whole->end] != '.'))
         return {};
-    if (whole->value < -4194304 || whole->value > 4194303)
-        throw std::runtime_error("fidelity gap: scalar integer overflow requires characterization");
     long long fraction = 0;
     auto dot = text.find('.');
     if (dot != std::string::npos) {
@@ -221,31 +219,19 @@ std::optional<int> Engine::convert(const std::string& text, int category) const 
         auto part = custom_prefix(tail);
         if (!part || (part->end < tail.size() && tail[part->end] != '.'))
             return {};
-        if (part->value < -4194304 || part->value > 4194303)
-            throw std::runtime_error(
-                "fidelity gap: scalar fraction overflow requires characterization");
-        fraction = part->value * 512;
+        fraction = token_word(part->value * 512);
         // Decimal reduction is a specified sequence of integer quantizations.
         for (size_t digits = part->end; digits > 0; --digits)
-            fraction = (fraction + 5) / 10;
+            fraction = token_word(fraction + 5) / 10;
     }
-    long long raw =
-        whole->value * 512 + (text.find('-') == std::string::npos ? fraction : -fraction);
-    if (raw < -2147483648LL || raw > 2147483647LL)
-        throw std::runtime_error(
-            "fidelity gap: fixed-point long overflow requires characterization");
+    long long raw = token_word(token_word(whole->value * 512) +
+                               (text.find('-') == std::string::npos ? fraction : -fraction));
     if (fahrenheit() && category != 0) {
-        long long shifted = raw - (category == 1 ? 16384 : 0);
-        if (shifted * 50 - 45 < -2147483648LL || shifted * 50 + 45 > 2147483647LL)
-            throw std::runtime_error(
-                "fidelity gap: unit-conversion overflow requires characterization");
-        raw = ratio(shifted * 5, 9);
+        long long shifted = token_word(raw - (category == 1 ? 16384 : 0));
+        raw = token_word(shifted * 50 + (shifted < 0 ? -45 : 45)) / 90;
     }
     if (category == 1)
-        raw -= 24576;
-    if (raw < -2147483648LL || raw > 2147483647LL)
-        throw std::runtime_error(
-            "fidelity gap: offset-conversion overflow requires characterization");
+        raw = token_word(raw - 24576);
     return static_cast<int>(std::clamp(raw, -32766LL, 32767LL));
 }
 
@@ -431,14 +417,18 @@ void Engine::pair() {
     if (command == 'U' && name == 'a') {
         if (token_value.size() > 16 || token_value.size() % 2)
             throw std::runtime_error("fidelity gap: odd/excessive ROM requires characterization");
-        if (token_value.find_first_not_of("0123456789ABCDEFabcdef") != std::string::npos)
-            throw std::runtime_error("fidelity gap: malformed ROM requires characterization");
         std::string result = address.value_or("FFFFFFFFFFFFFFFF");
         const std::string digits = "0123456789ABCDEF";
-        auto component = [](char c) { return c >= 'A' ? c - 'A' + 10 : c - '0'; };
+        auto component = [](char c) {
+            int byte = static_cast<unsigned char>(c);
+            if (byte >= 128)
+                byte -= 256;
+            return byte >= 'A' ? byte - 'A' + 10 : byte - '0';
+        };
         for (size_t i = 0; i < token_value.size(); i += 2) {
-            int byte_value =
-                ((component(token_value[i]) * 16) | component(token_value[i + 1])) & 255;
+            int byte_value = ((static_cast<unsigned>(component(token_value[i])) * 16U) |
+                              static_cast<unsigned>(component(token_value[i + 1]))) &
+                             255U;
             result[i] = digits[size_t(byte_value >> 4)];
             result[i + 1] = digits[size_t(byte_value & 15)];
         }
@@ -956,7 +946,7 @@ void Engine::update_device() {
         frame('U', device_wire(old, index));
         return;
     }
-    if ((d.d != 0 && d.d != 1) || (d.x != 0 && d.x != 1))
+    if (!d.supported_flags())
         throw std::runtime_error(
             "fidelity gap: noncanonical bool representation requires characterization");
     if (live_target(old)) {
@@ -1006,14 +996,14 @@ void Engine::query_slots() {
                     if (target.d)
                         fallback = q['w'] != 0;
                     else
-                        pins[target.p] = (q['w'] != 0) != bool(target.x);
+                        pins[target.p] = ((q['w'] != 0) ^ target.x) != 0;
                 } else if (q['r'] == 1) {
                     if (type_of(d.f) == 1) {
                         auto r = read_probe(target, nested);
                         v = r ? number(*r, 3, 1) : "null";
                     } else if (type_of(d.f) == 3)
                         v = std::to_string(target.d ? int(fallback)
-                                                    : int(pins[target.p] != bool(target.x)));
+                                                    : (int(pins[target.p]) ^ target.x));
                     else if (type_of(d.f) == 2)
                         v = std::to_string(int(sense_switch(target)));
                 }
@@ -1315,7 +1305,7 @@ void Engine::load_store(const Json& image) {
         for (int v : {d.c, d.b, d.f, d.h, d.d, d.p, d.x})
             if (v < 0 || v > 255)
                 throw std::runtime_error("invalid stored device width");
-        if ((d.d != 0 && d.d != 1) || (d.x != 0 && d.x != 1))
+        if (!d.supported_flags())
             throw std::runtime_error("invalid stored boolean representation");
         if (d.cal < -128 || d.cal > 127)
             throw std::runtime_error("invalid stored calibration width");

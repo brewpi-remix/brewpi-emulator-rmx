@@ -13,10 +13,10 @@ int word16(int64_t n) {
     return v >= 32768 ? v - 65536 : v;
 }
 int32_t word32(int64_t n) {
-    if (n < std::numeric_limits<int32_t>::min() || n > std::numeric_limits<int32_t>::max())
-        throw std::runtime_error(
-            "fidelity gap: controller/filter long overflow requires characterization");
-    return static_cast<int32_t>(n);
+    const uint64_t bits = static_cast<uint64_t>(n) & 0xffffffffULL;
+    const int64_t signed_value = bits >= 0x80000000ULL ? static_cast<int64_t>(bits) - 0x100000000LL
+                                                       : static_cast<int64_t>(bits);
+    return static_cast<int32_t>(signed_value);
 }
 int64_t signed_shift(int64_t n, unsigned bits) {
     if (bits >= 32)
@@ -107,7 +107,7 @@ void SensorHistory::sample(int raw) {
     if (countdown == 4)
         slope_origin = slow.precise();
     if (countdown == 0) {
-        int64_t diff = int64_t(slow.precise()) - slope_origin;
+        int64_t diff = word32(int64_t(slow.precise()) - slope_origin);
         auto upper = signed_shift(diff, 16);
         if (upper > 27)
             diff = 27 * 65536;

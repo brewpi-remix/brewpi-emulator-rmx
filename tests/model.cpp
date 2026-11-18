@@ -317,6 +317,22 @@ void duplicate_actuator_fallback() {
 }
 
 int main() {
+    require(word32(2147483648LL) == -2147483647 - 1, "positive long wrap differs");
+    require(word32(-2147483649LL) == 2147483647, "negative long wrap differs");
+    require(word32(4294967296LL) == 0, "whole long modulus differs");
+    require(word32(2147483647LL * 512) == -512, "long product must wrap before shifting");
+    for (const auto& sample : {std::array<int64_t, 3>{32767, -2147352576LL, -235929600},
+                               std::array<int64_t, 3>{-32766, 2147418112LL, 235929600}}) {
+        SensorHistory history;
+        history.seed(static_cast<int>(sample[0]));
+        history.slope_origin = static_cast<int32_t>(sample[1]);
+        history.countdown = 1;
+        history.sample(static_cast<int>(sample[0]));
+        const auto first_input =
+            history.slope.snapshot().at("delays").array()[0].array()[0].integer();
+        require(first_input == sample[2], "slope difference must wrap before its clamp");
+    }
+
     try {
         profiles();
         duplicate_actuator_fallback();

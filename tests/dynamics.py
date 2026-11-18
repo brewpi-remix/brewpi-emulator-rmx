@@ -31,6 +31,47 @@ def near(a, b, tolerance=1e-6):
     assert abs(a - b) <= tolerance, (a, b, tolerance)
 
 
+def artifact_signed_magnitude(executable, profile):
+    """Retained instruction branches keep INT16_MIN negative after magnitude."""
+    bus=14 if profile=='i2c' else 18
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':True,'slots':[]})
+        d.call('feed',bytes='U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}'%bus)
+        d.call('feed',bytes='U{i:1,f:5,h:2,p:%d,a:28A1010000000204}'%bus)
+        d.call('feed',bytes='j{Kp:0,Ki:0,Kd:0,heatEst:20,coolEst:20}')
+        d.call('precondition',fields={'mode':'b','beer_target_c':84,'slow_beer_c':20,
+                                     'integral_evaluation_count':60,'diff_integral_raw':16,'state':0})
+        _,obs=d.call('pid')
+        assert obs['variables_raw']['beerDiff']==-32768
+        assert obs['variables_raw']['diffIntegral']==16
+        d.call('feed',bytes='j{Ki:1}')
+        d.call('precondition',fields={'slow_beer_c':20,'beer_target_c':20,'diff_integral_raw':2147483647})
+        _,obs=d.call('pid')
+        assert obs['variables_raw']['i']==-1
+        d.call('feed',bytes='j{Ki:0}')
+        d.call('precondition',fields={'state':0,'positive_peak_pending':True,'negative_peak_pending':False,
+                                     'controller_seconds':901,'last_heat_seconds':0,
+                                     'variables_raw':{'posPeakEst':0}})
+        wire,_=d.call('peaks')
+        assert any(p=='D' and v['logID']==19 for p,v in decode_frames(wire)),wire
+        wire,_=d.call('feed',bytes='s')
+        assert decode_frames(wire)[0][1]['heatEst']==16.641
+        # A synthetic slow-channel valley produces the normal cooling increase branch.
+        d.call('precondition',fields={'state':0,'positive_peak_pending':False,'negative_peak_pending':True,
+                                     'variables_raw':{'negPeakEst':-32768}})
+        snapshot=d.call('checkpoint')[1]['checkpoint']
+        chamber=next(h for h in snapshot['histories'] if h['function']==5)
+        chamber['history']['slow']['recent']=[65536,0,65536]
+        d.call('restore',snapshot=snapshot)
+        wire,_=d.call('peaks')
+        assert any(p=='D' and v['logID']==18 for p,v in decode_frames(wire)),wire
+        wire,_=d.call('feed',bytes='s')
+        assert decode_frames(wire)[0][1]['coolEst']==23.984
+    finally:d.close()
+    return [profile+'.artifact_int16_min_integral_and_adaptation']
+
+
 def wire_observation_equivalence(executable):
     full=Driver(executable,profile='i2c')
     lean=Driver(executable,profile='i2c',observe=False)
@@ -968,6 +1009,8 @@ def run(executable):
         checks.extend(source_repeated_faults(executable, profile))
     print('Shared sensor recovery cases completed',flush=True)
     checks.extend(observed_revc_long_loss_recovery(executable))
+    for profile in ('revc','i2c'):
+        checks.extend(artifact_signed_magnitude(executable,profile))
     checks.extend(wire_observation_equivalence(executable))
     for profile in ('i2c','revc'):
         checks.extend(shared_ordinary_timer_sequence(executable, profile))

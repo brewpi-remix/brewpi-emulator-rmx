@@ -151,10 +151,7 @@ void Engine::evaluate_pid() {
         int update = error;
         if (state != 0)
             update = 0;
-        else if (error == -32768)
-            throw std::runtime_error(
-                "fidelity gap: PID signed absolute-value overflow requires characterization");
-        else if (std::abs(error) < constants.at("iMaxErr")) {
+        else if (word16(std::abs(error)) < constants.at("iMaxErr")) {
             bool increasing = (error > 0) == (variables.at("diffIntegral") > 0);
             if (increasing) {
                 int previous = settings.at("fridgeSet"), measured = filtered(5, 0);
@@ -290,14 +287,14 @@ bool Engine::sense_switch(const Device& device) const {
     bool electrical = device.p == plant.door_input_pin()
                           ? plant.door_open() != profile_hardware(profile).door_active_low
                           : (pins.count(device.p) ? pins.at(device.p) : false);
-    return electrical != bool(device.x);
+    return int(electrical) != device.x;
 }
 void Engine::write_actuator(int f, bool active) {
     auto t = targets.find(f);
     if (t == targets.end() || t->second.d)
         fallback = active;
     else
-        pins[t->second.p] = active != bool(t->second.x);
+        pins[t->second.p] = (int(active) ^ t->second.x) != 0;
 }
 void Engine::update_outputs() {
     if (settings.at("mode") == 't')
@@ -343,17 +340,15 @@ void Engine::detect_peaks() {
     }
     if (!event)
         return;
-    if (error == -32768)
-        throw std::runtime_error(
-            "fidelity gap: sentinel-derived adaptation arithmetic requires characterization");
     auto name = positive ? "heatEst" : "coolEst";
+    const int magnitude = word16(std::abs(error));
     if (increase) {
-        int factor = 614 + std::clamp(std::abs(error) / 32, 0, 154);
+        int factor = 614 + std::clamp(magnitude / 32, 0, 154);
         settings[name] = std::max(25, product(factor, settings.at(name)));
         save(false);
     }
     if (decrease) {
-        int factor = 426 - std::clamp(std::abs(error) / 32, 0, 85);
+        int factor = 426 - std::clamp(magnitude / 32, 0, 85);
         settings[name] = product(factor, settings.at(name));
         save(false);
     }
@@ -697,8 +692,8 @@ void Engine::restore_checkpoint(const Json& j) {
             throw std::runtime_error("invalid checkpoint target field count");
         Device d = decode_device(target);
         if (!copy.live_target(d) || copy.targets.count(d.f) || d.c < 0 || d.b < 0 || d.p < 0 ||
-            d.p > 255 || d.cal < -128 || d.cal > 127 || (d.x != 0 && d.x != 1) ||
-            (d.d != 0 && d.d != 1) || d.rom.size() != 16 ||
+            d.p > 255 || d.cal < -128 || d.cal > 127 || !d.supported_flags() ||
+            d.rom.size() != 16 ||
             d.rom.find_first_not_of("0123456789ABCDEF") != std::string::npos || live.validate(d))
             throw std::runtime_error("invalid checkpoint target");
         copy.targets[d.f] = d;

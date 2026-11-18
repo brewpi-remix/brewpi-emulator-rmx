@@ -16,6 +16,10 @@ namespace rmx {
 struct Device {
     int c = 0, b = 0, f = 0, h = 0, d = 0, p = 0, x = 0, cal = 0;
     std::string rom = "0000000000000000";
+    // Bounded artifact representation, not stricter Arduino input validation.
+    bool supported_flags() const {
+        return d >= 0 && d <= 127 && x >= 0 && x <= 127 && (h == 1 || (d <= 1 && x <= 1));
+    }
 };
 class Engine {
   public:
