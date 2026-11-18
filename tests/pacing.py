@@ -36,6 +36,11 @@ def run():
             options=['--profile',profile,'--speed','0','--checkpoint',str(checkpoint)]
             s=Session(directory,options=options)
             try:
+                # A61-byte identity takes at least10.37 ms on the nominal UART, even paused.
+                started=time.monotonic()
+                s.write(b'n')
+                assert s.expect('N')==expected_identity
+                assert time.monotonic()-started >= .008
                 s.write(b'Enh{}')
                 s.expect('D',dict(logType='I',logID=15,V=[]))
                 assert s.expect('N')==expected_identity
@@ -236,6 +241,24 @@ def run():
                 s.expect('S');assert s.expect('C')['Kp']==7
             finally:s.close()
             checks.append(profile+' active-menu fallback/checkpoint preserves paused state and resumed parser deadline')
+        # A tiny positive rate must stay interruptible rather than overflow a wait conversion.
+        directory=root/'uart-interrupt';directory.mkdir()
+        original_checkpoint=(root/'revc'/'checkpoint.json').read_bytes()
+        (directory/'saved.json').write_bytes(original_checkpoint)
+        (directory/'controller.json').write_bytes((root/'revc'/'controller.json').read_bytes())
+        s=Session(directory,fresh=False,options=['--speed','1e-300','--resume',
+                  str(directory/'saved.json'),'--checkpoint',str(directory/'saved.json')])
+        try:
+            s.write(b'c')
+            s.silent(.1)
+        finally:
+            s.p.terminate()
+            out,err=s.p.communicate(timeout=5)
+            os.close(s.fd);s.fd=None
+        assert s.p.returncode!=0 and b'shutdown could not drain serial output' in err,(out,err)
+        assert (directory/'saved.json').read_bytes()==original_checkpoint
+        assert not (directory/'serial').is_symlink()
+        checks.append('tiny positive UART pacing stays interruptible and preserves the previous checkpoint')
         # Resume must not silently mix a checkpoint with subsequently changed saved configuration.
         state=root/'1'/'controller.json'
         mismatched_checkpoint=root/'1'/'checkpoint.json'

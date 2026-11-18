@@ -28,6 +28,7 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <termios.h>
+#include <thread>
 #include <unistd.h>
 #endif
 
@@ -332,58 +333,57 @@ int application_main(int argc, char** argv) {
         size_t sent = 0;
         auto wall_anchor = Clock::now();
         auto dispatch_epoch = engine.dispatch_epoch();
-        auto advance_wall = [&]() {
+        double uart_fraction_us = 0;
+        bool clock_allowed = true;
+        auto controller_fraction_us = uint64_t(std::floor(pacing_fraction * 1000));
+        double legacy_sub_us = pacing_fraction * 1000 - double(controller_fraction_us);
+        auto advance_controller = [&](uint64_t us) {
             bool starting_up = engine.starting_up();
+            if (speed > 0 || starting_up) {
+                auto total_fraction_us = controller_fraction_us + us % 1000;
+                auto simulated = us / 1000 + total_fraction_us / 1000;
+                controller_fraction_us = total_fraction_us % 1000;
+                pacing_fraction = (double(controller_fraction_us) + legacy_sub_us) / 1000;
+                engine.advance_ms(simulated, clock_allowed && pending.size() - sent < 65536,
+                                  speed == 0);
+                if (starting_up && !engine.starting_up() && speed == 0) {
+                    controller_fraction_us = 0;
+                    legacy_sub_us = pacing_fraction = 0;
+                }
+            }
+        };
+        auto advance_wall = [&](bool controller_allowed = true) {
             auto wall_now = Clock::now();
             double elapsed =
                 std::chrono::duration<double, std::milli>(wall_now - wall_anchor).count();
             wall_anchor = wall_now;
-            // Pausing applies after startup; mandatory initialization still completes.
-            pacing_fraction += elapsed * (starting_up && speed == 0 ? 1 : speed);
-            auto simulated = uint64_t(std::floor(pacing_fraction));
-            pacing_fraction -= double(simulated);
-            if (speed > 0 || starting_up) {
-                engine.advance_ms(simulated, pending.size() - sent < 65536, speed == 0);
-                if (starting_up && !engine.starting_up() && speed == 0)
-                    pacing_fraction = 0;
-            }
+            uart_fraction_us += elapsed * 1000 * (speed > 0 ? speed : 1);
+            auto uart_elapsed = uint64_t(std::floor(uart_fraction_us));
+            uart_fraction_us -= double(uart_elapsed);
+            bool previous = clock_allowed;
+            clock_allowed = controller_allowed;
+            engine.advance_uart_us(uart_elapsed, controller_allowed);
+            clock_allowed = previous;
             if (dispatch_epoch != engine.dispatch_epoch()) {
                 dispatch_epoch = engine.dispatch_epoch();
                 deadline = Clock::now() + std::chrono::seconds(1);
             }
         };
-        while (!stopping) {
-#ifdef _WIN32
-            readiness.tick();
-#endif
+        auto pump_serial = [&](int wait, bool receive) {
+            auto accepting = [&]() {
+                return receive && engine.uart_caught_up() && engine.uart_input_space() >= 1024 &&
+                       pending.size() - sent < 65536;
+            };
 #ifndef _WIN32
-            if (suspending) {
-                lcd.suspend();
-                suspending = 0;
-                // SIGSTOP guarantees a stop even for an orphaned process group.
-                raise(SIGSTOP);
-            }
-#endif
-            advance_wall();
-            if (engine.restarting())
-                engine.restart(true);
-            // Stop accepting input while the reader is backpressured; retain every output byte.
-#ifndef _WIN32
-            short events = pending.size() - sent < 65536 ? POLLIN : 0;
+            short events = accepting() ? POLLIN : 0;
             if (sent < pending.size())
                 events |= POLLOUT;
             pollfd f{pty.fd(), events, 0};
 #endif
-            int wait = speed > 0 ? std::max(1, std::min(100, int(std::ceil(100 / speed)))) : 100;
-            if (engine.reading())
-                wait = std::max(
-                    0, std::min(100, int(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                             deadline - Clock::now())
-                                             .count())));
 #ifdef _WIN32
-            unsigned ready = port.wait(pending.size() - sent < 65536, sent < pending.size(),
-                                       static_cast<unsigned>(wait));
-            advance_wall();
+            unsigned ready =
+                port.wait(accepting(), sent < pending.size(), static_cast<unsigned>(wait));
+            advance_wall(receive);
             if (ready & rmx::WindowsSerial::writable) {
                 auto w = port.write(pending.data() + sent, pending.size() - sent);
                 sent += w;
@@ -395,11 +395,11 @@ int application_main(int argc, char** argv) {
                     sent = 0;
                 }
             }
-            if (ready & rmx::WindowsSerial::readable) {
+            if ((ready & rmx::WindowsSerial::readable) && accepting()) {
                 char buf[1024];
                 auto r = port.read(buf, sizeof buf);
                 if (r) {
-                    engine.feed(std::string(buf, r));
+                    engine.queue_uart_rx(std::string(buf, r));
                     deadline = Clock::now() + std::chrono::seconds(1);
                 }
             }
@@ -407,10 +407,10 @@ int application_main(int argc, char** argv) {
             int n = ::poll(&f, 1, wait);
             if (n < 0) {
                 if (errno == EINTR)
-                    continue;
+                    return;
                 throw std::runtime_error("PTY poll failed");
             }
-            advance_wall();
+            advance_wall(receive);
             if (f.revents & (POLLERR | POLLNVAL | POLLHUP))
                 throw std::runtime_error("PTY disconnected unexpectedly");
             if (f.revents & POLLOUT) {
@@ -427,23 +427,101 @@ int application_main(int argc, char** argv) {
                 } else if (w < 0 && errno != EAGAIN && errno != EINTR)
                     throw std::runtime_error("PTY write failed");
             }
-            if (f.revents & POLLIN) {
+            if ((f.revents & POLLIN) && accepting()) {
                 char buf[1024];
-                ssize_t r = ::read(pty.fd(), buf, sizeof buf);
+                ssize_t r = ::read(pty.fd(), buf, std::min(sizeof buf, engine.uart_input_space()));
                 if (r > 0) {
-                    engine.feed(std::string(buf, size_t(r)));
+                    engine.queue_uart_rx(std::string(buf, size_t(r)));
                     deadline = Clock::now() + std::chrono::seconds(1);
                 } else if (r < 0 && errno != EAGAIN && errno != EINTR)
                     throw std::runtime_error("PTY read failed");
             }
 #endif
+        };
+        bool presenting = false;
+        auto tick_lcd = [&](bool writable) {
+            if (presenting)
+                return;
+            presenting = true;
+            try {
+                lcd.tick(engine.lcd_rows(), writable);
+            } catch (...) {
+                presenting = false;
+                throw;
+            }
+            presenting = false;
+        };
+        engine.enable_uart(
+            [&](uint64_t) {
+                auto completed = engine.uart_completed();
+                while (completed == engine.uart_completed()) {
+                    tick_lcd(false);
+                    if (lcd.shutdown_requested())
+                        stopping = 1;
+                    if (stopping)
+                        throw std::runtime_error("interrupted UART transmit continuation");
+                    engine.advance_uart_us(0);
+                    if (completed != engine.uart_completed())
+                        break;
+                    pump_serial(0, true);
+                    if (completed != engine.uart_completed())
+                        break;
+                    // Clamp before conversion: very small positive pacing must remain
+                    // interruptible.
+                    double delay =
+                        std::ceil(double(engine.uart_next_us()) / (speed > 0 ? speed : 1));
+                    auto wall_us = uint64_t(std::max(1.0, std::min(1000.0, delay)));
+                    std::this_thread::sleep_for(std::chrono::microseconds(wall_us));
+                }
+            },
+            advance_controller);
+        while (!stopping) {
+#ifdef _WIN32
+            readiness.tick();
+#endif
+#ifndef _WIN32
+            if (suspending) {
+                lcd.suspend();
+                suspending = 0;
+                // SIGSTOP guarantees a stop even for an orphaned process group.
+                raise(SIGSTOP);
+            }
+#endif
+            advance_wall();
+            if (engine.restarting())
+                engine.restart(true);
+            // Stop accepting input while the reader is backpressured; retain every output byte.
+            int wait =
+                speed > 0 ? int(std::max(1.0, std::min(100.0, std::ceil(100 / speed)))) : 100;
+            if (engine.reading())
+                wait = std::max(
+                    0, std::min(100, int(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                             deadline - Clock::now())
+                                             .count())));
+            if (engine.uart_pending() || engine.uart_input_pending()) {
+                double next =
+                    std::ceil(double(engine.uart_next_us()) / (1000 * (speed > 0 ? speed : 1)));
+                wait = std::min(wait, int(std::max(1.0, std::min(100.0, next))));
+            }
+            pump_serial(wait, true);
             if (engine.reading() && Clock::now() >= deadline) {
                 engine.read_timeout();
                 deadline = Clock::now() + std::chrono::seconds(1);
             }
-            lcd.tick(engine.lcd_rows(), pending.size() - sent < 65536);
+            tick_lcd(pending.size() - sent < 65536);
             if (lcd.shutdown_requested())
                 stopping = 1;
+        }
+        // Administrative shutdown drains already accepted TX without executing more commands.
+        auto drain_deadline = Clock::now() + std::chrono::seconds(2);
+        while (engine.uart_pending() || engine.uart_input_pending() || sent != pending.size()
+#ifdef _WIN32
+               || !port.drained()
+#endif
+        ) {
+            if (Clock::now() >= drain_deadline)
+                throw std::runtime_error("shutdown could not drain serial output");
+            pump_serial(1, false);
         }
         if (checkpoint_file) {
             if (sent != pending.size()

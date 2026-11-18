@@ -448,6 +448,338 @@ void receive_limits(Profile profile) {
         b.engine.feed(std::string(1, c));
     require(b.wire == expected, "unblocked ingress was truncated by host batch size");
 }
+void transmit_limits(Profile profile) {
+    std::string expected;
+    Engine logical([&](const std::string& text) { expected += text; }, profile);
+    logical.feed("nn");
+    require(expected.size() == 122, "unexpected identity length for TX boundary case");
+    std::string wire;
+    Engine timed([&](const std::string& text) { wire += text; }, profile);
+    auto idle = timed.checkpoint();
+    size_t waits = 0;
+    timed.enable_uart([&](uint64_t us) {
+        ++waits;
+        require(timed.uart_waiting() && us == 170, "TX did not wait at its next nominal frame");
+        bool rejected = false;
+        try {
+            timed.restore_checkpoint(idle);
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        require(rejected, "restore replaced a suspended TX continuation");
+        timed.advance_uart_us(us);
+    });
+    timed.feed("n");
+    require(wire.empty() && waits == 0, "short TX bypassed nominal serialization");
+    timed.local_action("press", 0);
+    require(timed.dispatch_suspended() && !timed.uart_waiting(),
+            "background TX prevented a menu from starting");
+    timed.advance_uart_us(169);
+    require(wire.empty(), "TX completed before its full frame time");
+    timed.advance_uart_us(1);
+    require(wire == "N", "TX did not complete at170 microseconds");
+    timed.advance_uart_us(170 * 60);
+    require(wire == expected.substr(0, 61) && timed.checkpoint().has("menu"),
+            "background TX drain changed byte order or bypassed the menu");
+    timed.local_cancel();
+    wire.clear();
+    timed.feed("nn");
+    require(waits == 57 && wire == expected.substr(0, 57),
+            "TX did not retain63 software bytes plus two hardware positions");
+    bool rejected = false;
+    try {
+        timed.checkpoint();
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected, "checkpoint lost queued TX or frame phase");
+    timed.advance_uart_us(170 * 65 - 1);
+    require(wire.size() == 121, "partial final TX frame was rounded away");
+    timed.advance_uart_us(1);
+    require(wire == expected && !timed.uart_pending(), "TX lost output while full or draining");
+    timed.restore_checkpoint(idle);
+    // R's existing reset boundary must preserve the preceding accepted output.
+    wire.clear();
+    timed.feed("nRn");
+    require(timed.restarting() && wire == expected.substr(0, 61) && !timed.uart_pending(),
+            "reset discarded accepted TX or executed bytes beyond its barrier");
+    timed.restart(false);
+    timed.advance_uart_us(100000);
+    wire.clear();
+
+    Bench b(profile);
+    int heater = profile == Profile::i2c ? 6 : 5;
+    b.engine.feed("U{i:3,f:2,h:1,p:" + std::to_string(heater) + ",x:1}j{mode:t}d{i:3,w:1}");
+    b.engine.precondition(Json::Object{{"mode", "b"}});
+    b.wire.clear();
+    const auto before = b.engine.observations();
+    const auto old_gain = b.snap().at("constants").at("Kp").integer();
+    bool injected = false;
+    b.engine.enable_uart([&](uint64_t us) {
+        if (!injected) {
+            injected = true;
+            require(b.engine.store_image().at("constants_raw").at("Kp").integer() == old_gain,
+                    "mutation ran past its blocked preceding diagnostic");
+            b.engine.feed("d{i:3,r:1}" + std::string(52, 'n'));
+            b.engine.feed("vs"); // v fits at63; s and the later h must disappear silently.
+            b.engine.feed("h");
+            b.engine.advance_ms(2500);
+            const auto during = b.engine.observations();
+            require(during.at("controller_millis").integer() == 2500 &&
+                        during.at("integral_evaluation_count").dump() ==
+                            before.at("integral_evaluation_count").dump() &&
+                        during.at("pins").dump() == before.at("pins").dump(),
+                    "TX stall ran ordinary controller work or changed latched outputs");
+            require(during.at("plant").dump() != before.at("plant").dump(),
+                    "TX stall froze external plant time");
+            b.engine.advance_uart_us(us);
+        } else
+            b.engine.advance_uart_us(us);
+    });
+    b.engine.feed("n"); // 61 accepted bytes leave four immediate positions for I12.
+    b.engine.feed("j{Kp:7}");
+    b.engine.advance_uart_us(100000);
+    auto after = b.snap();
+    require(injected && after.at("constants").at("Kp").integer() == 3584 &&
+                after.at("last_evaluation_ms").integer() == 2500,
+            "blocked mutation did not resume before one overdue evaluation");
+    std::string prefixes;
+    bool read_active = false;
+    size_t start = 0;
+    while (start < b.wire.size()) {
+        prefixes += b.wire[start];
+        auto end = b.wire.find("\r\n", start);
+        require(end != std::string::npos, "TX emitted a partial final reply");
+        if (b.wire[start] == 'd')
+            read_active = Json::parse(b.wire.substr(start + 2, end - start - 2))
+                              .array()[0]
+                              .at("v")
+                              .integer() == 1;
+        start = end + 2;
+    }
+    require(read_active && b.engine.observations().at("pins").dump() != before.at("pins").dump(),
+            "ordinary outputs ran before queued RX or failed to resume afterward");
+    require(prefixes == "NDSCd" + std::string(52, 'N') + "V",
+            "RX during TX did not retain oldest63 bytes and silently drop new arrivals");
+    b.wire.clear();
+    b.engine.feed("s");
+    b.engine.advance_uart_us(100000);
+    require(b.wire.rfind("S:", 0) == 0, "RX did not recover after TX-stalled overflow");
+
+    Bench ordered(profile), oracle(profile);
+    oracle.engine.feed("cvs");
+    bool later = false;
+    ordered.engine.enable_uart([&](uint64_t us) {
+        if (!later) {
+            later = true;
+            ordered.engine.feed("s");
+        }
+        ordered.engine.advance_uart_us(us);
+    });
+    ordered.engine.feed("cv");
+    ordered.engine.advance_uart_us(100000);
+    require(later && ordered.wire == oracle.wire,
+            "TX stall reordered the unconsumed batch suffix behind later RX");
+    Bench overflow(profile);
+    overflow.engine.enable_uart([&](uint64_t us) { overflow.engine.advance_uart_us(us); });
+    overflow.engine.feed("c" + std::string(62, 'n') + "vs");
+    overflow.engine.advance_uart_us(100000);
+    size_t rows = 0;
+    for (size_t pos = 0; (pos = overflow.wire.find("\r\n", pos)) != std::string::npos; pos += 2)
+        ++rows;
+    require(rows == 64 && overflow.wire.rfind("C:", 0) == 0 &&
+                overflow.wire.find("\r\nS:") == std::string::npos,
+            "TX did not bound already-delivered batch input at its blocked boundary");
+    Bench partial(profile);
+    bool timeout_phase = false, queued = false;
+    partial.engine.enable_uart([&](uint64_t us) {
+        if (timeout_phase && !queued) {
+            queued = true;
+            partial.engine.feed("n");
+        }
+        partial.engine.advance_uart_us(us);
+    });
+    partial.engine.feed("c" + std::string(57, ' ') + "j{Kp:7}");
+    partial.engine.advance_uart_us(100000);
+    require(partial.engine.reading(), "TX-stalled overflow invented delimiter recovery");
+    timeout_phase = true;
+    partial.engine.read_timeout();
+    partial.engine.advance_uart_us(100000);
+    require(queued && !partial.engine.reading() &&
+                partial.snap().at("constants").at("Kp").integer() == 3584 &&
+                partial.wire.find("\r\nN:") != std::string::npos,
+            "parser timeout failed to resume RX collected during blocked replies");
+    Engine failed([](const std::string&) {}, profile);
+    failed.enable_uart([](uint64_t) {});
+    rejected = false;
+    try {
+        failed.feed("nn");
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected, "nonprogressing TX wait did not fail locally");
+    failed.advance_uart_us(100000);
+    rejected = false;
+    try {
+        failed.checkpoint();
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected, "failed TX continuation became a successful checkpoint");
+}
+void transmit_scheduling(Profile profile) {
+    Bench input(profile);
+    input.engine.enable_uart([&](uint64_t us) {
+        auto completed = input.engine.uart_completed();
+        input.engine.advance_uart_us(0);
+        if (completed == input.engine.uart_completed())
+            input.engine.advance_uart_us(us);
+    });
+    input.engine.queue_uart_rx("n");
+    bool rejected = false;
+    try {
+        input.engine.checkpoint();
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected, "checkpoint omitted an unfinished RX frame");
+    input.engine.advance_uart_us(169);
+    require(input.wire.empty() && !input.engine.uart_pending(),
+            "RX arrived before its frame completed");
+    input.engine.advance_uart_us(1);
+    require(input.wire.empty() && input.engine.uart_pending(),
+            "RX was not decoded at its frame boundary");
+    input.engine.advance_uart_us(61 * 170);
+    require(input.wire.rfind("N:", 0) == 0 && !input.engine.uart_pending(),
+            "full-duplex UART did not drain its identity");
+    input.wire.clear();
+    input.engine.queue_uart_rx(std::string(65536, ' '));
+    rejected = false;
+    try {
+        input.engine.queue_uart_rx("n");
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected && input.engine.uart_input_space() == 0,
+            "native wire admission overflow mutated or silently dropped input");
+    input.engine.advance_uart_us(65536 * 170);
+    require(input.wire.empty() && input.engine.uart_input_space() == 65536,
+            "unblocked serialized input was capped at RX ring capacity");
+
+    Bench streamed(profile), oracle(profile);
+    int bus = profile == Profile::i2c ? 14 : 18;
+    std::string patch = "U{ i:0, c:1, b:1, f:9, h:2, p:" + std::to_string(bus) +
+                        ", a:28A10100000001E6, j:0.0625, n:0 }";
+    require(patch.size() > 63, "paced RX test did not exceed one ringful");
+    oracle.engine.feed("nn" + patch + "n");
+    streamed.engine.enable_uart([&](uint64_t us) {
+        auto completed = streamed.engine.uart_completed();
+        streamed.engine.advance_uart_us(0);
+        if (completed == streamed.engine.uart_completed())
+            streamed.engine.advance_uart_us(us);
+    });
+    streamed.engine.queue_uart_rx("nn" + patch + "n");
+    streamed.engine.advance_uart_us(100000);
+    require(streamed.wire == oracle.wire &&
+                streamed.engine.store_image().dump() == oracle.engine.store_image().dump() &&
+                !streamed.engine.uart_pending() && !streamed.engine.uart_input_pending(),
+            "OS batch size corrupted a paced ROM or spent elapsed credit past the blocked CPU");
+
+    Bench sustained(profile);
+    sustained.engine.feed("U{i:0,f:9,h:2,p:" + std::to_string(bus) +
+                          ",a:28A10100000001E6}U{i:1,f:5,h:2,p:" + std::to_string(bus) +
+                          ",a:28A1010000000204}");
+    sustained.engine.advance_ms(0);
+    sustained.wire.clear();
+    sustained.engine.feed("c");
+    const size_t reply_size = sustained.wire.size();
+    sustained.wire.clear();
+    int initial = sustained.engine.observations().at("integral_evaluation_count").integer();
+    uint64_t elapsed = 0, fraction = 0;
+    sustained.engine.enable_uart(
+        [&](uint64_t us) {
+            auto completed = sustained.engine.uart_completed();
+            sustained.engine.advance_uart_us(0);
+            if (completed == sustained.engine.uart_completed())
+                sustained.engine.advance_uart_us(us);
+        },
+        [&](uint64_t us) {
+            elapsed += us;
+            fraction += us;
+            auto ms = fraction / 1000;
+            fraction %= 1000;
+            sustained.engine.advance_ms(ms);
+            if (sustained.engine.uart_waiting() && sustained.wire.size() <= 64 * reply_size - 65 &&
+                elapsed / 100000 != (elapsed - us) / 100000)
+                require(sustained.engine.observations().at("integral_evaluation_count").integer() ==
+                            initial,
+                        "ordinary PID work ran inside a nominal TX-stalled receive loop");
+        });
+    sustained.engine.queue_uart_rx(std::string(64, 'c'));
+    sustained.engine.advance_uart_us(5000000);
+    auto after = sustained.snap();
+    require(elapsed == 5000000 && after.at("controller_ms").integer() == 5000 &&
+                after.at("integral_counter").integer() == initial + 1 &&
+                after.at("last_evaluation_ms").integer() >= 4000,
+            "nominal TX time was counted twice or missed evaluations were replayed");
+}
+void streamed_transmit_actions(Profile profile) {
+    for (char query : {'d', 'h'}) {
+        Bench partial(profile);
+        partial.engine.feed(std::string(1, query) + "{");
+        require(partial.wire == std::string(1, query) + ":[" && partial.engine.reading(),
+                "list prefix did not precede query parsing");
+        partial.engine.read_timeout();
+        require(partial.wire.find("\r\n") == partial.wire.size() - 2,
+                "list parsing timeout duplicated or closed the prefix early");
+    }
+    Bench outputs(profile);
+    int heater = profile == Profile::i2c ? 6 : 5;
+    int cooler = profile == Profile::i2c ? 5 : 6;
+    outputs.engine.feed("U{i:3,f:2,h:1,p:" + std::to_string(heater) + ",x:1}U{i:4,f:3,h:1,p:" +
+                        std::to_string(cooler) + ",x:1}U{i:5,f:4,h:1,p:2,x:1}j{mode:t}");
+    outputs.wire.clear();
+    auto high = [&](int pin) {
+        auto pins = outputs.engine.observations().at("pins").array();
+        for (const auto& item : pins)
+            if (item.array()[0].integer() == pin)
+                return item.array()[1].boolean();
+        throw std::runtime_error("missing output pin in streamed write case");
+    };
+    bool blocked = false;
+    outputs.engine.enable_uart([&](uint64_t us) {
+        if (!blocked) {
+            blocked = true;
+            require(!high(heater) && high(cooler) && high(2),
+                    "later slot writes ran ahead of the first row's blocked output");
+        }
+        outputs.engine.advance_uart_us(us);
+    });
+    outputs.engine.feed("n"); // 61 bytes plus the three-byte d prefix leave one free position.
+    outputs.engine.feed("d{w:1}");
+    outputs.engine.advance_uart_us(100000);
+    require(blocked && !high(heater) && !high(cooler) && !high(2),
+            "streamed slot writes did not finish their original continuation");
+
+    Bench ambient(profile);
+    int bus = profile == Profile::i2c ? 14 : 18;
+    ambient.engine.feed("U{i:2,f:6,h:2,p:" + std::to_string(bus) + ",a:28A101000000035A}");
+    ambient.wire.clear();
+    bool lost = false;
+    ambient.engine.enable_uart([&](uint64_t us) {
+        if (!lost) {
+            lost = true;
+            ambient.engine.precondition(Json::Object{{"required_probe_connected", false}});
+        }
+        ambient.engine.advance_uart_us(us);
+    });
+    ambient.engine.feed("t");
+    ambient.engine.advance_uart_us(100000);
+    require(lost && ambient.wire.rfind("T:{", 0) == 0 &&
+                ambient.wire.find("D:{\"logType\":\"W\",\"logID\":2") != std::string::npos &&
+                ambient.wire.find("RoomTemp") == std::string::npos,
+            "ambient read ran ahead of its blocked telemetry prefix");
+}
 int main(int argc, char** argv) {
     try {
         profile_doors();
@@ -467,6 +799,11 @@ int main(int argc, char** argv) {
                 startup_events(profile);
                 queued_resets(profile);
                 startup_input_order(profile);
+            }
+            if (group == "all" || group == "transmit") {
+                transmit_limits(profile);
+                transmit_scheduling(profile);
+                streamed_transmit_actions(profile);
             }
             if (group == "all" || group == "receive")
                 receive_limits(profile);

@@ -62,8 +62,8 @@ raise SystemExit(10 if v.closing else 0)
     p=Process(exe,root/'instance','gui',env=env)
     try:
         p.command(b'E');p.command(b'j{mode:b,beerSet:20.023}')
-        time.sleep(.2)
-        while p.read_serial():p.wire=b''
+        while not p.line().startswith(b'C:'):
+            pass
         (root/'go').touch()
         wait_for(lambda:(root/'done.json').exists(),timeout=12)
         wait_for(lambda:p.proc.poll() is not None or (p.console() and False),timeout=5)

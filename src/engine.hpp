@@ -4,7 +4,9 @@
 #include "dynamics.hpp"
 #include "json.hpp"
 
+#include <algorithm>
 #include <array>
+#include <deque>
 #include <functional>
 #include <map>
 #include <optional>
@@ -21,11 +23,40 @@ class Engine {
     explicit Engine(Sink sink, Profile profile = Profile::revc);
     void feed(const std::string& bytes);
     void read_timeout();
+    // Native runtime enables nominal UART time; logical fixtures may omit the peripheral.
+    void enable_uart(std::function<void(uint64_t)> wait, std::function<void(uint64_t)> clock = {});
+    void advance_uart_us(uint64_t microseconds, bool dispatch_received = true);
+    void queue_uart_rx(const std::string& bytes);
+    size_t uart_input_space() const {
+        return 65536 - uart_rx.size();
+    }
+    bool uart_input_pending() const {
+        return !uart_rx.empty();
+    }
+    bool uart_caught_up() const {
+        return uart_budget_us == 0;
+    }
+    bool uart_pending() const {
+        return !uart_tx.empty();
+    }
+    uint64_t uart_next_us() const {
+        if (uart_tx.empty())
+            return uart_rx.empty() ? 0 : uart_rx_remaining_us;
+        return uart_rx.empty() ? uart_remaining_us
+                               : std::min(uart_remaining_us, uart_rx_remaining_us);
+    }
+    uint64_t uart_completed() const {
+        return uart_progress;
+    }
+    bool uart_waiting() const {
+        return uart_writing;
+    }
     bool reading() const {
         return phase != Phase::dispatch;
     }
     bool dispatch_suspended() const {
-        return display_reset_busy || initialization.has_value() || menu.page != LocalMenu::idle;
+        return uart_writing || display_reset_busy || initialization.has_value() ||
+               menu.page != LocalMenu::idle;
     }
     bool starting_up() const {
         return startup;
@@ -99,6 +130,19 @@ class Engine {
     int local_to_tenths(int raw) const;
     enum class Phase { dispatch, brace, key, value };
     Sink output;
+    std::function<void(uint64_t)> uart_wait, uart_clock;
+    std::deque<unsigned char> uart_rx;
+    uint64_t uart_rx_remaining_us = 0, uart_budget_us = 0;
+    // 63 software positions plus the data buffer and shifting frame, at nominal 16 MHz.
+    static constexpr size_t uart_transmit_capacity = 65;
+    static constexpr uint64_t uart_frame_us = 170;
+    std::string uart_tx;
+    uint64_t uart_remaining_us = 0, uart_progress = 0;
+    bool uart_writing = false, uart_resumed = false, receiving = false, uart_faulted = false;
+    std::string ingress;
+    size_t ingress_cursor = 0;
+    void serial_write(const std::string& bytes, bool drain = false);
+    void retain_serial(const std::string& bytes);
     std::function<void(const Json&)> save_callback;
     std::map<std::string, int> settings, constants, variables, saved_settings, saved_constants;
     std::array<Device, 16> slots{};

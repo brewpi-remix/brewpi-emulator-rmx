@@ -23,22 +23,21 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
         active = termios.tcgetattr(p.slave)
         assert not (active[3] & (termios.ICANON | termios.ECHO))
         p.command(b'E')  # I15
-        p.command(b'j{mode:b,beerSet:20.023}')  # first diagnostic, replies drained below
-        def drain():
-            while p.read_serial():
-                p.wire = b''
-        time.sleep(.1); drain()
+        p.command(b'j{mode:b,beerSet:20.023}')
+        # TX frames can arrive in fragments; consume the complete final reply.
+        while not p.line().startswith(b'C:'):
+            pass
         def command(text, response):
             start = len(p.console())
             os.write(p.master, text)
             wait_for(lambda: response in p.console()[start:])
             return p.console()[start:]
-        drain(); os.write(p.serial,b's'); baseline=json.loads(p.line()[2:])
+        os.write(p.serial,b's'); baseline=json.loads(p.line()[2:])
         command(b'press\r\n', b'Action accepted')
         command(b'cw\r', b'Action accepted')
         command(b'press\r', b'Edit target')
         # A query inside the menu waits; unrotated confirmation quantizes the target.
-        drain(); os.write(p.serial,b's'); time.sleep(.1)
+        os.write(p.serial,b's'); time.sleep(.1)
         assert not p.read_serial(), 'query dispatched inside paused menu'
         command(b'press\r', b'Target committed')
         after=p.line()
@@ -130,8 +129,7 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
     p=Process(exe,Path(tmp)/'storage-failure','terminal',env=env)
     try:
         wait_for(lambda:b'> ' in p.console())
-        p.command(b'E'); time.sleep(.1)
-        while p.read_serial():p.wire=b''
+        p.command(b'E')
         state=p.root/'state.json'; state.unlink(); state.mkdir()
         os.write(p.master,b'press\rcw\rpress\rpress\r')
         wait_for(lambda:p.proc.poll() is not None or (p.console() and False))

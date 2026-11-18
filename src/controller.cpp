@@ -382,6 +382,8 @@ void Engine::finish_loop_evaluation() {
     render_display();
 }
 void Engine::service_controller(bool allowed) {
+    if (uart_writing)
+        return;
     if (initialization) {
         if (!allowed || uint32_t(controller_ms - initialization->started_ms) < 750)
             return;
@@ -426,7 +428,7 @@ void Engine::service_controller(bool allowed) {
         loop_evaluation();
     }
     if (!dispatch_suspended() && allowed && !reading() && !restart_requested &&
-        (completed_reset || !deferred_serial.empty())) {
+        (completed_reset || !deferred_serial.empty()) && !receiving) {
         ++dispatch_generation;
         auto queued = std::move(deferred_serial);
         deferred_serial.clear();
@@ -496,7 +498,7 @@ void Engine::render_display() {
             std::string diagnostic;
             auto raw = read_probe(t->second, diagnostic);
             if (!diagnostic.empty())
-                output(diagnostic);
+                serial_write(diagnostic);
             return raw;
         }
         return reading_raw(t->second, true);
@@ -566,8 +568,12 @@ void Engine::render_state() {
     }
 }
 Json Engine::checkpoint() const {
-    if (reading() || restart_requested)
-        throw std::runtime_error("checkpoint requires a quiescent command boundary");
+    if (reading() || restart_requested || uart_writing || uart_faulted || !uart_tx.empty() ||
+        !uart_rx.empty() || uart_budget_us)
+        throw std::runtime_error("checkpoint requires a quiescent command and drained UART");
+    if (!deferred_serial.empty() && !display_reset_busy && !initialization &&
+        menu.page == LocalMenu::idle)
+        throw std::runtime_error("checkpoint contains unconsumed UART input");
     Json::Array ts, hs, ps, rows;
     for (auto& t : targets)
         ts.emplace_back(encode_device(t.second));
@@ -655,6 +661,9 @@ Json Engine::checkpoint() const {
     return result;
 }
 void Engine::restore_checkpoint(const Json& j) {
+    if (uart_writing || uart_faulted || receiving || !uart_tx.empty() || !uart_rx.empty() ||
+        uart_budget_us)
+        throw std::runtime_error("cannot restore over an active UART continuation");
     if (j.at("format").string() != "brewpi-emulator-engine-checkpoint-v1")
         throw std::runtime_error("unsupported checkpoint format");
     Profile captured = j.has("profile") ? parse_profile(j.at("profile").string()) : Profile::revc;

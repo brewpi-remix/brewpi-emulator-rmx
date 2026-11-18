@@ -160,12 +160,13 @@ def run():
             assert s.expect('d')[0]['v'] == 1
             assert s.expect('S')['mode'] == 't'
             checks.append('assignment, manual output, and client reopen without reset')
-            # An intentionally slow reader causes output backpressure, not data loss.
-            s.write(b'n' * 2500)
-            for _ in range(2500):
-                s.expect('N', identity)
+            # Pace requests within RX capacity; every accepted reply must survive TX stalls.
+            for _ in range(100):
+                s.write(b'n' * 25)
+                for _ in range(25):
+                    s.expect('N', identity)
             s.silent()
-            checks.append('slow reader and 2,500 ordered replies without dropped bytes')
+            checks.append('2,500 ordered replies with RX-bounded request batches and blocking TX')
             s.write(b'C')
             assert s.expect('C')['Kp'] == 5
             s.expect('D', dict(logType='I', logID=13, V=[]))

@@ -180,7 +180,7 @@ void Engine::defaults(bool cs, bool cc) {
                      {"hs", 0}};
 }
 void Engine::frame(char prefix, const std::string& body) {
-    output(std::string(1, prefix) + ':' + body + "\r\n");
+    serial_write(std::string(1, prefix) + ':' + body + "\r\n");
 }
 void Engine::diagnostic(char type, int id, Json::Array args) {
     frame('D', diagnostic_body(type, id, args));
@@ -300,6 +300,8 @@ void Engine::telemetry(const std::string& beer, const std::string& fridge) {
                 {"FridgeAnn", fridge.empty() ? "null" : wire_string(fridge.substr(0, 31))}};
     std::string out = object(f);
     out.pop_back();
+    serial_write("T:" + out);
+    out.clear();
     std::string nested;
     auto room = targets.find(6);
     if (room != targets.end()) {
@@ -309,7 +311,7 @@ void Engine::telemetry(const std::string& beer, const std::string& fridge) {
             out += ",\"RoomTemp\":" + number(*raw, 2, 1);
     }
     out += ",\"State\":" + std::to_string(state) + '}';
-    frame('T', out);
+    serial_write(out + "\r\n");
 }
 void Engine::save(bool cc) {
     if (!valid)
@@ -519,6 +521,8 @@ void Engine::byte(unsigned char c) {
         phase = Phase::brace;
         key.clear();
         value.clear();
+        if (command == 'd' || command == 'h')
+            serial_write(std::string(1, command) + ":[");
         return;
     case 'n':
         frame('N', object({{"v", "\"0.2.13\""},
@@ -582,6 +586,7 @@ void Engine::byte(unsigned char c) {
     case 'R':
         local_cancel();
         restart_requested = true;
+        serial_write({}, true);
         return;
     case 'A':
         alarm = true;
@@ -594,30 +599,162 @@ void Engine::byte(unsigned char c) {
         return;
     }
 }
-void Engine::feed(const std::string& bytes) {
-    // Application RX is enabled after startup display initialization.
-    if (startup_display)
-        return;
-    if (dispatch_suspended()) {
-        // Decoded arrivals during a known consumer suspension retain the oldest
-        // prefix. A full artifact RX queue silently discards the new byte.
-        auto accepted = std::min(bytes.size(), uart_receive_capacity - deferred_serial.size());
-        deferred_serial.append(bytes, 0, accepted);
+void Engine::enable_uart(std::function<void(uint64_t)> wait, std::function<void(uint64_t)> clock) {
+    if (!wait || uart_wait || uart_writing)
+        throw std::runtime_error("invalid UART timing attachment");
+    uart_wait = std::move(wait);
+    uart_clock = std::move(clock);
+}
+void Engine::queue_uart_rx(const std::string& bytes) {
+    if (!uart_wait || bytes.size() > uart_input_space())
+        throw std::runtime_error("native UART input admission exceeded");
+    if (uart_rx.empty() && !bytes.empty())
+        uart_rx_remaining_us = uart_frame_us;
+    for (char c : bytes)
+        uart_rx.push_back(static_cast<unsigned char>(c));
+}
+void Engine::advance_uart_us(uint64_t us, bool dispatch_received) {
+    if (us > std::numeric_limits<uint64_t>::max() - uart_budget_us)
+        throw std::runtime_error("UART clock budget exhausted");
+    uart_budget_us += us;
+    const bool waiting_for_space = uart_writing;
+    const auto previous_progress = uart_progress;
+    // Shared elapsed credit lets a blocked synchronous writer service already-due
+    // peripheral events without charging that time twice in a nested callback.
+    while (uart_budget_us) {
+        auto step = uart_budget_us;
+        if (!uart_tx.empty())
+            step = std::min(step, uart_remaining_us);
+        if (!uart_rx.empty())
+            step = std::min(step, uart_rx_remaining_us);
+        uart_budget_us -= step;
+        std::string completed;
+        if (!uart_tx.empty()) {
+            uart_remaining_us -= step;
+            if (!uart_remaining_us) {
+                completed = uart_tx.substr(0, 1);
+                uart_tx.erase(0, 1);
+                uart_remaining_us = uart_tx.empty() ? 0 : uart_frame_us;
+                ++uart_progress;
+            }
+        }
+        if (!uart_rx.empty()) {
+            uart_rx_remaining_us -= step;
+            if (!uart_rx_remaining_us) {
+                char c = char(uart_rx.front());
+                uart_rx.pop_front();
+                uart_rx_remaining_us = uart_rx.empty() ? 0 : uart_frame_us;
+                if (!startup_display)
+                    retain_serial(std::string(1, c));
+            }
+        }
+        if (!completed.empty())
+            output(completed);
+        if (uart_clock)
+            uart_clock(step);
+        if (dispatch_received && !deferred_serial.empty() && !dispatch_suspended() && !receiving &&
+            !restart_requested)
+            feed({});
+        // Resume the suspended CPU at the first available TX position, before
+        // spending later elapsed credit on peripheral events.
+        if (waiting_for_space && previous_progress != uart_progress)
+            break;
+    }
+}
+void Engine::retain_serial(const std::string& bytes) {
+    auto accepted = std::min(bytes.size(), uart_receive_capacity - deferred_serial.size());
+    deferred_serial.append(bytes, 0, accepted);
+}
+void Engine::serial_write(const std::string& bytes, bool drain) {
+    if (!uart_wait) {
+        if (!bytes.empty())
+            output(bytes);
         return;
     }
-    for (size_t index = 0; index < bytes.size(); ++index) {
-        if (restart_requested)
-            break;
-        if (dispatch_suspended()) {
-            feed(bytes.substr(index));
-            break;
+    if (uart_writing)
+        throw std::runtime_error("reentrant UART writer");
+    uart_writing = true;
+    auto wait_for_progress = [&]() {
+        if (receiving && ingress_cursor < ingress.size()) {
+            auto waiting = ingress.substr(ingress_cursor) + deferred_serial;
+            waiting.resize(std::min(waiting.size(), uart_receive_capacity));
+            deferred_serial = std::move(waiting);
+            ingress.clear();
+            ingress_cursor = 0;
         }
-        byte(static_cast<unsigned char>(bytes[index]));
+        auto progress = uart_progress;
+        uart_wait(uart_remaining_us);
+        if (progress == uart_progress)
+            throw std::runtime_error("UART wait made no transmit progress");
+        uart_resumed = true;
+        ++dispatch_generation;
+    };
+    try {
+        for (char c : bytes) {
+            while (uart_tx.size() == uart_transmit_capacity)
+                wait_for_progress();
+            if (uart_tx.empty())
+                uart_remaining_us = uart_frame_us;
+            uart_tx += c;
+        }
+        while (drain && !uart_tx.empty())
+            wait_for_progress();
+    } catch (...) {
+        uart_writing = false;
+        uart_faulted = true;
+        throw;
+    }
+    uart_writing = false;
+}
+void Engine::feed(const std::string& bytes) {
+    if (uart_faulted)
+        throw std::runtime_error("UART continuation previously failed");
+    if (startup_display)
+        return;
+    if (dispatch_suspended() || receiving) {
+        retain_serial(bytes);
+        return;
+    }
+    receiving = true;
+    ingress = bytes;
+    ingress_cursor = 0;
+    try {
+        while (!restart_requested) {
+            if (dispatch_suspended()) {
+                retain_serial(ingress.substr(ingress_cursor));
+                break;
+            }
+            if (ingress_cursor == ingress.size()) {
+                if (deferred_serial.empty())
+                    break;
+                ingress = std::move(deferred_serial);
+                deferred_serial.clear();
+                ingress_cursor = 0;
+            }
+            auto c = static_cast<unsigned char>(ingress[ingress_cursor++]);
+            ++dispatch_generation;
+            byte(c);
+        }
+    } catch (...) {
+        receiving = false;
+        ingress.clear();
+        ingress_cursor = 0;
+        throw;
+    }
+    receiving = false;
+    ingress.clear();
+    ingress_cursor = 0;
+    // The reference receive loop drains available RX before the next ordinary loop.
+    if (uart_resumed && !reading() && !restart_requested && !dispatch_suspended()) {
+        uart_resumed = false;
+        service_controller();
     }
 }
 void Engine::read_timeout() {
     if (reading())
         token({});
+    if (uart_resumed && !reading() && !restart_requested)
+        feed({});
 }
 bool Engine::live_target(const Device& d) const {
     return d.c <= 1 && d.b <= 1 &&
@@ -843,10 +980,10 @@ void Engine::query_slots() {
             if (camera)
                 camera_last = seconds();
         }
-        frame('d', "[]");
+        serial_write("]\r\n");
         return;
     }
-    std::string out = "[";
+    bool has_row = false;
     if (valid)
         for (int i = 0; i < 16; ++i) {
             const Device& d = slots[size_t(i)];
@@ -854,7 +991,7 @@ void Engine::query_slots() {
                 continue;
             if (q['i'] == -1 && !q['e'] && d.f == 0)
                 continue;
-            const bool separator = out.size() > 1;
+            const bool separator = has_row;
             std::string nested;
             std::optional<std::string> v;
             auto live = targets.find(d.f);
@@ -881,12 +1018,11 @@ void Engine::query_slots() {
                         v = std::to_string(int(sense_switch(target)));
                 }
             }
-            out += nested;
-            if (separator)
-                out += ',';
-            out += device_wire(d, i, v);
+            serial_write(nested);
+            serial_write((separator ? "," : "") + device_wire(d, i, v));
+            has_row = true;
         }
-    frame('d', out + ']');
+    serial_write("]\r\n");
 }
 void Engine::discover() {
     std::map<char, int> q = {{'h', -1}, {'p', -1}, {'v', 0}, {'u', 0}, {'f', 0}};
@@ -896,7 +1032,6 @@ void Engine::discover() {
     if (!discovery) {
         discovery = Discovery{};
         discovery->carry.c = 1;
-        output("h:[");
     }
     auto& carry = discovery->carry;
     std::vector<Device> inventory;
@@ -984,12 +1119,12 @@ void Engine::discover() {
         if (separator)
             out += ',';
         out += device_wire(carry, index, val);
-        output(out);
+        serial_write(out);
         discovery->has_row = true;
         skip();
     }
     discovery.reset();
-    output("]\r\n");
+    serial_write("]\r\n");
 }
 std::string Engine::lcd() const {
     std::string rows = "[";
@@ -1039,6 +1174,10 @@ void Engine::continue_boot(int first) {
     startup = false;
 }
 void Engine::restart(bool initialize_display) {
+    uart_tx.clear();
+    uart_remaining_us = 0;
+    uart_resumed = false;
+    uart_faulted = false;
     local_cancel();
     encoder_value = encoder_seen = encoder_low = encoder_high = 0;
     encoder_pressed = false;

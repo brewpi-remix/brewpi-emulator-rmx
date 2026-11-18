@@ -54,8 +54,8 @@ while time.monotonic()<end:
         p=Process(exe,root/'process','gui',env=env)
         try:
             p.command(b'E');p.command(b'j{mode:b,beerSet:20}')
-            time.sleep(.1)
-            while p.read_serial():p.wire=b''
+            while not p.line().startswith(b'C:'):
+                pass
             (root/'go').touch()
             if case=='duplicate':
                 wait_for(lambda:b'duplicate GUI action' in p.console())
@@ -68,13 +68,12 @@ while time.monotonic()<end:
                     assert acks[5]['status']=='Door opened' and acks[6]['status']=='Door unchanged'
                 else:
                     assert acks[0]['status']=='State changed; retry',acks
-            time.sleep(.1)
-            while p.read_serial():p.wire=b''
-            if case!='duplicate':assert p.command(b'n').startswith(b'N:')
+            if case!='duplicate':
+                os.write(p.serial,b'n')
+                while not p.line().startswith(b'N:'):
+                    pass
         finally:
-            # Drain any annotation replies before asking for a final identity.
-            time.sleep(.1)
-            while p.read_serial():p.wire=b''
+            # Shutdown drains accepted TX; keep partial frames intact until then.
             p.close()
         data=json.loads(p.checkpoint.read_text())['engine']
         if case=='normal':assert data['settings']['beerSet']==-14285,data['settings']

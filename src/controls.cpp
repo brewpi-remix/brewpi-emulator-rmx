@@ -26,7 +26,8 @@ void Engine::local_cancel() {
 }
 void Engine::local_tick(uint64_t, bool writable) {
     // Native UI wall time does not advance the emulated firmware clock.
-    if (encoder_pressed && writable && !reading() && !display_reset_busy && !initialization)
+    if (encoder_pressed && writable && !reading() && !display_reset_busy && !initialization &&
+        !uart_writing)
         service_controller();
 }
 int Engine::local_to_tenths(int raw) const {
@@ -164,7 +165,8 @@ std::string Engine::local_action(const std::string& action, uint64_t, bool writa
                         : next < encoder_low ? encoder_high
                                              : next;
     }
-    if (!writable || reading() || restarting() || display_reset_busy || initialization)
+    if (!writable || reading() || restarting() || display_reset_busy || initialization ||
+        uart_writing)
         return "Encoder event retained";
     // Preserve an evidence limit without invoking undefined lookup memory.
     if (menu.page == LocalMenu::setting && encoder_pressed && encoder_value == 0 &&

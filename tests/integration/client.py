@@ -72,7 +72,12 @@ def close_maintenance(page):
 def assign_all(page, client):
     maintenance(page, 'device-config')
     page.locator('#read-values').check()
+    previous = page.query_selector('.device-container')
     page.click('.refresh-device-list')
+    if previous is not None:
+        # Existing rows are stale until this refresh replaces them; presence alone is insufficient.
+        page.wait_for_function('element => !element.isConnected', arg=previous, timeout=15000)
+        previous.dispose()
     page.wait_for_selector('.device-container', timeout=15000)
     mapping = [('28A10100000001E6',0,9), ('28A1010000000204',1,5),
                ('28A101000000035A',2,6), ('5(Act2)',3,2), ('6(Act1)',4,3),
