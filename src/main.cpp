@@ -439,23 +439,30 @@ int application_main(int argc, char** argv) {
 #endif
         };
         bool presenting = false;
+        auto next_wait_lcd = Clock::now();
         auto tick_lcd = [&](bool writable) {
             if (presenting)
                 return;
             presenting = true;
             try {
-                lcd.tick(engine.lcd_rows(), writable);
+                // Headless ticks still service logical inputs, but need no row copies.
+                if (lcd_mode == "off")
+                    lcd.tick({}, writable);
+                else
+                    lcd.tick(engine.lcd_rows(), writable);
             } catch (...) {
                 presenting = false;
                 throw;
             }
             presenting = false;
+            next_wait_lcd = Clock::now() + std::chrono::milliseconds(100);
         };
         engine.enable_uart(
             [&](uint64_t) {
                 auto completed = engine.uart_completed();
                 while (completed == engine.uart_completed()) {
-                    tick_lcd(false);
+                    if (Clock::now() >= next_wait_lcd)
+                        tick_lcd(false);
                     if (lcd.shutdown_requested())
                         stopping = 1;
                     if (stopping)

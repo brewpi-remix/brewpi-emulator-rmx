@@ -160,13 +160,18 @@ def run():
             assert s.expect('d')[0]['v'] == 1
             assert s.expect('S')['mode'] == 't'
             checks.append('assignment, manual output, and client reopen without reset')
-            # Pace requests within RX capacity; every accepted reply must survive TX stalls.
-            for _ in range(100):
-                s.write(b'n' * 25)
-                for _ in range(25):
-                    s.expect('N', identity)
-            s.silent()
-            checks.append('2,500 ordered replies with RX-bounded request batches and blocking TX')
+            # An independent safe-mode instance keeps 2,500 mixed, ordered replies while
+            # declared 10x virtual time avoids adding 26+ wall seconds to every lifecycle run.
+            stress_root=root/'tx-stress';stress_root.mkdir()
+            stress=Session(stress_root,options=['--speed','10'])
+            try:
+                for _ in range(100):
+                    stress.write(b'ns'*12+b'n')
+                    for prefix in ['N','S']*12+['N']:
+                        stress.expect(prefix,identity if prefix=='N' else initial)
+                stress.silent()
+            finally:stress.close()
+            checks.append('2,500 mixed ordered replies at declared 10x pacing with RX-bounded batches')
             s.write(b'C')
             assert s.expect('C')['Kp'] == 5
             s.expect('D', dict(logType='I', logID=13, V=[]))

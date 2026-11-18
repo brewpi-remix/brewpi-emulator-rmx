@@ -251,11 +251,19 @@ def run():
         try:
             s.write(b'c')
             s.silent(.1)
-        finally:
             s.p.terminate()
+            # Bound application shutdown separately from sanitizer process teardown.
+            stopped=time.monotonic()+5
+            while s.path.exists() or s.path.is_symlink():
+                assert time.monotonic()<stopped,'UART application did not release its serial path'
+                time.sleep(.01)
             out,err=s.p.communicate(timeout=5)
+            assert s.p.returncode!=0 and b'shutdown could not drain serial output' in err,(out,err)
+        finally:
+            if s.p.poll() is None:
+                s.p.kill()
+                s.p.communicate(timeout=5)
             os.close(s.fd);s.fd=None
-        assert s.p.returncode!=0 and b'shutdown could not drain serial output' in err,(out,err)
         assert (directory/'saved.json').read_bytes()==original_checkpoint
         assert not (directory/'serial').is_symlink()
         checks.append('tiny positive UART pacing stays interruptible and preserves the previous checkpoint')
