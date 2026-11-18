@@ -106,7 +106,10 @@ int main(int argc, char** argv) {
                 hex += digits[c >> 4];
                 hex += digits[c & 15];
             }
-            Json observations = engine.observations();
+            // Wire-only comparisons do not need an unrelated full state export.
+            Json observations = request.has("observe") && !request.at("observe").boolean()
+                                    ? Json(Json::Object{})
+                                    : engine.observations();
             if (op == "checkpoint")
                 observations["checkpoint"] = engine.checkpoint();
             std::cout << Json(Json::Object{{"hex", hex}, {"observations", observations}}).dump()

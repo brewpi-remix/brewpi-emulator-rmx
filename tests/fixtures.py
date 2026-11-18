@@ -70,11 +70,13 @@ def contains(actual, expected):
 
 
 class Driver:
-    def __init__(self, executable, profile=None):
+    def __init__(self, executable, profile=None, observe=True):
+        self.observe=observe
         args = [executable] + ([profile] if profile is not None else [])
         self.p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
     def call(self, op, **args):
+        args.setdefault('observe',self.observe)
         self.p.stdin.write(json.dumps(dict(op=op, **args)) + '\n')
         self.p.stdin.flush()
         # CTest's bounded test timeout also guards failures in the local driver.

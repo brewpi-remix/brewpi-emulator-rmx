@@ -25,3 +25,13 @@ def frames(path, prefix, session=None):
         if line.startswith(prefix.encode()+b':'):
             result.append(json.loads(line[2:].decode('cp437')))
     return result
+
+
+def startup_identity_attempts(data):
+    """Count leading identity retries; preserve the required settings/query order."""
+    attempts=0
+    while attempts<len(data) and data[attempts:attempts+1]==b'n':
+        attempts+=1
+    if not attempts or not data[attempts:].startswith(b's\nc\nv\n'):
+        raise ValueError('host startup must request n, s, c, and v in order')
+    return attempts

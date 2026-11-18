@@ -31,6 +31,23 @@ def near(a, b, tolerance=1e-6):
     assert abs(a - b) <= tolerance, (a, b, tolerance)
 
 
+def wire_observation_equivalence(executable):
+    full=Driver(executable,profile='i2c')
+    lean=Driver(executable,profile='i2c',observe=False)
+    try:
+        for d in (full,lean):d.call('construct',state={'valid':True,'slots':[]})
+        for command in ('U{i:0,f:9,h:2,p:14,a:28A10100000001E6}',
+                        'j{mode:b,beerSet:22}', 'ntv'):
+            expected=full.call('feed',bytes=command)
+            actual=lean.call('feed',bytes=command)
+            assert actual[0]==expected[0] and actual[1]=={}
+        assert full.call('advance',milliseconds=2000)[0]==lean.call('advance',milliseconds=2000)[0]
+        assert full.call('checkpoint')[1]['checkpoint']==lean.call('checkpoint')[1]['checkpoint']
+        assert full.call('feed',bytes='n')[1]==lean.call('feed',bytes='n',observe=True)[1]
+    finally:full.close();lean.close()
+    return ['wire_only_driver_retains_identical_replies_and_checkpoints']
+
+
 def source_sensor_recovery(executable, profile):
     """Shared source ordering: reconnect does not perform a filter sample.
 
@@ -38,7 +55,7 @@ def source_sensor_recovery(executable, profile):
     """
     bus=14 if profile=='i2c' else 18
     for absent in (1,59,60,61,255):
-        d=Driver(executable,profile=profile)
+        d=Driver(executable,profile=profile,observe=False)
         try:
             d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
             d.call('feed',bytes='U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}'%bus)
@@ -76,7 +93,7 @@ def source_sensor_recovery(executable, profile):
 def source_sensor_initialization(executable, profile):
     """A known reset takes the conditional conversion wait; DATA loss does not."""
     bus=14 if profile=='i2c' else 18
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':True,'slots':[],
             'scenario':{'physical_loads':[],'probe_reset':[True,False,False]}})
@@ -133,7 +150,7 @@ def source_sensor_initialization(executable, profile):
 def source_startup_and_discovery(executable, profile):
     bus=14 if profile=='i2c' else 18
     delay=2200 if profile=='i2c' else 2300
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':False,'slots':[]})
         assert d.call('boot',initialize_display=True)[0]==b''
@@ -184,7 +201,7 @@ def source_startup_and_discovery(executable, profile):
 
 def source_repeated_faults(executable, profile):
     bus=14 if profile=='i2c' else 18
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
@@ -263,7 +280,7 @@ def qualified_minimum_on(executable, direction, profile):
     slot, wait_state, active_state, hold_state = (4,6,3,9) if heating else (3,5,4,8)
     bus=14 if profile=='i2c' else 18
     pins=(5,6,2,10) if profile=='i2c' else (6,5,2,19)
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A1010000000204'),(1,5,'28A10100000001E6'),(2,6,'28A101000000035A')]:
@@ -303,7 +320,7 @@ def qualified_missing_peak(executable, profile, direction):
     assert direction in ('heat','cool')
     bus=14 if profile=='i2c' else 18
     pins=(5,6) if profile=='i2c' else (6,5)
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':True,'slots':[], 'scenario':{
             'physical_loads':[], 'initial_temperatures_c':{'beer':20.5,'chamber':20.5,'room':20.5}}})
@@ -344,7 +361,7 @@ def qualified_beer_live_writes(executable, profile):
     implementation must violate these physically observed invariants.
     """
     def trace(fast, slow, patch=None):
-        d=Driver(executable,profile=profile)
+        d=Driver(executable,profile=profile,observe=False)
         try:
             d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
             for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204'),(2,6,'28A101000000035A')]:
@@ -388,7 +405,7 @@ def qualified_filter_reset_history(executable, profile):
     These assertions cover the discontinuity/readback facts, not an invented
     exact replay of the physical trace's unobserved startup input values.
     """
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204'),(2,6,'28A101000000035A')]:
@@ -424,7 +441,7 @@ def shared_slope_restart(executable, profile='revc'):
     or private filter histories are inputs to these assertions.
     """
     def trace(saved_slope, live_patch=False):
-        d=Driver(executable,profile=profile)
+        d=Driver(executable,profile=profile,observe=False)
         try:
             d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
             for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
@@ -486,7 +503,7 @@ def shared_ordinary_timer_sequence(executable, profile='revc'):
     Constant synthetic temperatures remove thermal-peak ambiguity. Each real
     next demand cancels peak detection without resetting the last-active age.
     """
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     seconds=0;clock_ms=0
     def send(command):return d.call('feed',bytes=command)
     def tick():
@@ -551,7 +568,7 @@ def shared_factory_routes(executable, profile='revc'):
     only the three live coefficient values. Public responses must agree under
     a discriminating synthetic continuation; stored labels alone cannot pass.
     """
-    d=Driver(executable,profile=profile)
+    d=Driver(executable,profile=profile,observe=False)
     try:
         d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
@@ -935,6 +952,7 @@ def run(executable):
         checks.extend(source_startup_and_discovery(executable, profile))
         checks.extend(source_repeated_faults(executable, profile))
     checks.extend(observed_revc_long_loss_recovery(executable))
+    checks.extend(wire_observation_equivalence(executable))
     for profile in ('i2c','revc'):
         checks.extend(shared_ordinary_timer_sequence(executable, profile))
         checks.extend(shared_factory_routes(executable, profile))

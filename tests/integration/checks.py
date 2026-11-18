@@ -20,6 +20,14 @@ LAUNCHER=Path(__file__).with_name('run-isolated.sh').resolve()
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_startup_identity_retries_preserve_required_query_order(self):
+        for attempts in (1,2,3,8):
+            self.assertEqual(relay_trace.startup_identity_attempts(b'n'*attempts+b's\nc\nv\nl\n'),attempts)
+        for bad in (b'',b's\nc\nv\n',b'ns\nv\nc\n',b'nc\ns\nv\n',
+                    b'ns\nc\nv',b'ns\nnc\nv\n',b' nns\nc\nv\n'):
+            with self.subTest(wire=bad),self.assertRaises(ValueError):
+                relay_trace.startup_identity_attempts(bad)
+
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='rmx-m4-check-')
         self.root=Path(self.tmp.name)

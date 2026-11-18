@@ -59,9 +59,9 @@ class Run:
         self.client.until(lambda: self.client.get('getVersion').get('version')=='0.2.13')
         self.client.until(lambda: self.client.get('getControlConstants')['Kp']==5)
         startup=self.wire('host')
-        assert startup.startswith(b'ns\nc\nv\n'),startup[:40]
+        identity_attempts=relay_trace.startup_identity_attempts(startup)
         assert not (LAB/'controller.json').exists()
-        self.record('startup','real host / captured serial',dict(sequence='n,s,c,v',erased_store=True))
+        self.record('startup','real host / captured serial',dict(sequence='n[,n...],s,c,v',identity_attempts=identity_attempts,erased_store=True))
         with sync_playwright() as playwright:
             browser=playwright.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
             self.page=browser.new_page(viewport={'width':1440,'height':1200})
