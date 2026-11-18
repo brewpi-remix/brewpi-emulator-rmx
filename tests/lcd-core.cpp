@@ -45,7 +45,7 @@ int main() {
             }
             require(wire == expected + "]\r\n", "serial LCD differs from shadow bytes");
         };
-        engine.boot();
+        engine.boot(false);
         check('C');
         engine.feed("E");
         check('C');
@@ -54,7 +54,7 @@ int main() {
         engine.feed("C");
         check('C');
         engine.feed("j{tempFormat:C}R");
-        engine.restart();
+        engine.restart(false);
         check('C');
         const auto checkpoint = engine.checkpoint();
         engine.restore_checkpoint(checkpoint);
@@ -133,15 +133,15 @@ int main() {
     std::string a, b;
     Engine plain([&](const std::string& bytes) { a += bytes; });
     Engine viewed([&](const std::string& bytes) { b += bytes; });
-    plain.boot();
-    viewed.boot();
+    plain.boot(false);
+    viewed.boot(false);
     for (const std::string command :
          {"E", "j{mode:f,fridgeSet:21}", "l", "j{tempFormat:F}", "l", "R", "l"}) {
         plain.feed(command);
         viewed.feed(command);
         if (plain.restarting()) {
-            plain.restart();
-            viewed.restart();
+            plain.restart(false);
+            viewed.restart(false);
         }
         auto before = viewed.checkpoint().dump();
         for (int n = 0; n < 20; ++n) {

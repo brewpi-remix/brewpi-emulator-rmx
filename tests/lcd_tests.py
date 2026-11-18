@@ -31,7 +31,7 @@ def wait_for(predicate, timeout=8):
 
 
 class Process:
-    def __init__(self, exe, root, mode, env=None, terminal=True, extra=(), inherited=()):
+    def __init__(self, exe, root, mode, env=None, terminal=True, extra=(), inherited=(), await_boot=True):
         root.mkdir()
         self.root, self.buffer = root, b''
         self.master = self.slave = self.serial = None
@@ -56,7 +56,7 @@ class Process:
             assert self.proc.poll() is None, self.proc.communicate()
             self.serial = os.open(root / 'serial', os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
             self.wire = b''
-            if '--resume' not in extra:
+            if await_boot and '--resume' not in extra:
                 self.line()
         except BaseException:
             self.close(check=False)
@@ -372,7 +372,8 @@ def run(exe, core):
             directory = root/('gui-'+scenario)
             chosen = dict(env, PATH=str(bindir), LCD_TEST_ROOT=str(directory),
                           LCD_TEST_PEER=scenario, LCD_SENTINEL='40')
-            p = Process(exe, directory, 'gui', env=chosen)
+            # A deliberate GUI close can arrive before startup emits serial output.
+            p = Process(exe, directory, 'gui', env=chosen, await_boot=False)
             try:
                 wait_for(lambda: (p.console(), p.proc.poll())[1] is not None)
                 assert not (directory/'serial').is_symlink()

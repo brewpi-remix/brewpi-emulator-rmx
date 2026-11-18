@@ -119,6 +119,8 @@ The serial parser follows firmware framing and partial-input behavior rather tha
 
 Both personalities' hourly display initialization briefly defers serial commands while simulated time continues. A checkpoint taken during this pause retains its pending input; resuming it at `--speed 0` holds dispatch until simulated time advances. Use positive pacing to finish that pause. See the [qualified behavior and timing limits](../engineering/protocol/firmware-findings.md#shared-control-logic-and-i2c-dispatch-timing-limit).
 
+Startup and serial `R` include the selected display's mandatory initialization waits before normal dispatch. Configured probe reset states can add conditional conversion waits; already initialized probes and DATA-only recovery do not acquire a universal 750 ms delay. Startup advances controller and plant time at the selected positive speed; with `--speed 0`, startup completes at 1x before the runtime clock pauses. Resuming a checkpoint already in ordinary sensor or hourly-display blocking retains the pause until positive pacing resumes. See [probe reset scenarios](../config/README.md#fields).
+
 ## Stop, restart, and checkpoints
 
 Use `Ctrl-C` or `SIGTERM` for clean shutdown. The process removes only its unchanged owned serial symlink. Firmware-saved settings and device slots survive. A normal new process starts a fresh physical scenario; the serial `R` command restarts controller state while keeping the running plant, and `E` initializes controller configuration. Live values need not equal saved values after every command.

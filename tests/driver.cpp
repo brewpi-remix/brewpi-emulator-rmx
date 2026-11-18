@@ -45,12 +45,15 @@ int main(int argc, char** argv) {
                 engine.feed(bytes);
             } else if (op == "timeout")
                 engine.read_timeout();
+            // Ordinary fixtures select the post-display initialization boundary.
             else if (op == "boot")
-                engine.boot();
+                engine.boot(request.has("initialize_display") &&
+                            request.at("initialize_display").boolean());
             else if (op == "restart") {
                 if (!engine.restarting())
                     throw std::runtime_error("restart barrier without R");
-                engine.restart();
+                engine.restart(request.has("initialize_display") &&
+                               request.at("initialize_display").boolean());
             } else if (op == "pid" || op == "outputs" || op == "state" || op == "sensors" ||
                        op == "peaks" || op == "sensor_peak") {
                 int count = request.has("repeat") ? request.at("repeat").integer() : 1;

@@ -25,13 +25,19 @@ class Engine {
         return phase != Phase::dispatch;
     }
     bool dispatch_suspended() const {
-        return display_reset_busy;
+        return display_reset_busy || initialization.has_value();
+    }
+    bool starting_up() const {
+        return startup;
+    }
+    uint64_t dispatch_epoch() const {
+        return dispatch_generation;
     }
     bool restarting() const {
         return restart_requested;
     }
-    void boot();
-    void restart();
+    void boot(bool initialize_display = true);
+    void restart(bool initialize_display = true);
     void load_store(const Json& image);
     Json store_image() const;
     void on_save(std::function<void(const Json&)> fn) {
@@ -42,12 +48,13 @@ class Engine {
     void precondition(const Json& fields);
     Json observations() const;
     void configure_plant(const Json& scenario);
-    void advance_ms(uint64_t milliseconds, bool controller_allowed = true);
+    void advance_ms(uint64_t milliseconds, bool controller_allowed = true,
+                    bool startup_only = false);
     void service_controller(bool allowed = true);
     void evaluate_pid();
     void evaluate_state();
     void update_outputs();
-    void update_sensors();
+    void update_sensors(bool ordinary_loop = false);
     void detect_peaks();
     Json checkpoint() const;
     std::array<std::string, 4> lcd_rows() const {
@@ -102,9 +109,33 @@ class Engine {
     static constexpr uint32_t revc_display_wait_ms = 2201;
     // I2C fixed waits total 2128.3 ms; completion requires a whole clock tick.
     static constexpr uint32_t i2c_display_wait_ms = 2129;
-    bool display_reset_busy = false;
+    bool display_reset_busy = false, startup = false, startup_display = false;
+    uint64_t dispatch_generation = 0;
     uint32_t display_reset_started_ms = 0;
     std::string deferred_serial;
+    enum class InitPurpose { sensors, loop, device, boot, discovery };
+    struct Initialization {
+        InitPurpose purpose;
+        uint32_t started_ms;
+        size_t physical;
+        int function, slot;
+        Device device;
+    };
+    std::optional<Initialization> initialization;
+    struct Discovery {
+        size_t cursor = 0;
+        Device carry;
+        int previous_hardware = 0;
+        bool has_row = false, failed_wait = false;
+    };
+    std::optional<Discovery> discovery;
+    size_t sensor_cursor = 0;
+    bool start_initialization(const Device& d, InitPurpose purpose, int slot = -1);
+    void finish_initialization();
+    void finish_sensor_initialization(const Device& d, bool installing);
+    void continue_boot(int first);
+    void finish_device_install(const Device& d, int slot);
+    void finish_loop_evaluation();
     uint16_t last_idle = 0, last_heat = 0, last_cool = 0, wait_seconds = 0, camera_last = 0;
     unsigned integral_counter = 0;
     bool positive_pending = false, negative_pending = false, door_open = false;
@@ -150,7 +181,7 @@ class Engine {
     void telemetry(const std::string& beer = "", const std::string& fridge = "");
     std::string lcd() const;
     int validate(const Device& d);
-    void install(const Device& d);
+    bool install(const Device& d, InitPurpose purpose = InitPurpose::sensors, int slot = -1);
     bool live_target(const Device& d) const;
     std::optional<int> reading_raw(const Device& d, bool filtered = false) const;
     std::optional<int> read_probe(const Device& d, std::string& nested_diagnostic);

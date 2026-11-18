@@ -25,6 +25,7 @@ The source tree includes [active-fermentation.json](active-fermentation.json) an
 | `chamber_liters`, `air_capacity_j_per_m3_k`, `cabinet_capacity_j_per_k` | Chamber air volume, volumetric heat capacity, and cabinet heat capacity. |
 | `beer_chamber_conductance_w_per_k`, `chamber_room_conductance_w_per_k` | Thermal coupling between beer/chamber and chamber/room. |
 | `physical_loads` | Array of objects with `pin`, `kind` (`heater`/`cooler`/`light`/`fan`), nonnegative `watts`, and `active_low`. The `cooler` kind removes heat; other kinds add it. Pin assignments must be unique. |
+| `probe_reset` | Three booleans in physical beer/chamber/room probe order, independent of assigned functions; default all false represents probes with readable completed values. A true entry represents a probe reset indication that requires connection setup and the conditional 750 ms conversion wait when firmware initializes that probe. This is independent of a DATA-only disconnect. |
 | `probe_quantization_c`, `probe_lag_seconds`, `noise_amplitude_c` | Probe quantization, lag, and noise magnitude. |
 | `random_seed` | Deterministic pseudo-random seed. |
 | `room_daily_amplitude_c`, `room_daily_phase_hours` | Daily room-temperature sinusoid amplitude and phase. |

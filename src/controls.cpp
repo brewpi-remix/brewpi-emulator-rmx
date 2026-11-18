@@ -84,7 +84,7 @@ std::string Engine::local_action(const std::string& action, uint64_t wall, bool 
         return "cw ccw press door open/close";
     if (action != "cw" && action != "ccw" && action != "press")
         return "Unknown command";
-    if (reading() || restarting() || !writable)
+    if (reading() || restarting() || dispatch_suspended() || !writable)
         return "Busy; retry action";
     menu.changed = wall;
     if (menu.page == LocalMenu::idle) {

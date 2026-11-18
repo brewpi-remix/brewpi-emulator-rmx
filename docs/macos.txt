@@ -92,6 +92,8 @@ The source tree provides `config/active-fermentation.json` for fermentation heat
 The serial parser follows firmware framing and partial-input behavior rather than a general strict JSON API. Incomplete tokens can wait about one wall second. A slow reader defers input/controller work while replies remain queued in order. Drain existing output before expecting another command's response.
 
 Both personalities' hourly display initialization briefly defers serial commands while simulated time continues. A checkpoint taken during this pause retains its pending input; resuming it at `--speed 0` holds dispatch until simulated time advances. Use positive pacing to finish that pause. See the qualified behavior and timing limits (source archive: engineering/protocol/firmware-findings.md).
+
+Startup and serial `R` include the selected display's mandatory initialization waits before normal dispatch. Configured probe reset states can add conditional conversion waits; already initialized probes and DATA-only recovery do not acquire a universal 750 ms delay. Startup advances controller and plant time at the selected positive speed; with `--speed 0`, startup completes at 1x before the runtime clock pauses. Resuming a checkpoint already in ordinary sensor or hourly-display blocking retains the pause until positive pacing resumes. See probe reset scenarios (Scenario configuration below).
 Stop, restart, and checkpoints
 
 Use `Ctrl-C` or `SIGTERM` for clean shutdown. The process removes only its unchanged owned serial symlink. Firmware-saved settings and device slots survive. A normal new process starts a fresh physical scenario; the serial `R` command restarts controller state while keeping the running plant, and `E` initializes controller configuration. Live values need not equal saved values after every command.
@@ -158,6 +160,7 @@ Fields
 | `chamber_liters`, `air_capacity_j_per_m3_k`, `cabinet_capacity_j_per_k` | Chamber air volume, volumetric heat capacity, and cabinet heat capacity. |
 | `beer_chamber_conductance_w_per_k`, `chamber_room_conductance_w_per_k` | Thermal coupling between beer/chamber and chamber/room. |
 | `physical_loads` | Array of objects with `pin`, `kind` (`heater`/`cooler`/`light`/`fan`), nonnegative `watts`, and `active_low`. The `cooler` kind removes heat; other kinds add it. Pin assignments must be unique. |
+| `probe_reset` | Three booleans in physical beer/chamber/room probe order, independent of assigned functions; default all false represents probes with readable completed values. A true entry represents a probe reset indication that requires connection setup and the conditional 750 ms conversion wait when firmware initializes that probe. This is independent of a DATA-only disconnect. |
 | `probe_quantization_c`, `probe_lag_seconds`, `noise_amplitude_c` | Probe quantization, lag, and noise magnitude. |
 | `random_seed` | Deterministic pseudo-random seed. |
 | `room_daily_amplitude_c`, `room_daily_phase_hours` | Daily room-temperature sinusoid amplitude and phase. |

@@ -165,7 +165,8 @@ void Plant::configure(const Json& config) {
                                             "room_daily_amplitude_c",
                                             "room_daily_phase_hours",
                                             "door_extra_conductance_w_per_k",
-                                            "fermentation_age_hours"};
+                                            "fermentation_age_hours",
+                                            "probe_reset"};
     for (auto& field : config.object())
         if (std::find(known.begin(), known.end(), field.first) == known.end())
             throw std::runtime_error("unknown scenario field: " + field.first);
@@ -254,6 +255,13 @@ void Plant::configure(const Json& config) {
     elapsed_ms = 0;
     energy_from_loads = energy_from_fermentation = energy_from_room = 0;
     available.fill(true);
+    probe_reset.fill(false);
+    if (config.has("probe_reset")) {
+        if (config.at("probe_reset").array().size() != 3)
+            throw std::runtime_error("invalid scenario probe reset states");
+        for (size_t i = 0; i < 3; ++i)
+            probe_reset[i] = config.at("probe_reset").array()[i].boolean();
+    }
     const auto hardware = profile_hardware(profile);
     loads = {{hardware.heater, 25, true, 0},
              {hardware.cooler, -60, true, 1},
@@ -362,15 +370,17 @@ void Plant::set_connected(size_t i, bool yes) {
     available.at(i) = yes;
 }
 Json Plant::observations() const {
-    Json::Array temps, probes, online;
+    Json::Array temps, probes, online, resets;
     for (size_t i = 0; i < 3; ++i) {
         temps.emplace_back(temperature[i]);
         probes.emplace_back(probe[i]);
         online.emplace_back(available[i]);
+        resets.emplace_back(probe_reset[i]);
     }
     return Json::Object{{"temperatures_c", temps},
                         {"probes_raw", probes},
                         {"connected", online},
+                        {"probe_reset", resets},
                         {"age_ms", double(elapsed_ms)},
                         {"beer_capacity_j_per_k", beer_capacity},
                         {"chamber_capacity_j_per_k", chamber_capacity},
@@ -399,7 +409,12 @@ void Plant::restore(const Json& j) {
     };
     for (auto name : {"temperatures_c", "probes_raw", "connected", "lagged"})
         size3(j.at(name));
+    if (j.has("probe_reset"))
+        size3(j.at("probe_reset"));
+    else if (j.at("scenario").has("probe_reset"))
+        throw std::runtime_error("missing checkpoint probe reset states");
     for (size_t i = 0; i < 3; ++i) {
+        probe_reset[i] = j.has("probe_reset") ? j.at("probe_reset").array()[i].boolean() : false;
         temperature[i] = j.at("temperatures_c").array()[i].number();
         lagged[i] = j.at("lagged").array()[i].number();
         probe[i] = j.at("probes_raw").array()[i].integer();

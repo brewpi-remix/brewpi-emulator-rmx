@@ -38,7 +38,7 @@ int main() {
     profile_doors();
     std::string output;
     Engine engine([&](const std::string& s) { output += s; });
-    engine.boot();
+    engine.boot(false);
     engine.feed("Ej{mode:b,beerSet:20.023}");
     auto target = [&]() { return engine.checkpoint().at("settings").at("beerSet").integer(); };
     uint64_t now = 100;
@@ -114,7 +114,7 @@ int main() {
     require(action("door open") == "Door opened" && engine.local_door(), "door input failed");
     require(action("door open") == "Door unchanged", "door request not idempotent");
     engine.feed("R");
-    engine.restart();
+    engine.restart(false);
     require(engine.local_door(), "controller reset changed plant door");
     engine.feed("j{");
     require(action("press") == "Busy; retry action", "partial serial command accepted local edit");

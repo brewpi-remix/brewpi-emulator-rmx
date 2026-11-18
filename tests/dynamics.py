@@ -31,6 +31,227 @@ def near(a, b, tolerance=1e-6):
     assert abs(a - b) <= tolerance, (a, b, tolerance)
 
 
+def source_sensor_recovery(executable, profile):
+    """Shared source ordering: reconnect does not perform a filter sample.
+
+    Counts are failed controller reads, not elapsed seconds on a physical bus.
+    """
+    bus=14 if profile=='i2c' else 18
+    for absent in (1,59,60,61,255):
+        d=Driver(executable,profile=profile)
+        try:
+            d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+            d.call('feed',bytes='U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}'%bus)
+            snap=d.call('checkpoint')[1]['checkpoint']
+            history=next(x['history'] for x in snap['histories'] if x['function']==9)
+            history['countdown']=2
+            d.call('restore',snapshot=snap)
+            d.call('precondition',fields={'connected':[False,True,True]})
+            wire,_=d.call('sensors',repeat=absent)
+            assert sum(p=='D' and v['logID']==2 for p,v in decode_frames(wire))==1
+            before=d.call('checkpoint')[1]['checkpoint']
+            old=next(x['history'] for x in before['histories'] if x['function']==9)
+            d.call('precondition',fields={'connected':[True,True,True],
+                'physical_temperatures_c':[20.0625,20,20]})
+            wire,_=d.call('sensors')
+            after=d.call('checkpoint')[1]['checkpoint']
+            got=next(x['history'] for x in after['histories'] if x['function']==9)
+            assert got['connected'] and got['countdown']==old['countdown'], (profile,absent,got)
+            assert [(p,v['logID']) for p,v in decode_frames(wire)]==[('D',0)]
+            seeded=absent+1>60
+            assert got['missed']==(0 if seeded else absent+1)
+            if seeded:
+                assert got['fast']['recent']==[-14304*65536]*3
+                assert got['slow']['recent']==[-14304*65536]*3
+                assert got['slope']['recent']==[0]*3
+            else:
+                for k in ('fast','slow','slope','origin'):assert got[k]==old[k],(profile,absent,k)
+            assert d.call('sensors')[0]==b''
+            later=d.call('checkpoint')[1]['checkpoint']
+            assert next(x['history']['countdown'] for x in later['histories'] if x['function']==9)==1
+        finally:d.close()
+    return [profile+'.source_recovery_read_order_threshold_and_slope_phase']
+
+
+def source_sensor_initialization(executable, profile):
+    """A known reset takes the conditional conversion wait; DATA loss does not."""
+    bus=14 if profile=='i2c' else 18
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':True,'slots':[],
+            'scenario':{'physical_loads':[],'probe_reset':[True,False,False]}})
+        assert d.call('feed',bytes='U{i:0,f:9,h:2,p:%d,a:28A10100000001E6}n'%bus)[0]==b''
+        start=d.call('checkpoint')[1]['checkpoint']
+        assert start['store']['devices'][0]['f']==0, 'U must not persist before initialization finishes'
+        assert d.call('advance',milliseconds=300)[0]==b''
+        paused=d.call('checkpoint')[1]['checkpoint']
+        assert 'sensor_initialization' in paused
+        assert d.call('advance',milliseconds=400)[0]==b''
+        wire,_=d.call('advance',milliseconds=100)
+        assert [p for p,v in decode_frames(wire)]==['U','N']
+        completed=d.call('checkpoint')[1]['checkpoint']
+        assert completed['store']['devices'][0]['f']==9
+        assert completed['plant']['age_ms']==800 and not completed['plant']['probe_reset'][0]
+        # The optional continuation is transactional and resumes only the remaining wait.
+        d.call('restore',snapshot=paused)
+        for field,bad in [('purpose',9),('physical',3),('started_ms',400),('slot',16),('queued_hex','0Z')]:
+            corrupt=json.loads(json.dumps(paused));corrupt['sensor_initialization'][field]=bad
+            try:d.call('restore',snapshot=corrupt)
+            except AssertionError:pass
+            else:raise AssertionError('Invalid initialization checkpoint accepted')
+            assert equal(d.call('checkpoint')[1]['checkpoint'],paused)
+        assert d.call('advance',milliseconds=400)[0]==b''
+        assert [p for p,v in decode_frames(d.call('advance',milliseconds=100)[0])]==['U','N']
+        # A warm controller restart must not manufacture another conversion wait.
+        d.call('feed',bytes='R');d.call('restart')
+        assert 'sensor_initialization' not in d.call('checkpoint')[1]['checkpoint']
+        assert decode_frames(d.call('feed',bytes='n')[0])[0][0]=='N'
+        # A probe explicitly reset independently of the MCU does require initialization.
+        d.call('precondition',fields={'probe_reset':[True,False,False]})
+        d.call('feed',bytes='R');d.call('restart')
+        assert d.call('feed',bytes='n')[0]==b''
+        assert d.call('advance',milliseconds=700)[0]==b''
+        assert decode_frames(d.call('advance',milliseconds=100)[0])[-1][0]=='N'
+        # A reset during ordinary operation suspends the remainder of that evaluation.
+        d.call('advance',milliseconds=200)
+        before=d.call('checkpoint')[1]['checkpoint']
+        d.call('precondition',fields={'probe_reset':[True,False,False]})
+        d.call('advance',milliseconds=1000)
+        paused=d.call('checkpoint')[1]['checkpoint']
+        assert paused['sensor_initialization']['purpose']==1
+        assert d.call('feed',bytes='n')[0]==b''
+        elapsed=paused['controller_ms']-paused['sensor_initialization']['started_ms']
+        assert d.call('advance',milliseconds=700-elapsed)[0]==b''
+        wire,_=d.call('advance',milliseconds=100)
+        assert [p for p,v in decode_frames(wire)]==['D','N']
+        assert decode_frames(wire)[0][1]['logID']==0
+        assert 'sensor_initialization' not in d.call('checkpoint')[1]['checkpoint']
+    finally:d.close()
+    return [profile+'.source_conditional_conversion_wait_install_restart_and_loop']
+
+
+def source_startup_and_discovery(executable, profile):
+    bus=14 if profile=='i2c' else 18
+    delay=2200 if profile=='i2c' else 2300
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':False,'slots':[]})
+        assert d.call('boot',initialize_display=True)[0]==b''
+        assert d.call('feed',bytes='n')[0]==b''
+        paused=d.call('checkpoint')[1]['checkpoint']
+        assert paused['startup']=='display'
+        d.call('restore',snapshot=paused)
+        assert d.call('advance',milliseconds=delay-100)[0]==b''
+        wire,_=d.call('advance',milliseconds=100)
+        assert [p for p,v in decode_frames(wire)]==['D','N']
+        assert decode_frames(wire)[0][1]['logID']==3
+        d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+        for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204'),(2,6,'28A101000000035A')]:
+            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
+        d.call('precondition',fields={'probe_reset':[True,True,True]})
+        d.call('feed',bytes='R');d.call('restart',initialize_display=True)
+        assert d.call('feed',bytes='n')[0]==b''
+        assert d.call('advance',milliseconds=delay)[0]==b''
+        paused=d.call('checkpoint')[1]['checkpoint']
+        assert paused['startup']=='sensors'
+        d.call('restore',snapshot=paused)
+        assert d.call('advance',milliseconds=2300)[0]==b''
+        wire,_=d.call('advance',milliseconds=100)
+        assert [p for p,v in decode_frames(wire)]==['N']
+        end=d.call('checkpoint')[1]['checkpoint']
+        assert end['controller_ms']==delay+2400 and 'startup' not in end
+        # Discovery can block after earlier rows, preserving the open reply.
+        d.call('precondition',fields={'probe_reset':[True,False,False]})
+        prefix,_=d.call('feed',bytes='h{h:2,p:%d,v:1}n'%bus)
+        assert prefix.startswith(b'h:[{') and not prefix.endswith(b'\r\n')
+        paused=d.call('checkpoint')[1]['checkpoint']
+        assert paused['sensor_initialization']['purpose']==4
+        assert d.call('advance',milliseconds=700)[0]==b''
+        suffix,_=d.call('advance',milliseconds=100)
+        rows=decode_frames(prefix+suffix)
+        assert [p for p,v in rows]==['h','N'] and len(rows[0][1])==3
+        d.call('restore',snapshot=paused)
+        assert d.call('advance',milliseconds=800)[0]==suffix
+        # Losing DATA during the wait gives an embedded warning and null row.
+        d.call('restore',snapshot=paused)
+        d.call('precondition',fields={'connected':[False,True,True]})
+        suffix,_=d.call('advance',milliseconds=800)
+        assert b'D:{"logType":"W","logID":2' in suffix and b'"v":null' in suffix
+        assert suffix.endswith(b'"l":"3"}\r\n')
+    finally:d.close()
+    return [profile+'.source_startup_and_streaming_discovery_initialization']
+
+
+def source_repeated_faults(executable, profile):
+    bus=14 if profile=='i2c' else 18
+    d=Driver(executable,profile=profile)
+    try:
+        d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+        for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
+            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
+        for cycle in range(2):
+            d.call('precondition',fields={'connected':[False,True,True]})
+            d.call('sensors',repeat=30)
+            d.call('precondition',fields={'connected':[True,True,True]})
+            d.call('sensors')
+            h=next(x['history'] for x in d.call('checkpoint')[1]['checkpoint']['histories'] if x['function']==9)
+            assert h['missed']==(31 if cycle==0 else 0)
+            d.call('sensors',repeat=5)
+            later=next(x['history'] for x in d.call('checkpoint')[1]['checkpoint']['histories'] if x['function']==9)
+            assert later['missed']==h['missed'], 'Successful samples must not clear cumulative failures'
+        # Repeated reset or DATA loss during conversion must not report success.
+        for fault in ('data','reset'):
+            d.call('precondition',fields={'connected':[True,True,True],'probe_reset':[False,False,False],
+                'mode':'f','state':3,'fridge_target_c':22})
+            d.call('feed',bytes='U{i:3,f:2,h:1,p:6,x:1}')
+            d.call('outputs')
+            d.call('precondition',fields={'probe_reset':[False,True,False]})
+            clock=d.call('checkpoint')[1]['checkpoint']
+            due=max(0,1000-((clock['controller_ms']-clock['last_evaluation_ms'])&0xffffffff))
+            d.call('advance',milliseconds=due)
+            pending=d.call('checkpoint')[1]['checkpoint']
+            assert dict(pending['pins'])[6] is False
+            assert d.call('advance',milliseconds=700)[0]==b''
+            d.call('precondition',fields={'connected':[True,False,True]} if fault=='data' else
+                {'probe_reset':[False,True,False]})
+            wire,_=d.call('advance',milliseconds=100)
+            assert not [v for p,v in decode_frames(wire) if p=='D' and v['logID']==0]
+            done=d.call('checkpoint')[1]['checkpoint']
+            chamber=next(x['history'] for x in done['histories'] if x['function']==5)
+            assert not chamber['connected']
+            assert done['state']==0 and dict(done['pins'])[6] is True
+            assert done['plant']['probe_reset'][1] is (fault=='reset')
+    finally:d.close()
+    return [profile+'.source_cumulative_failures_and_fault_during_conversion']
+
+
+def source_sensor_roles(executable, profile):
+    bus=14 if profile=='i2c' else 18
+    for mode in ('b','p','f'):
+        for missing in range(3):
+            for state in (3,4):
+                d=Driver(executable,profile=profile)
+                try:
+                    d.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+                    for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204'),(2,6,'28A101000000035A')]:
+                        d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
+                    d.call('feed',bytes='U{i:3,f:2,h:1,p:6,x:1}U{i:4,f:3,h:1,p:5,x:1}')
+                    d.call('precondition',fields={'mode':mode,'state':state,
+                        'beer_target_c':22 if state==3 else 18,
+                        'fridge_target_c':22 if state==3 else 18})
+                    online=[True]*3;online[missing]=False
+                    d.call('precondition',fields={'connected':online})
+                    d.call('sensors');d.call('state');_,obs=d.call('outputs')
+                    required=missing==1 or (missing==0 and mode in ('b','p'))
+                    assert obs['state']==(0 if required else state),(profile,mode,missing,state,obs['state'])
+                    pins=dict(obs['pins'])
+                    assert pins[6 if state==3 else 5] is required
+                    t=decode_frames(d.call('feed',bytes='t')[0])[0][1]
+                    assert ('RoomTemp' in t)==(missing!=2)
+                finally:d.close()
+    return [profile+'.source_individual_role_loss_mode_and_output_policy']
+
+
 def qualified_minimum_on(executable, direction, profile):
     """Original replay of the identified LED-bench heating/cooling hold observations.
 
@@ -112,7 +333,7 @@ def qualified_missing_peak(executable, profile, direction):
         d.call('feed',bytes='R');d.call('restart')
         assert decode_frames(d.call('feed',bytes='s')[0])[0][1]['heatEst' if positive else 'coolEst']==(26.641 if positive else 13.32)
     finally:d.close()
-    return [profile+'.observed_missing_'+direction+'_peak_factor_persistence_and_competing_gate']
+    return [profile+'.source_shared_missing_'+direction+'_peak_factor_persistence_and_competing_gate']
 
 
 def qualified_beer_live_writes(executable, profile):
@@ -196,18 +417,18 @@ def qualified_filter_reset_history(executable, profile):
     return [profile+'.observed_factory_history_retention_and_saved_restart_reseeding']
 
 
-def qualified_revc_slope_restart(executable):
+def shared_slope_restart(executable, profile='revc'):
     """Original public-path probe of the observed saved reload and slope cadence.
 
     A gentle synthetic ramp replaces the measured hand pulse. No captured bytes
     or private filter histories are inputs to these assertions.
     """
     def trace(saved_slope, live_patch=False):
-        d=Driver(executable,profile='revc')
+        d=Driver(executable,profile=profile)
         try:
             d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
             for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
-                d.call('feed',bytes='U{i:%d,f:%d,h:2,p:18,a:%s}'%(i,f,rom))
+                d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,14 if profile=='i2c' else 18,rom))
             d.call('feed',bytes='j{beerFastFilt:1,beerSlowFilt:2,beerSlopeFilt:%d,Kp:1,Ki:0,Kd:0,mode:b,beerSet:25}'%saved_slope)
             if live_patch:
                 d.call('advance',milliseconds=12000)
@@ -232,7 +453,7 @@ def qualified_revc_slope_restart(executable):
     assert all(v==0 for v in restored[:255]) and any(v!=0 for v in restored[255:])
     changes=[i+1 for i in range(1,len(restored)) if restored[i]!=restored[i-1]]
     assert len(changes)>2 and all(b-a==3 for a,b in zip(changes,changes[1:])), changes
-    return ['revc.observed_saved_slope_reload_and_three_evaluation_response']
+    return [profile+'.source_shared_saved_slope_reload_and_three_evaluation_response']
 
 
 def observed_revc_long_loss_recovery(executable):
@@ -259,13 +480,13 @@ def observed_revc_long_loss_recovery(executable):
     return ['revc.observed_long_absence_first_recovery_raw_fast_equality']
 
 
-def ordinary_revc_timer_sequence(executable):
+def shared_ordinary_timer_sequence(executable, profile='revc'):
     """Public ordinary stops isolate five documented off/switch waits.
 
     Constant synthetic temperatures remove thermal-peak ambiguity. Each real
     next demand cancels peak detection without resetting the last-active age.
     """
-    d=Driver(executable,profile='revc')
+    d=Driver(executable,profile=profile)
     seconds=0;clock_ms=0
     def send(command):return d.call('feed',bytes=command)
     def tick():
@@ -289,8 +510,8 @@ def ordinary_revc_timer_sequence(executable):
     try:
         d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A1010000000204'),(1,5,'28A10100000001E6')]:
-            send('U{i:%d,f:%d,h:2,p:18,a:%s}'%(i,f,rom))
-        for i,f,pin in [(3,3,6),(4,2,5)]:send('U{i:%d,f:%d,h:1,p:%d,x:1}'%(i,f,pin))
+            send('U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,14 if profile=='i2c' else 18,rom))
+        for i,f,pin in [(3,3,5 if profile=='i2c' else 6),(4,2,6 if profile=='i2c' else 5)]:send('U{i:%d,f:%d,h:1,p:%d,x:1}'%(i,f,pin))
         send('j{fridgeSlowFilt:1,Kp:1,Ki:0,Kd:0,heatEst:5,coolEst:5}')
         send('R');d.call('restart')
         send('j{mode:f,fridgeSet:1}');on=active('cool',601);prior='cool';mode='f'
@@ -320,21 +541,21 @@ def ordinary_revc_timer_sequence(executable):
             assert on-off==threshold-1
             prior=direction;mode=next_mode
     finally:d.close()
-    return ['revc.public_five_ordinary_off_and_switch_timer_histories']
+    return [profile+'.source_shared_five_ordinary_off_and_switch_timer_histories']
 
 
-def qualified_revc_factory_routes(executable):
+def shared_factory_routes(executable, profile='revc'):
     """C applies named factory coefficients while retaining transient histories.
 
     The independently specified control retains the pre-C state and changes
     only the three live coefficient values. Public responses must agree under
     a discriminating synthetic continuation; stored labels alone cannot pass.
     """
-    d=Driver(executable,profile='revc')
+    d=Driver(executable,profile=profile)
     try:
         d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
         for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
-            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:18,a:%s}'%(i,f,rom))
+            d.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,14 if profile=='i2c' else 18,rom))
         d.call('feed',bytes='j{beerFastFilt:1,beerSlowFilt:2,beerSlopeFilt:3,Kp:1,Ki:0,Kd:0,mode:b,beerSet:25}')
         d.call('feed',bytes='R');d.call('restart')
         for sample in range(300):
@@ -367,7 +588,7 @@ def qualified_revc_factory_routes(executable):
             wrong=continuation(unchanged)
             assert [v[channel] for v in actual]!=[v[channel] for v in wrong], name
     finally:d.close()
-    return ['revc.observed_factory_named_live_coefficients_with_retained_transient_history']
+    return [profile+'.source_shared_factory_named_live_coefficients_with_retained_transient_history']
 
 
 def run(executable):
@@ -673,7 +894,7 @@ def run(executable):
         wire,obs=d.advance(1)
         assert any(prefix=='D' and value['logType']=='I' and value['logID']==0 for prefix,value in decode_frames(wire))
         history=next(x['history'] for x in d.snapshot()['histories'] if x['function']==5)
-        assert history['missed']==0 and history['countdown']==(counter-1 if counter>1 else 3)
+        assert history['missed']==0 and history['countdown']==counter
         checks.append('virtual disconnection/reconnection emits one transition diagnostic and reseeds only stale histories')
     finally:
         d.close()
@@ -704,12 +925,19 @@ def run(executable):
     for profile in ('i2c','revc'):
         for direction in ('heat','cool'):
             checks.extend(qualified_minimum_on(executable, direction, profile))
-    checks.extend(qualified_missing_peak(executable, 'i2c', 'cool'))
-    checks.extend(qualified_missing_peak(executable, 'revc', 'heat'))
-    checks.extend(qualified_revc_slope_restart(executable))
+    for profile in ('i2c','revc'):
+        for direction in ('heat','cool'):
+            checks.extend(qualified_missing_peak(executable, profile, direction))
+        checks.extend(shared_slope_restart(executable, profile))
+        checks.extend(source_sensor_recovery(executable, profile))
+        checks.extend(source_sensor_initialization(executable, profile))
+        checks.extend(source_sensor_roles(executable, profile))
+        checks.extend(source_startup_and_discovery(executable, profile))
+        checks.extend(source_repeated_faults(executable, profile))
     checks.extend(observed_revc_long_loss_recovery(executable))
-    checks.extend(ordinary_revc_timer_sequence(executable))
-    checks.extend(qualified_revc_factory_routes(executable))
+    for profile in ('i2c','revc'):
+        checks.extend(shared_ordinary_timer_sequence(executable, profile))
+        checks.extend(shared_factory_routes(executable, profile))
     for profile in ('i2c','revc'):
         checks.extend(qualified_beer_live_writes(executable, profile))
         checks.extend(qualified_filter_reset_history(executable, profile))

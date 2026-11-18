@@ -87,7 +87,7 @@ void profiles() {
                 "profile cooling actuator did not drive its physical load");
         auto before_restart = engine.store_image();
         engine.feed("R");
-        engine.restart();
+        engine.restart(false);
         require(engine.store_image().dump() == before_restart.dump(), "R changed saved profile");
         auto store = engine.store_image();
         require(store.at("profile").string() == profile_name(profile), "store lost profile");
@@ -96,7 +96,7 @@ void profiles() {
                 "I2C store is not protected from older executables");
         Engine loaded([](const std::string&) {}, profile);
         loaded.load_store(store);
-        loaded.boot();
+        loaded.boot(false);
         require(loaded.store_image().dump() == store.dump(), "store reload changed assignments");
         // A saved record on the other bus is discarded by firmware-style boot validation.
         auto wrong_bus = store;
@@ -105,15 +105,42 @@ void profiles() {
         wrong_bus["devices"] = devices;
         Engine invalid_slot([](const std::string&) {}, profile);
         invalid_slot.load_store(wrong_bus);
-        invalid_slot.boot();
+        invalid_slot.boot(false);
         require(invalid_slot.store_image().at("devices").array()[0].at("f").integer() == 0,
                 "saved probe bypassed selected-bus validation");
+        // An invalid saved record is cleared durably before a later sensor waits.
+        auto partial = wrong_bus;
+        auto partial_devices = partial.at("devices").array();
+        partial_devices[1] = store.at("devices").array()[0];
+        partial_devices[1]["f"] = 5;
+        partial_devices[1]["b"] = 0;
+        partial_devices[1]["rom"] = "28A1010000000204";
+        partial["devices"] = partial_devices;
+        Engine initializing([](const std::string&) {}, profile);
+        initializing.load_store(partial);
+        initializing.configure_plant(
+            Json::Object{{"probe_reset", Json::Array{false, true, false}}});
+        Json durable;
+        initializing.on_save([&](const Json& image) { durable = image; });
+        initializing.boot();
+        initializing.advance_ms(i2c ? 2200 : 2300);
+        require(initializing.dispatch_suspended(), "cold probe did not suspend boot");
+        require(initializing.store_image().at("devices").array()[0].at("f").integer() == 0,
+                "invalid record not cleared before conversion wait");
+        require(durable.dump() == initializing.store_image().dump(),
+                "boot checkpoint diverged from durable records during conversion wait");
+        Engine boot_copy([](const std::string&) {}, profile);
+        boot_copy.restore_checkpoint(initializing.checkpoint());
+        initializing.advance_ms(800);
+        boot_copy.advance_ms(800);
+        require(boot_copy.checkpoint().dump() == initializing.checkpoint().dump(),
+                "boot initialization continuation diverged");
         auto checkpoint = engine.checkpoint();
         Engine continued([](const std::string&) {}, profile);
         continued.restore_checkpoint(checkpoint);
         require(continued.checkpoint().dump() == checkpoint.dump(),
                 "checkpoint changed profile state");
-        engine.restart();
+        engine.restart(false);
         require(request("n").at("s").integer() == (i2c ? 5 : 2), "restart lost profile");
         require(request("d{i:0}").array()[0].at("p").integer() == bus, "restart lost probe");
         Engine other([](const std::string&) {}, i2c ? Profile::revc : Profile::i2c);

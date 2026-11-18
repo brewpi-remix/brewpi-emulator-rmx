@@ -95,26 +95,39 @@ int Engine::filtered(int function, int kind) const {
     auto& h = sensors.at(function);
     return kind == 0 ? h.fast.value() : kind == 1 ? h.slow.value() : h.slope.value();
 }
-void Engine::update_sensors() {
-    for (auto f : {9, 5, 6}) {
+void Engine::update_sensors(bool ordinary_loop) {
+    if (initialization)
+        return;
+    const std::array<int, 3> order{{9, 5, 6}};
+    while (sensor_cursor < order.size()) {
+        int f = order[sensor_cursor++];
         auto& history = sensors.at(f);
         auto target = targets.find(f);
-        auto sample = target == targets.end() ? std::optional<int>{} : reading_raw(target->second);
-        bool connected = sample.has_value();
-        if (target != targets.end() && !target->second.d && connected != history.connected)
-            diagnostic(connected ? 'I' : 'W', connected ? 0 : 2,
-                       {target->second.p, target->second.rom});
-        history.connected = connected;
-        if (f == 6)
-            continue;
-        if (!sample || *sample == -32768) {
-            history.missed = std::min(255u, history.missed + 1);
+        auto raw = target == targets.end() ? std::optional<int>{} : reading_raw(target->second);
+        bool was_connected = history.connected;
+        if (raw && *raw == -32768) {
+            if (f != 6)
+                history.missed = std::min(255u, history.missed + 1);
             continue;
         }
-        history.sample(*sample);
-        if (history.missed > 60)
-            history.seed(*sample);
+        if (was_connected && raw) {
+            if (f != 6)
+                history.sample(*raw);
+            continue;
+        }
+        if (f != 6)
+            history.missed = std::min(255u, history.missed + 1);
+        if (was_connected && target != targets.end() && !target->second.d)
+            diagnostic('W', 2, {target->second.p, target->second.rom});
+        history.connected = false;
+        if (target == targets.end())
+            continue;
+        if (start_initialization(target->second,
+                                 ordinary_loop ? InitPurpose::loop : InitPurpose::sensors))
+            return;
+        finish_sensor_initialization(target->second, false);
     }
+    sensor_cursor = 0;
 }
 void Engine::evaluate_pid() {
     int m = settings.at("mode");
@@ -354,7 +367,11 @@ void Engine::detect_peaks() {
                 number(settings.at(name), 3, 0)});
 }
 void Engine::loop_evaluation() {
-    update_sensors();
+    update_sensors(true);
+    if (!initialization)
+        finish_loop_evaluation();
+}
+void Engine::finish_loop_evaluation() {
     detect_peaks();
     evaluate_pid();
     int old = state;
@@ -365,6 +382,12 @@ void Engine::loop_evaluation() {
     render_display();
 }
 void Engine::service_controller(bool allowed) {
+    if (initialization) {
+        if (!allowed || uint32_t(controller_ms - initialization->started_ms) < 750)
+            return;
+        finish_initialization();
+        return;
+    }
     bool completed_reset = false;
     auto repaint = [&]() {
         for (auto& row : screen)
@@ -380,6 +403,12 @@ void Engine::service_controller(bool allowed) {
             return;
         display_reset_busy = false;
         completed_reset = true;
+        if (startup_display) {
+            startup_display = false;
+            boot(false);
+            if (initialization)
+                return;
+        }
         repaint();
     }
     if (!completed_reset && allowed && !reading() && !restart_requested &&
@@ -394,22 +423,31 @@ void Engine::service_controller(bool allowed) {
         last_evaluation_ms = controller_ms;
         loop_evaluation();
     }
-    if (completed_reset) {
+    if (completed_reset && !dispatch_suspended()) {
+        ++dispatch_generation;
         auto queued = std::move(deferred_serial);
         deferred_serial.clear();
         feed(queued);
     }
 }
-void Engine::advance_ms(uint64_t ms, bool allowed) {
+void Engine::advance_ms(uint64_t ms, bool allowed, bool startup_only) {
     if (ms > 9007199254740000ULL - pending_ms || plant.elapsed_ms + ms > 9007199254740000ULL)
         throw std::runtime_error("simulation clock exhausted exact checkpoint range");
     pending_ms += ms;
     service_controller(allowed);
+    if (startup_only && !startup) {
+        pending_ms = 0;
+        return;
+    }
     while (pending_ms >= 100) {
         plant.step(pins);
         controller_ms += 100;
         pending_ms -= 100;
         service_controller(allowed);
+        if (startup_only && !startup) {
+            pending_ms = 0;
+            break;
+        }
     }
 }
 void Engine::reset_display() {
@@ -571,6 +609,31 @@ Json Engine::checkpoint() const {
     if (display_reset_busy)
         result["display_reset"] = Json::Object{{"started_ms", double(display_reset_started_ms)},
                                                {"queued_hex", hex(deferred_serial)}};
+    if (startup)
+        result["startup"] = startup_display ? "display" : "sensors";
+    if (initialization) {
+        const auto& i = *initialization;
+        result["sensor_initialization"] = Json::Object{{"purpose", int(i.purpose)},
+                                                       {"started_ms", double(i.started_ms)},
+                                                       {"physical", int(i.physical)},
+                                                       {"function", i.function},
+                                                       {"slot", i.slot},
+                                                       {"device", encode_device(i.device)},
+                                                       {"cursor", int(sensor_cursor)},
+                                                       {"queued_hex", hex(deferred_serial)}};
+        Json parsed(Json::Object{});
+        for (const auto& field : fields)
+            parsed[std::string(1, field.first)] = field.second;
+        result["sensor_initialization"]["fields"] = parsed;
+        if (discovery) {
+            result["sensor_initialization"]["discovery"] =
+                Json::Object{{"cursor", int(discovery->cursor)},
+                             {"carry", encode_device(discovery->carry)},
+                             {"previous_hardware", discovery->previous_hardware},
+                             {"has_row", discovery->has_row},
+                             {"failed_wait", discovery->failed_wait}};
+        }
+    }
     return result;
 }
 void Engine::restore_checkpoint(const Json& j) {
@@ -681,6 +744,73 @@ void Engine::restore_checkpoint(const Json& j) {
     }
     copy.screen_state = j.at("screen_state").integer();
     copy.screen_room = j.at("screen_room").boolean();
+    if (j.has("sensor_initialization")) {
+        const auto& init = j.at("sensor_initialization");
+        int purpose = init.at("purpose").integer(), physical = init.at("physical").integer();
+        int function = init.at("function").integer(), slot = init.at("slot").integer();
+        int cursor = init.at("cursor").integer();
+        auto started = u32(init.at("started_ms"));
+        Device device = decode_device(init.at("device"));
+        if (init.object().size() != (purpose == int(InitPurpose::discovery) ? 10u : 9u) ||
+            !j.at("plant").has("probe_reset") || init.at("device").object().size() != 9 ||
+            device.c < 0 || device.c > 4 || device.b < 0 || device.b > 6 || device.f < 0 ||
+            device.f > 15 || device.cal < -128 || device.cal > 127 ||
+            (device.x != 0 && device.x != 1) || copy.display_reset_busy || purpose < 0 ||
+            purpose > 4 || physical < 0 || physical > 2 || cursor < 0 || cursor > 3 || slot < -1 ||
+            slot > 15 || uint32_t(copy.controller_ms - started) > 0x7fffffffu ||
+            !copy.physical_index(device) || *copy.physical_index(device) != size_t(physical) ||
+            device.h != 2 || device.p != probe_pin(profile) || device.d)
+            throw std::runtime_error("invalid checkpoint sensor initialization");
+        if (purpose != int(InitPurpose::discovery) &&
+            (function != device.f || !copy.targets.count(function) ||
+             encode_device(copy.targets.at(function)).dump() != encode_device(device).dump()))
+            throw std::runtime_error("invalid checkpoint initializing target");
+        if ((purpose == int(InitPurpose::device) || purpose == int(InitPurpose::boot)) &&
+            (slot < 0 || cursor != 0))
+            throw std::runtime_error("invalid checkpoint initializing slot");
+        if ((purpose == int(InitPurpose::sensors) || purpose == int(InitPurpose::loop)) &&
+            (slot != -1 || cursor < 1 ||
+             std::array<int, 3>{{9, 5, 6}}[size_t(cursor - 1)] != function))
+            throw std::runtime_error("invalid checkpoint initializing cursor");
+        if (purpose == int(InitPurpose::boot) &&
+            encode_device(copy.slots[size_t(slot)]).dump() != encode_device(device).dump())
+            throw std::runtime_error("invalid checkpoint boot device");
+        copy.deferred_serial = unhex(init.at("queued_hex").string());
+        if (copy.deferred_serial.size() > 65536)
+            throw std::runtime_error("invalid checkpoint initialization queue");
+        copy.fields.clear();
+        for (const auto& entry : init.at("fields").object()) {
+            int value = entry.second.integer();
+            if (entry.first.size() != 1 || value < -128 || value > 127)
+                throw std::runtime_error("invalid checkpoint initialization fields");
+            copy.fields[entry.first[0]] = value;
+        }
+        if (purpose == int(InitPurpose::discovery)) {
+            const auto& q = init.at("discovery");
+            if (!copy.fields.count('v') || !copy.fields.at('v'))
+                throw std::runtime_error("invalid checkpoint discovery value request");
+            int row = q.at("cursor").integer();
+            if (q.object().size() != 5 || row < 0 || row > 2 ||
+                q.at("previous_hardware").integer() != 2 || q.at("failed_wait").boolean() ||
+                slot != -1 || cursor != 0 ||
+                std::array<int, 3>{{1, 0, 2}}[size_t(row)] != physical ||
+                encode_device(decode_device(q.at("carry"))).dump() != encode_device(device).dump())
+                throw std::runtime_error("invalid checkpoint discovery continuation");
+            copy.discovery = Discovery{size_t(row), device, 2, q.at("has_row").boolean(), false};
+        }
+        copy.initialization =
+            Initialization{InitPurpose(purpose), started, size_t(physical), function, slot, device};
+        copy.sensor_cursor = size_t(cursor);
+    }
+    if (j.has("startup")) {
+        auto stage = j.at("startup").string();
+        if (stage == "display" && copy.display_reset_busy && !copy.initialization) {
+            copy.startup_display = true;
+        } else if (stage != "sensors" || !copy.initialization ||
+                   copy.initialization->purpose != InitPurpose::boot)
+            throw std::runtime_error("invalid checkpoint startup stage");
+        copy.startup = true;
+    }
     copy.save_callback = save_callback;
     copy.local_cancel();
     *this = std::move(copy);

@@ -97,7 +97,8 @@ if(BUILD_TESTING)
   set_tests_properties(protocol-edges PROPERTIES TIMEOUT 60)
   if(NOT WIN32)
   add_test(NAME pty COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/transport.py $<TARGET_FILE:brewpi-emulator-rmx> $<TARGET_FILE:rmx-lcd-tests> $<TARGET_FILE:rmx-controls-tests>)
-  set_tests_properties(pty PROPERTIES TIMEOUT 60)
+  # Process cases include mandatory controller startup waits.
+  set_tests_properties(pty PROPERTIES TIMEOUT 180)
   endif()
   if(RMX_SANITIZERS)
     # Native hosted ARM64 instrumentation is substantially slower than Release.

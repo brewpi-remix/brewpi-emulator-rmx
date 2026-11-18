@@ -598,17 +598,22 @@ void Engine::byte(unsigned char c) {
     }
 }
 void Engine::feed(const std::string& bytes) {
-    if (display_reset_busy) {
+    if (dispatch_suspended()) {
         if (bytes.size() > 65536 - deferred_serial.size())
-            throw std::runtime_error("fidelity gap: serial receive overflow during display reset "
-                                     "requires characterization");
+            throw std::runtime_error(
+                "fidelity gap: serial receive overflow during controller initialization "
+                "requires characterization");
         deferred_serial += bytes;
         return;
     }
-    for (char c : bytes) {
+    for (size_t index = 0; index < bytes.size(); ++index) {
         if (restart_requested)
             break;
-        byte(static_cast<unsigned char>(c));
+        if (dispatch_suspended()) {
+            feed(bytes.substr(index));
+            break;
+        }
+        byte(static_cast<unsigned char>(bytes[index]));
     }
 }
 void Engine::read_timeout() {
@@ -626,7 +631,7 @@ std::optional<int> Engine::reading_raw(const Device& d, bool filtered_value) con
     if (filtered_value && (d.f == 5 || d.f == 9))
         return sensors.at(d.f).connected ? std::optional<int>{filtered(d.f, 0)} : std::nullopt;
     auto index = physical_index(d);
-    if (!index)
+    if (!index || plant.needs_initialization(*index))
         return {};
     auto raw = plant.read(*index);
     if (!raw)
@@ -648,21 +653,87 @@ std::optional<int> Engine::read_probe(const Device& d, std::string& nested_diagn
     return raw;
 }
 
-void Engine::install(const Device& d) {
-    if (live_target(d)) {
-        targets[d.f] = d;
-        if (d.h == 2) {
-            auto raw = reading_raw(d);
-            auto& h = sensors.at(d.f);
-            h.connected = raw.has_value();
-            h.missed = 255;
-            if (raw && *raw != -32768)
-                h.seed(*raw);
-            else if (!d.d)
-                diagnostic('W', 2, {d.p, d.rom});
+bool Engine::start_initialization(const Device& d, InitPurpose purpose, int slot) {
+    auto index = physical_index(d);
+    if (d.d || d.h != 2 || d.p != probe_pin(profile) || !index || !plant.read(*index) ||
+        !plant.needs_initialization(*index))
+        return false;
+    // Connection setup clears the reset indication before requesting conversion.
+    plant.set_probe_reset(*index, false);
+    initialization = Initialization{purpose, controller_ms, *index, d.f, slot, d};
+    return true;
+}
+void Engine::finish_sensor_initialization(const Device& d, bool installing) {
+    auto raw = reading_raw(d);
+    auto& h = sensors.at(d.f);
+    bool was_connected = h.connected;
+    h.connected = raw.has_value();
+    if (!d.d && h.connected != was_connected)
+        diagnostic(h.connected ? 'I' : 'W', h.connected ? 0 : 2, {d.p, d.rom});
+    if (raw && *raw != -32768 && (installing || h.missed > 60))
+        h.seed(*raw);
+}
+bool Engine::install(const Device& d, InitPurpose purpose, int slot) {
+    if (!live_target(d))
+        return true;
+    targets[d.f] = d;
+    if (d.h == 2) {
+        auto& h = sensors.at(d.f);
+        h.connected = true; // A new backend assumes connected until its first read.
+        h.missed = 255;
+        if (start_initialization(d, purpose, slot))
+            return false;
+        finish_sensor_initialization(d, true);
+    }
+    if (d.h == 1 && !d.d && type_of(d.f) == 3)
+        pins[d.p] = bool(d.x);
+    return true;
+}
+void Engine::finish_device_install(const Device& d, int slot) {
+    slots[size_t(slot)] = d;
+    if (save_callback)
+        save_callback(store_image());
+    frame('U', device_wire(d, slot));
+}
+void Engine::finish_initialization() {
+    auto pending = *initialization;
+    bool was_starting = startup;
+    initialization.reset();
+    // A second reset during conversion must not be mistaken for a completed read.
+    if (pending.purpose == InitPurpose::discovery)
+        discovery->failed_wait = !plant.read(pending.physical).has_value() ||
+                                 plant.needs_initialization(pending.physical);
+    if (pending.purpose != InitPurpose::discovery)
+        finish_sensor_initialization(pending.device, pending.purpose == InitPurpose::device ||
+                                                         pending.purpose == InitPurpose::boot);
+    switch (pending.purpose) {
+    case InitPurpose::loop:
+    case InitPurpose::sensors:
+        update_sensors(pending.purpose == InitPurpose::loop);
+        if (!initialization && pending.purpose == InitPurpose::loop)
+            finish_loop_evaluation();
+        break;
+    case InitPurpose::device:
+        finish_device_install(pending.device, pending.slot);
+        break;
+    case InitPurpose::boot:
+        continue_boot(pending.slot + 1);
+        break;
+    case InitPurpose::discovery:
+        discover();
+        break;
+    }
+    if (!dispatch_suspended()) {
+        if (was_starting && !startup) {
+            last_evaluation_ms = controller_ms;
+            loop_evaluation();
+            if (dispatch_suspended())
+                return;
         }
-        if (d.h == 1 && !d.d && type_of(d.f) == 3)
-            pins[d.p] = bool(d.x);
+        ++dispatch_generation;
+        auto queued = std::move(deferred_serial);
+        deferred_serial.clear();
+        feed(queued);
     }
 }
 int Engine::validate(const Device& d) {
@@ -756,11 +827,8 @@ void Engine::update_device() {
             sensors.at(old.f).missed = 255;
         }
     }
-    install(d);
-    slots[size_t(index)] = d;
-    if (save_callback)
-        save_callback(store_image());
-    frame('U', device_wire(d, index));
+    if (install(d, InitPurpose::device, index))
+        finish_device_install(d, index);
 }
 void Engine::query_slots() {
     std::map<char, int> q = {{'i', -1}, {'r', -1}, {'w', -1}, {'e', 0}};
@@ -823,9 +891,12 @@ void Engine::discover() {
     for (auto& e : fields)
         if (q.count(e.first))
             q[e.first] = e.second;
-    std::string out = "[";
-    Device carry;
-    carry.c = 1;
+    if (!discovery) {
+        discovery = Discovery{};
+        discovery->carry.c = 1;
+        output("h:[");
+    }
+    auto& carry = discovery->carry;
     std::vector<Device> inventory;
     for (auto rom : {"28A1010000000204", "28A10100000001E6", "28A101000000035A"}) {
         Device d;
@@ -843,21 +914,24 @@ void Engine::discover() {
         d.x = 1;
         inventory.push_back(d);
     }
-    int previous_hardware = 0;
-    for (auto& hardware : inventory) {
-        if (hardware.h != previous_hardware) {
+    while (discovery->cursor < inventory.size()) {
+        auto& hardware = inventory[discovery->cursor];
+        auto skip = [&]() {
+            ++discovery->cursor;
+            discovery->failed_wait = false;
+        };
+        if (hardware.h != discovery->previous_hardware) {
             carry = Device{};
             carry.c = 1;
-            previous_hardware = hardware.h;
+            discovery->previous_hardware = hardware.h;
         }
-        if (hardware.h == 2 && !plant.read(*physical_index(hardware)))
+        if ((hardware.h == 2 && !plant.read(*physical_index(hardware)) &&
+             !discovery->failed_wait) ||
+            (q['h'] != -1 && q['h'] != hardware.h) || (q['p'] != -1 && q['p'] != hardware.p) ||
+            (q['f'] && type_of(q['f']) != (hardware.h == 2 ? 1 : 3))) {
+            skip();
             continue;
-        if (q['h'] != -1 && q['h'] != hardware.h)
-            continue;
-        if (q['p'] != -1 && q['p'] != hardware.p)
-            continue;
-        if (q['f'] && type_of(q['f']) != (hardware.h == 2 ? 1 : 3))
-            continue;
+        }
         // The enumeration cursor deliberately retains assigned fields between rows (F09).
         carry.h = hardware.h;
         carry.p = hardware.p;
@@ -878,9 +952,12 @@ void Engine::discover() {
                     break;
                 }
             }
-        if (index >= 0 && q['u'])
+        if (index >= 0 && q['u']) {
+            skip();
             continue;
-        const bool separator = out.size() > 1;
+        }
+        std::string out;
+        const bool separator = discovery->has_row;
         std::optional<std::string> val;
         if (q['v'] && hardware.h == 2) {
             if (carry.rom != hardware.rom && carry.rom == "0000000000000000") {
@@ -892,18 +969,25 @@ void Engine::discover() {
                 throw std::runtime_error(
                     "fidelity gap: nested discovery diagnostics require characterization");
             else {
-                auto index = physical_index(hardware);
-                auto raw = plant.read(*index);
-                if (!raw)
-                    continue;
-                val = number(*raw, 3, 1);
+                if (!discovery->failed_wait && start_initialization(carry, InitPurpose::discovery))
+                    return;
+                auto raw = plant.read(*physical_index(hardware));
+                if (!raw || discovery->failed_wait) {
+                    out += "D:" + diagnostic_body('W', 2, {carry.p, carry.rom}) + "\r\n";
+                    val = "null";
+                } else
+                    val = number(*raw, 3, 1);
             }
         }
         if (separator)
             out += ',';
         out += device_wire(carry, index, val);
+        output(out);
+        discovery->has_row = true;
+        skip();
     }
-    frame('h', out + ']');
+    discovery.reset();
+    output("]\r\n");
 }
 std::string Engine::lcd() const {
     std::string rows = "[";
@@ -915,10 +999,16 @@ std::string Engine::lcd() const {
     return rows + ']';
 }
 
-void Engine::boot() {
+void Engine::boot(bool initialize_display) {
+    if (initialize_display) {
+        startup = startup_display = display_reset_busy = true;
+        display_reset_started_ms = controller_ms;
+        return;
+    }
     targets.clear();
     if (!valid) {
         diagnostic('W', 3);
+        startup = false;
         return;
     }
     settings = saved_settings;
@@ -930,19 +1020,23 @@ void Engine::boot() {
         settings["fridgeSet"] = -32767;
     }
     save(false);
-    bool cleared = false;
-    for (auto& d : slots) {
+    continue_boot(0);
+}
+void Engine::continue_boot(int first) {
+    for (int index = first; index < 16; ++index) {
+        auto& d = slots[size_t(index)];
         if (validate(d)) {
             d = Device{};
-            cleared = true;
-        } else
-            install(d);
+            // Firmware clears each invalid EEPROM record before loading the next.
+            if (save_callback)
+                save_callback(store_image());
+        } else if (!install(d, InitPurpose::boot, index))
+            return;
     }
-    if (cleared && save_callback)
-        save_callback(store_image());
     render_display();
+    startup = false;
 }
-void Engine::restart() {
+void Engine::restart(bool initialize_display) {
     local_cancel();
     phase = Phase::dispatch;
     restart_requested = false;
@@ -953,7 +1047,10 @@ void Engine::restart() {
     controller_ms = 0;
     last_evaluation_ms = uint32_t(-1000);
     last_lcd_reset = 0;
-    display_reset_busy = false;
+    display_reset_busy = startup = startup_display = false;
+    initialization.reset();
+    discovery.reset();
+    sensor_cursor = 0;
     display_reset_started_ms = 0;
     deferred_serial.clear();
     last_idle = last_heat = last_cool = wait_seconds = camera_last = 0;
@@ -968,7 +1065,7 @@ void Engine::restart() {
     defaults(true, true);
     apply_filter_constants();
     reset_display();
-    boot();
+    boot(initialize_display);
 }
 Json Engine::encode_device(const Device& d) {
     return Json::Object{{"c", d.c}, {"b", d.b}, {"f", d.f},     {"h", d.h},    {"d", d.d},
@@ -1090,7 +1187,10 @@ void Engine::construct(const Json& spec) {
     controller_ms = 0;
     last_evaluation_ms = uint32_t(-1000);
     last_lcd_reset = 0;
-    display_reset_busy = false;
+    display_reset_busy = startup = startup_display = false;
+    initialization.reset();
+    discovery.reset();
+    sensor_cursor = 0;
     display_reset_started_ms = 0;
     deferred_serial.clear();
     pending_ms = 0;
@@ -1128,9 +1228,9 @@ void Engine::construct(const Json& spec) {
     saved_settings = settings;
     saved_constants = constants;
     last_saved_target = settings.at("beerSet");
-    for (auto& d : slots)
-        if (d.f)
-            install(d);
+    for (int slot = 0; slot < 16; ++slot)
+        if (slots[size_t(slot)].f && !install(slots[size_t(slot)], InitPurpose::boot, slot))
+            break;
     render_display();
 }
 void Engine::precondition(const Json& fields) {
@@ -1198,6 +1298,11 @@ void Engine::precondition(const Json& fields) {
                 throw std::runtime_error("invalid physical fixture temperatures");
             for (size_t i = 0; i < 3; ++i)
                 plant.set_temperature(i, a[i].number());
+        } else if (k == "probe_reset") {
+            if (v.array().size() != 3)
+                throw std::runtime_error("invalid fixture probe reset states");
+            for (size_t i = 0; i < 3; ++i)
+                plant.set_probe_reset(i, v.array()[i].boolean());
         } else if (k == "connected") {
             auto& a = v.array();
             if (a.size() != 3)

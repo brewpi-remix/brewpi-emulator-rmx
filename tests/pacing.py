@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from transport import Session, EXE
+from fixtures import Driver
 
 
 def setup(session):
@@ -108,7 +109,8 @@ def run():
             elapsed=stop_requested-start
             snapshot=json.loads(checkpoint.read_text())
             plant=snapshot['engine']['plant']
-            simulated=plant['age_ms']/1000
+            # Runtime pacing starts after the mandatory RevC startup prefix.
+            simulated=plant['age_ms']/1000-2.3
             assert max(0,elapsed*factor-.3*factor-.2)<=simulated<=elapsed*factor+.5*factor, (factor,simulated,elapsed)
             assert simulated>0 and plant['temperatures_c'][1]>20
             assert snapshot['engine']['settings']['mode']==ord('t')
@@ -137,7 +139,7 @@ def run():
             s.silent()
         finally:
             s.close()
-        assert json.loads(checkpoint.read_text())['engine']['controller_ms']==0
+        assert json.loads(checkpoint.read_text())['engine']['controller_ms']==2300
         checks.append('pause stops simulated time but retains real wall-clock token waiting and command effects')
         # Resume a known suspended short command at1x. The parser's wall-clock
         # timeout begins when dispatch resumes, rather than during the bus wait.
@@ -167,6 +169,35 @@ def run():
                 s.expect('S');assert s.expect('C')['Kp']==7
             finally:s.close()
             checks.append(profile+' suspended input survives resume and gets a fresh wall-clock token timeout after dispatch resumes')
+            # The same parser deadline applies after a conditional sensor conversion.
+            driver=Driver(str(Path(EXE).with_name('rmx-fixture-driver')),profile=profile)
+            try:
+                driver.call('construct',state={'valid':True,'slots':[], 'scenario':{'physical_loads':[]}})
+                bus=14 if profile=='i2c' else 18
+                for i,f,rom in [(0,9,'28A10100000001E6'),(1,5,'28A1010000000204')]:
+                    driver.call('feed',bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}'%(i,f,bus,rom))
+                driver.call('precondition',fields={'probe_reset':[True,False,False]})
+                driver.call('advance',milliseconds=0)
+                driver.call('feed',bytes='j{Kp:7')
+                sensor=driver.call('checkpoint')[1]['checkpoint']
+            finally:driver.close()
+            image['engine']=sensor
+            suspended.write_text(json.dumps(image))
+            (directory/'controller.json').write_text(json.dumps(sensor['store']))
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0',
+                      '--resume',str(suspended),'--checkpoint',str(frozen)])
+            try:s.silent(1.15)
+            finally:s.close()
+            assert json.loads(frozen.read_text())['engine']==sensor
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','1','--resume',str(suspended)])
+            start=time.monotonic()
+            try:
+                s.expect('D',dict(logType='I',logID=0,V=[bus,'28A10100000001E6']))
+                s.expect('D',dict(logType='I',logID=12,V=['Kp','7']))
+                assert 1.45<time.monotonic()-start<3.4
+                s.expect('S');assert s.expect('C')['Kp']==7
+            finally:s.close()
+            checks.append(profile+' sensor initialization freezes at speed zero and resumes a partial command with a fresh token deadline')
         # Resume must not silently mix a checkpoint with subsequently changed saved configuration.
         state=root/'1'/'controller.json'
         mismatched_checkpoint=root/'1'/'checkpoint.json'

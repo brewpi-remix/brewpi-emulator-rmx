@@ -52,7 +52,7 @@ class Plant {
     Json scenario;
     std::array<double, 3> temperature{{20, 20, 20}}, lagged{{20, 20, 20}};
     std::array<int, 3> probe{{-14336, -14336, -14336}};
-    std::array<bool, 3> available{{true, true, true}};
+    std::array<bool, 3> available{{true, true, true}}, probe_reset{{false, false, false}};
     uint32_t random = 1;
     double beer_capacity = 85114.86, chamber_capacity = 2484, bc = 3, cr = 1.67;
     double quantum = .0625, lag = 0, noise = 0, room_base = 20, room_amplitude = 0, room_phase = 0;
@@ -81,6 +81,12 @@ class Plant {
     std::optional<int> read(size_t index) const;
     void set_temperature(size_t index, double c);
     void set_connected(size_t index, bool yes);
+    bool needs_initialization(size_t index) const {
+        return probe_reset.at(index);
+    }
+    void set_probe_reset(size_t index, bool reset) {
+        probe_reset.at(index) = reset;
+    }
     int door_input_pin() const {
         return door_pin;
     }

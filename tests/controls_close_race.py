@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='rmx-close-race-') as tmp:
         env=dict(os.environ,PATH=str(bindir),TERM='xterm-256color',
                  LC_ALL='en_US.UTF-8' if sys.platform=='darwin' else 'C.UTF-8',
                  LCD_TEST_ROOT=str(directory),LCD_TEST_PEER=scenario,LCD_SENTINEL='40')
-        p=Process(exe,directory,'gui',env=env)
+        p=Process(exe,directory,'gui',env=env,await_boot=False)
         try:
             try:wait_for(lambda:(p.console(),p.proc.poll())[1] is not None)
             except AssertionError as exc:

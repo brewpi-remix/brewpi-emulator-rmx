@@ -310,7 +310,7 @@ int application_main(int argc, char** argv) {
         Pty pty(serial);
 #endif
         if (resume_path.empty())
-            engine.boot();
+            engine.boot(true);
         std::signal(SIGINT, stop);
         std::signal(SIGTERM, stop);
 #ifdef _WIN32
@@ -332,17 +332,22 @@ int application_main(int argc, char** argv) {
         size_t sent = 0;
         auto wall_anchor = Clock::now();
         auto advance_wall = [&]() {
-            bool suspended = engine.dispatch_suspended();
+            auto dispatch_epoch = engine.dispatch_epoch();
+            bool starting_up = engine.starting_up();
             auto wall_now = Clock::now();
             double elapsed =
                 std::chrono::duration<double, std::milli>(wall_now - wall_anchor).count();
             wall_anchor = wall_now;
-            pacing_fraction += elapsed * speed;
+            // Pausing applies after startup; mandatory initialization still completes.
+            pacing_fraction += elapsed * (starting_up && speed == 0 ? 1 : speed);
             auto simulated = uint64_t(std::floor(pacing_fraction));
             pacing_fraction -= double(simulated);
-            if (speed > 0)
-                engine.advance_ms(simulated, pending.size() - sent < 65536);
-            if (suspended && !engine.dispatch_suspended())
+            if (speed > 0 || starting_up) {
+                engine.advance_ms(simulated, pending.size() - sent < 65536, speed == 0);
+                if (starting_up && !engine.starting_up() && speed == 0)
+                    pacing_fraction = 0;
+            }
+            if (dispatch_epoch != engine.dispatch_epoch())
                 deadline = Clock::now() + std::chrono::seconds(1);
         };
         while (!stopping) {
@@ -359,7 +364,7 @@ int application_main(int argc, char** argv) {
 #endif
             advance_wall();
             if (engine.restarting())
-                engine.restart();
+                engine.restart(true);
             // Stop accepting input while the reader is backpressured; retain every output byte.
 #ifndef _WIN32
             short events = pending.size() - sent < 65536 ? POLLIN : 0;
