@@ -1,6 +1,6 @@
 # Copyright 2026 Lee Bussy
 # SPDX-License-Identifier: MIT
-"""Real private-terminal controls, background operation, and lifecycle checks."""
+"""Real private-terminal menu blocking, logical inputs, and lifecycle checks."""
 import fcntl
 import json
 import os
@@ -33,14 +33,18 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
             os.write(p.master, text)
             wait_for(lambda: response in p.console()[start:])
             return p.console()[start:]
+        drain(); os.write(p.serial,b's'); baseline=json.loads(p.line()[2:])
         command(b'press\r\n', b'Action accepted')
         command(b'cw\r', b'Action accepted')
         command(b'press\r', b'Edit target')
-        # Confirmation without rotation preserves raw precision. S is independent of the UI.
-        drain(); os.write(p.serial,b's'); baseline=p.line()
+        # A query inside the menu waits; unrotated confirmation quantizes the target.
+        drain(); os.write(p.serial,b's'); time.sleep(.1)
+        assert not p.read_serial(), 'query dispatched inside paused menu'
         command(b'press\r', b'Target committed')
-        time.sleep(.1); drain(); os.write(p.serial,b's'); after=p.line()
-        assert baseline == after, (baseline,after)
+        after=p.line()
+        while not after.startswith(b'S:'):after=p.line()
+        after=json.loads(after[2:])
+        assert baseline['beerSet']==20.02 and after['beerSet']==20, (baseline,after)
         command(b'door open\r', b'Door opened')
         command(b'door open\r', b'Door unchanged')
         command(b'door close\r', b'Door closed')
@@ -52,8 +56,7 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
         command(b'press\r', b'Action accepted')
         segment = command(b'cw\r', b'Action accepted')
         assert segment.startswith(b'\r\x1b[13A') and b'\x1b[2K' in segment
-        # Normal controller execution keeps advancing under an open menu.
-        # process speed override is zero, so test background progress in another instance below.
+        # Terminal suspension preserves the active firmware continuation.
         os.kill(p.proc.pid,signal.SIGTSTP)
         def stopped():
             pid, status = os.waitpid(p.proc.pid,os.WNOHANG | os.WUNTRACED)
@@ -93,12 +96,14 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
         wait_for(lambda: b'> ' in p.console())
         os.write(p.master,b'press\r')
         time.sleep(.5)
-        # Actual plant age advances during menu interaction; serial remains available.
-        assert p.command(b'n').startswith(b'N:')
+        # Plant time advances, but the query remains queued until the menu returns.
+        os.write(p.serial,b'n');time.sleep(.1)
+        assert not p.read_serial()
+        assert p.line().startswith(b'N:')
     finally:
         p.close()
     checkpoint=json.loads(p.checkpoint.read_text())['engine']
-    assert checkpoint['plant']['age_ms'] >= 3000, checkpoint['plant']
+    assert checkpoint['plant']['age_ms'] >= 10000, checkpoint['plant']
     # Headless operation retains ordinary orphan-group SIGTSTP behavior.
     p=Process(exe,Path(tmp)/'headless-signal','off',env=env,terminal=False)
     try:
@@ -134,4 +139,4 @@ with tempfile.TemporaryDirectory(prefix='rmx-controls-') as tmp:
     finally:
         error=p.close(check=False)
     assert b'continuing headless' not in error and error,error
-print('Terminal command, precision, door, overflow, no-scroll, suspend/resize/exit restoration and background checks passed')
+print('Terminal command, quantization, door, overflow, no-scroll, suspend/resize/exit restoration and background checks passed')

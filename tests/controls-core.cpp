@@ -4,10 +4,11 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 using namespace rmx;
-void require(bool ok, const char* what) {
+void require(bool ok, const char* message) {
     if (!ok)
-        throw std::runtime_error(what);
+        throw std::runtime_error(message);
 }
 void profile_doors() {
     for (auto profile : {Profile::revc, Profile::i2c}) {
@@ -34,171 +35,367 @@ void profile_doors() {
         require(reading(7) == 1, "door wiring fix bypassed firmware inversion");
     }
 }
-int main() {
-    profile_doors();
-    std::string output;
-    Engine engine([&](const std::string& s) { output += s; });
-    engine.boot(false);
-    engine.feed("Ej{mode:b,beerSet:20.023}");
-    auto target = [&]() { return engine.checkpoint().at("settings").at("beerSet").integer(); };
-    uint64_t now = 100;
-    auto action = [&](const std::string& command) { return engine.local_action(command, ++now); };
-    auto beer = [&]() {
-        action("press");
-        action("cw");
-        action("press");
-    };
-    int original = target();
-    auto before = engine.checkpoint().dump();
-    auto output_before = output;
-    beer();
-    require(engine.checkpoint().dump() == before && output == output_before,
-            "preview mutates controller");
-    require(action("press") == "Target committed", "target confirmation failed");
-    require(target() == original, "untouched target lost precision");
-    before = engine.checkpoint().dump();
-    beer();
-    action("cw");
-    now += 10000;
-    engine.local_tick(now);
-    require(engine.checkpoint().dump() == before, "timeout saves draft");
-    require(action("press") == "Action accepted", "late press committed expired draft");
-    engine.local_cancel();
-    beer();
-    action("cw");
-    engine.feed("j{beerSet:21,beerSet:20.023}");
-    require(action("press") == "Action accepted", "change-back did not cancel edit");
-    engine.local_cancel();
-    beer();
-    engine.feed("j{tempSetMin:21}");
-    require(target() == original, "serial bounds auto-clamped live target");
-    require(action("press") == "Action accepted", "bounds change did not cancel edit");
-    engine.local_cancel();
-    beer();
-    action("press");
-    require(target() == absolute_raw(21), "local confirmation did not bound target");
-    engine.feed("j{tempSetMin:1,tempSetMax:30,beerSet:30}");
-    beer();
-    action("cw");
-    action("press");
-    require(target() == absolute_raw(1), "temperature failed to wrap");
-    engine.feed("j{tempFormat:F,beerSet:68.023}");
-    original = target();
-    beer();
-    action("press");
-    require(target() == original, "F unrotated target lost precision");
-    beer();
-    action("cw");
-    action("press");
-    require(target() > original, "F step did not increment");
-    engine.feed("j{mode:x}");
-    action("press");
-    action("press");
-    require(action("press") == "Choose valid mode", "invalid mode silently committed");
-    action("cw");
-    action("press");
-    action("press");
-    require(engine.checkpoint().at("settings").at("mode").integer() == 'b',
-            "valid recovery failed");
-    engine.feed("j{tempFormat:C,tempSetMin:30,tempSetMax:1}");
-    require((beer(), engine.local_action("press", ++now)) == "Action accepted",
-            "invalid range still editing");
-    engine.local_cancel();
-    engine.feed("j{tempSetMin:1,tempSetMax:30}");
-    beer();
-    auto checkpoint = engine.checkpoint();
-    Engine resumed([](const std::string&) {});
-    resumed.restore_checkpoint(checkpoint);
-    require(resumed.lcd_rows() != engine.lcd_rows(), "checkpoint resurrected overlay");
-    engine.local_cancel();
-    require(action("door open") == "Door opened" && engine.local_door(), "door input failed");
-    require(action("door open") == "Door unchanged", "door request not idempotent");
-    engine.feed("R");
-    engine.restart(false);
-    require(engine.local_door(), "controller reset changed plant door");
-    engine.feed("j{");
-    require(action("press") == "Busy; retry action", "partial serial command accepted local edit");
-    engine.read_timeout();
-    require(engine.local_action("press", ++now, false) == "Busy; retry action",
-            "backpressure accepted edit");
-    engine.feed("Ej{mode:b,beerSet:20,hs:1}");
-    beer();
-    action("cw");
-    action("press");
-    require(target() == -14285, "logical step doubled in half-step mode");
-    require(engine.lcd_rows()[1].substr(12, 6).find("20.1") != std::string::npos,
-            "paused confirmation reverted to stale target display");
-    engine.feed("j{tempSetMin:20.01,tempSetMax:20.02}");
-    beer();
-    require(action("cw") == "No tenth in range", "narrow interval selected invalid tenth");
-    action("press");
-    auto bounded = engine.checkpoint();
-    require(target() >= bounded.at("constants").at("tempSetMin").integer() &&
-                target() <= bounded.at("constants").at("tempSetMax").integer(),
-            "narrow bound escaped");
-    engine.feed("j{tempSetMin:1,tempSetMax:30,mode:b,beerSet:20}");
-    before = engine.checkpoint().dump();
-    action("press");
-    action("press");
-    action("ccw"); // preview off
-    require(engine.checkpoint().dump() == before,
-            "browsing off disabled targets or saved settings");
-    now += 10000;
-    engine.local_tick(now);
-    require(engine.checkpoint().dump() == before, "mode timeout changed state");
-    action("press");
-    action("ccw");
-    action("press"); // top wrap to fridge
-    require(action("press") == "Target committed", "fridge confirmation failed");
-    require(engine.checkpoint().at("settings").at("mode").integer() == 'f',
-            "fridge mode not committed");
-    engine.feed("EU{i:0,f:1,h:1,p:4,x:0}U{i:1,f:4,h:1,p:5,x:0}");
-    action("door close");
-    engine.advance_ms(1000);
-    action("door open");
-    engine.advance_ms(1000);
-    require(engine.checkpoint().at("door").boolean(), "configured door not sensed");
-    require(output.find("Fridge door opened") != std::string::npos, "door annotation missing");
-    Engine plant_resume([](const std::string&) {});
-    plant_resume.restore_checkpoint(engine.checkpoint());
-    require(plant_resume.local_door(), "plant door was not checkpointed");
-    engine.feed("U{i:0,f:1,h:1,p:4,x:1}");
-    action("door close");
-    engine.advance_ms(1000);
-    require(engine.checkpoint().at("door").boolean(), "door inversion bypassed");
-    Engine plain([](const std::string&) {}), editing([](const std::string&) {});
-    plain.feed("Ej{mode:b,beerSet:20}");
-    editing.feed("Ej{mode:b,beerSet:20}");
-    editing.local_action("press", 0);
-    for (int i = 1; i <= 8; ++i) {
-        plain.advance_ms(1000);
-        editing.advance_ms(1000);
-        editing.local_tick(uint64_t(i) * 1000);
-        require(plain.checkpoint().dump() == editing.checkpoint().dump(),
-                "menu changed background evolution");
-        for (const auto& row : editing.lcd_rows())
-            require(row.size() == 20, "overlay row width changed");
+struct Bench {
+    std::string wire;
+    std::vector<Json> saves;
+    Engine engine;
+    explicit Bench(Profile profile) : engine([&](const std::string& s) { wire += s; }, profile) {
+        engine.feed("Ej{mode:b,beerSet:20.023,fridgeSet:19}");
+        engine.advance_ms(0);
+        engine.on_save([&](const Json& j) { saves.push_back(j); });
+        wire.clear();
     }
-    engine.feed("Ej{mode:b,beerSet:20}");
-    original = target();
-    action("press");
-    action("press");
-    action("cw");
-    action("cw");
-    require(action("press") == "Mode committed", "profile confirmation failed");
-    require(engine.checkpoint().at("settings").at("mode").integer() == 'p' && target() == original,
-            "profile commit lost beer target");
-    require(output.find("Changed to profile mode in menu") != std::string::npos,
-            "profile annotation missing");
-    action("press");
-    action("press");
-    action("cw");
-    require(action("press") == "Mode committed", "off confirmation failed");
-    require(target() == -32767 &&
-                engine.checkpoint().at("settings").at("fridgeSet").integer() == -32767,
-            "intentional off did not disable targets");
-    require(output.find("Temp control turned off in menu") != std::string::npos,
-            "off annotation missing");
-    std::cout
-        << "Controls precision, staging, range, conflicts, timeout, mode, door, resume passed\n";
+    void act(const std::string& command) {
+        engine.local_action(command, 0);
+    }
+    void top(int item) {
+        act("press");
+        for (int n = 0; n < item; ++n)
+            act("cw");
+        act("press");
+    }
+    Json snap() const {
+        return engine.checkpoint();
+    }
+    int setting(const char* key) const {
+        return snap().at("settings").at(key).integer();
+    }
+    void elapse(int ms) {
+        engine.advance_ms(unsigned(ms));
+    }
+};
+void menu_mutations(Profile profile) {
+    Bench b(profile);
+    int original = b.setting("beerSet");
+    b.top(0);
+    b.act("cw");
+    require(b.setting("mode") == 'f' && !b.saves.empty(), "mode rotation is still a draft");
+    b.act("cw");
+    require(b.setting("mode") == 'p', "mode order changed");
+    b.act("cw");
+    require(b.setting("mode") == 'o' && b.setting("beerSet") == -32767,
+            "off preview did not disable targets");
+    b.elapse(9900);
+    require(b.engine.dispatch_suspended(), "menu timeout fired before clock boundary");
+    b.elapse(100);
+    require(!b.engine.dispatch_suspended() && b.setting("mode") == 'b',
+            "mode timeout did not restore mode");
+    require(b.setting("beerSet") == -32767, "mode timeout invented target rollback");
+    require(!b.saves.empty(), "mode timeout omitted source store");
+    b.engine.feed("R");
+    b.engine.restart(false);
+    require(b.setting("mode") == 'b' && b.setting("beerSet") == -32767,
+            "mode timeout store did not survive restart");
+    b.engine.feed("j{mode:p,beerSet:20.023}");
+    b.top(1);
+    require(b.setting("mode") == 'b', "temperature entry did not set mode");
+    require(b.setting("beerSet") == original, "temperature entry changed target");
+    size_t before = b.saves.size();
+    b.act("cw");
+    require(b.setting("beerSet") == original && b.saves.size() == before,
+            "temperature rotation persisted candidate");
+    b.elapse(10000);
+    require(b.setting("mode") == 'b' && b.setting("beerSet") == original,
+            "temperature timeout reverted entry mode or committed candidate");
+    b.top(1);
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(20), "unrotated confirmation did not quantize");
+    require(b.wire.find("\"BeerAnn\":\"Beer temp set to  20.0 in Menu.\"") != std::string::npos,
+            "menu annotation missing");
+    b.engine.feed("j{mode:f,fridgeSet:19,mode:p}");
+    b.top(2);
+    require(b.setting("mode") == 'f', "fridge entry did not set mode");
+    b.act("ccw");
+    b.act("press");
+    require(b.setting("fridgeSet") == -14899, "fridge tenth conversion differs"); // 18.9 C
+    b.engine.feed("R");
+    b.engine.restart(false);
+    require(b.setting("mode") == 'f' && b.setting("fridgeSet") == -14899,
+            "confirmed menu value did not persist");
+    for (const std::string selection : {"p", "o"}) {
+        b.engine.feed("j{mode:" + selection + "}");
+        b.top(0);
+        b.act("press");
+        require(!b.engine.dispatch_suspended(), "mode confirmation did not exit");
+    }
+    require(b.wire.find("Changed to profile mode in menu") != std::string::npos &&
+                b.wire.find("Temp control turned off in menu") != std::string::npos,
+            "mode annotations missing");
+}
+void menu_numbers(Profile profile) {
+    Bench b(profile);
+    b.engine.feed("j{beerSet:30}");
+    b.top(1);
+    b.act("cw");
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(1), "upper range failed to wrap");
+    b.top(1);
+    b.act("ccw");
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(30), "lower range failed to wrap");
+    b.engine.feed("j{beerSet:31}");
+    b.top(1);
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(31), "unrotated start was clamped to bounds");
+    b.engine.feed("j{beerSet:20,tempSetMin:20.01,tempSetMax:20.02}");
+    b.top(1);
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(20), "rounded range gained new validity rule");
+    b.engine.feed("j{tempFormat:F,tempSetMin:33.8,tempSetMax:86,beerSet:68.023}");
+    b.top(1);
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(20), "F unrotated confirmation not quantized");
+    b.engine.feed("j{hs:1}");
+    b.top(1);
+    b.act("cw");
+    b.act("press");
+    require(b.setting("beerSet") == -14308, "F tenth conversion differs");
+    b.engine.feed("j{tempFormat:C,tempSetMin:-5,tempSetMax:30,beerSet:-2.023}");
+    b.top(1);
+    b.act("press");
+    require(b.setting("beerSet") == -25599,
+            "negative tenths conversion lost its signed truncation");
+    b.engine.feed("j{mode:o}");
+    b.top(1);
+    b.act("press");
+    require(b.setting("beerSet") == absolute_raw(20), "disabled target did not start at20C");
+    b.engine.feed("j{mode:x}");
+    b.act("press");
+    require(b.engine.local_action("press", 0).find("Fidelity gap") != std::string::npos,
+            "invalid mode lookup was normalized or executed");
+    b.act("cancel");
+}
+void menu_blocking(Profile profile) {
+    Bench b(profile);
+    b.engine.feed(std::string("U{i:0,f:1,h:1,p:4,x:") + (profile == Profile::i2c ? "1" : "0") +
+                  "}U{i:1,f:4,h:1,p:2,x:0}j{mode:t}");
+    b.engine.feed("d{i:1,w:1}");
+    // Temperature path works even if mode browsing itself would be undefined.
+    b.top(1);
+    auto start = b.snap();
+    b.wire.clear();
+    b.engine.feed("nsc");
+    b.act("door open");
+    b.elapse(5000);
+    auto held = b.snap();
+    require(b.wire.empty(), "serial dispatch ran inside menu");
+    for (const auto* key : {"histories", "pins", "integral_counter", "door", "last_evaluation_ms"})
+        require(start.at(key).dump() == held.at(key).dump(), "ordinary work ran inside menu");
+    require(held.at("controller_ms").integer() == start.at("controller_ms").integer() + 5000,
+            "menu froze firmware clock");
+    require(held.at("plant").dump() != start.at("plant").dump(), "menu froze external plant");
+    b.elapse(5000);
+    require(!b.engine.dispatch_suspended(), "temperature timeout did not resume");
+    require(b.wire.find("N:") != std::string::npos && b.wire.find("N:") < b.wire.find("S:") &&
+                b.wire.find("S:") < b.wire.find("C:"),
+            "queued reply order changed");
+    require(b.snap().at("door").boolean() && b.wire.find("Fridge door opened") < b.wire.find("N:"),
+            "deferred door sensing did not precede serial dispatch");
+    require(b.snap().at("integral_counter").integer() == start.at("integral_counter").integer() + 1,
+            "menu resume invented catch-up evaluations");
+    b.wire.clear();
+    b.engine.feed("j{");
+    b.act("press");
+    require(!b.engine.dispatch_suspended(), "local press interrupted partial serial parser");
+    b.engine.read_timeout();
+    b.engine.advance_ms(0);
+    require(b.engine.dispatch_suspended(), "pending encoder push was lost during parser wait");
+    b.act("cancel");
+    b.engine.feed("n");
+    require(b.wire.find("N:") != std::string::npos, "cancel stranded serial input");
+}
+void menu_checkpoint(Profile profile) {
+    Bench b(profile);
+    b.top(0);
+    b.act("ccw"); // off is persisted immediately
+    b.engine.feed("n");
+    b.elapse(2300);
+    auto before_backpressure = b.snap();
+    b.engine.local_action("press", 0, false);
+    Engine pending([](const std::string&) {}, profile);
+    pending.restore_checkpoint(b.snap());
+    require(pending.checkpoint().dump() == b.snap().dump(),
+            "pending encoder latch was not resumable");
+    b.engine.restore_checkpoint(before_backpressure);
+    auto saved = b.snap();
+    Engine resumed([](const std::string&) {}, profile);
+    resumed.restore_checkpoint(saved);
+    require(resumed.checkpoint().dump() == saved.dump() &&
+                resumed.lcd_rows() == b.engine.lcd_rows(),
+            "checkpoint dropped menu state");
+    b.elapse(7700);
+    resumed.advance_ms(7700);
+    require(resumed.checkpoint().dump() == b.snap().dump(), "resumed timeout diverged");
+    for (const auto* field : {"page", "changed", "old_mode", "blink_started", "queued_hex"}) {
+        auto bad = saved;
+        if (std::string(field) == "queued_hex")
+            bad["menu"][field] = "0Z";
+        else
+            bad["menu"][field] = -1;
+        auto before = resumed.checkpoint().dump();
+        bool rejected = false;
+        try {
+            resumed.restore_checkpoint(bad);
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        require(rejected && resumed.checkpoint().dump() == before,
+                "bad menu snapshot mutated engine");
+    }
+    auto conflict = saved;
+    conflict["startup"] = "display";
+    bool rejected = false;
+    try {
+        resumed.restore_checkpoint(conflict);
+    } catch (const std::exception&) {
+        rejected = true;
+    }
+    require(rejected, "incompatible continuation accepted");
+    auto legacy = b.snap();
+    // A pre-menu fixture contains neither optional field.
+    Json clean(Json::Object{});
+    for (const auto& entry : legacy.object())
+        if (entry.first != "menu" && entry.first != "encoder")
+            clean[entry.first] = entry.second;
+    legacy = clean;
+    resumed.restore_checkpoint(legacy);
+    require(!resumed.dispatch_suspended(), "legacy checkpoint did not load idle");
+}
+void menu_clock(Profile profile) {
+    Bench b(profile);
+    auto state = b.snap();
+    state["controller_ms"] = 65535900;
+    state["last_evaluation_ms"] = 65535900;
+    state["last_lcd_reset"] = 65535;
+    b.engine.restore_checkpoint(state);
+    b.act("press");
+    b.engine.local_tick(999999999);
+    require(b.engine.dispatch_suspended(), "wall time expired paused menu");
+    b.elapse(9000); // second65535 to second8: elapsed9
+    require(b.engine.dispatch_suspended(), "wrapped timeout fired early");
+    b.elapse(100);
+    // At65545000, wrapped seconds9: elapsed10 despite only9.1 elapsed seconds.
+    require(!b.snap().has("menu"), "truncated-second timeout boundary differs");
+    b.engine.advance_ms(2300); // finish the independently scheduled display reset
+    state = b.snap();
+    state["controller_ms"] = 4294967200.0;
+    state["last_evaluation_ms"] = 4294967200.0;
+    state["last_lcd_reset"] = 35127;
+    b.engine.restore_checkpoint(state);
+    b.act("press");
+    require(b.snap().has("menu"), "menu entry failed before millis wrap");
+    b.elapse(100);
+    require(!b.snap().has("menu"),
+            "millis wrap was normalized instead of preserving seconds discontinuity");
+}
+void startup_input_order(Profile profile) {
+    Bench b(profile);
+    int pin = profile == Profile::i2c ? 14 : 18;
+    b.engine.feed("U{i:0,f:9,h:2,p:" + std::to_string(pin) + ",a:28A10100000001E6}");
+    b.engine.precondition(Json::Object{{"probe_reset", Json::Array{true, false, false}}});
+    b.engine.feed("R");
+    b.engine.restart(true);
+    b.elapse(profile == Profile::i2c ? 2200 : 2300);
+    b.act("press");
+    b.wire.clear();
+    b.engine.feed("n");
+    b.elapse(800);
+    require(b.wire.empty() && b.snap().has("menu") &&
+                b.snap().at("last_evaluation_ms").number() == 4294966296.0,
+            "startup conversion resumed evaluation/serial before retained UI input");
+    b.act("cancel");
+    require(b.wire.find("N:") != std::string::npos, "startup menu exit lost queued identity");
+}
+void queued_resets(Profile profile) {
+    Bench b(profile);
+    b.engine.feed("j{mode:p}");
+    int original = b.setting("beerSet");
+    b.top(1);
+    b.act("cw");
+    b.engine.feed("R");
+    require(!b.engine.restarting(), "R ran inside the menu");
+    b.elapse(10000);
+    require(b.engine.restarting(), "queued R did not resume");
+    b.engine.restart(false);
+    require(b.setting("mode") == 'b' && b.setting("beerSet") == original,
+            "R lost entry-mode save or persisted the timed-out candidate");
+    b.top(1);
+    b.engine.feed("E");
+    require(b.engine.dispatch_suspended(), "E ran inside menu");
+    b.elapse(10000);
+    require(!b.engine.dispatch_suspended() && b.setting("mode") == 'o',
+            "queued E did not initialize after menu exit");
+}
+void startup_events(Profile profile) {
+    Bench b(profile);
+    b.engine.feed("R");
+    b.engine.restart(true);
+    require(b.engine.local_action("press", 0) == "Encoder unavailable during startup",
+            "logical encoder ran before UI initialization");
+    b.elapse(2300);
+    require(!b.snap().has("menu"), "pre-init push was replayed after startup");
+    b.engine.feed("j{");
+    b.act("press");
+    auto pending = b.engine.local_action("cw", 0);
+    require(pending == "Encoder event retained", "initialized encoder event was not retained");
+    b.engine.read_timeout();
+    b.elapse(0);
+    require(b.snap().has("menu"), "post-init pending push was lost");
+    b.act("cancel");
+}
+void receive_limits(Profile profile) {
+    Bench b(profile);
+    b.act("press");
+    b.engine.feed(std::string(65536, ' '));
+    auto full = b.snap();
+    bool rejected = false;
+    try {
+        b.engine.feed("n");
+    } catch (const std::exception& e) {
+        rejected = std::string(e.what()).find("fidelity gap") != std::string::npos;
+    }
+    require(rejected && b.snap().dump() == full.dump(),
+            "native queue overflow mutated retained input");
+    b.wire.clear();
+    b.elapse(10000);
+    require(b.wire.empty(), "native queue limit fabricated Arduino diagnostic");
+    std::string bulk;
+    for (int i = 0; i < 100; ++i)
+        bulk += "ns";
+    b.engine.feed(bulk);
+    std::string expected = b.wire;
+    b.wire.clear();
+    for (char c : bulk)
+        b.engine.feed(std::string(1, c));
+    require(b.wire == expected, "ordinary native feed batches introduced byte loss");
+}
+int main(int argc, char** argv) {
+    try {
+        profile_doors();
+        for (auto profile : {Profile::revc, Profile::i2c}) {
+            std::string group = argc > 1 ? argv[1] : "all";
+            if (group == "all" || group == "mutations")
+                menu_mutations(profile);
+            if (group == "all" || group == "numbers")
+                menu_numbers(profile);
+            if (group == "all" || group == "blocking")
+                menu_blocking(profile);
+            if (group == "all" || group == "checkpoint")
+                menu_checkpoint(profile);
+            if (group == "all" || group == "clock")
+                menu_clock(profile);
+            if (group == "all") {
+                startup_events(profile);
+                queued_resets(profile);
+                startup_input_order(profile);
+            }
+            if (group == "all" || group == "receive")
+                receive_limits(profile);
+        }
+        std::cout << "Source-defined menu mutation, quantization, blocking, clock, persistence and "
+                     "continuation checks passed\n";
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+        return 1;
+    }
 }

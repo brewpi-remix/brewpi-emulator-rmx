@@ -422,10 +422,7 @@ void Engine::pair() {
     if (token_key.empty() || token_value.empty())
         return;
     if (command == 'j') {
-        auto before = local_dependencies();
         setting(token_key, token_value);
-        if (before != local_dependencies())
-            local_cancel();
         return;
     }
     char name = token_key[0];
@@ -601,7 +598,7 @@ void Engine::feed(const std::string& bytes) {
     if (dispatch_suspended()) {
         if (bytes.size() > 65536 - deferred_serial.size())
             throw std::runtime_error(
-                "fidelity gap: serial receive overflow during controller initialization "
+                "fidelity gap: serial receive overflow during controller suspension "
                 "requires characterization");
         deferred_serial += bytes;
         return;
@@ -725,6 +722,9 @@ void Engine::finish_initialization() {
     }
     if (!dispatch_suspended()) {
         if (was_starting && !startup) {
+            // Setup returns to the UI boundary before the first ordinary evaluation.
+            if (service_menu())
+                return;
             last_evaluation_ms = controller_ms;
             loop_evaluation();
             if (dispatch_suspended())
@@ -1038,6 +1038,8 @@ void Engine::continue_boot(int first) {
 }
 void Engine::restart(bool initialize_display) {
     local_cancel();
+    encoder_value = encoder_seen = encoder_low = encoder_high = 0;
+    encoder_pressed = false;
     phase = Phase::dispatch;
     restart_requested = false;
     alarm = false;
@@ -1179,6 +1181,9 @@ void Engine::load_store(const Json& image) {
     }
 }
 void Engine::construct(const Json& spec) {
+    menu = {};
+    encoder_value = encoder_seen = encoder_low = encoder_high = 0;
+    encoder_pressed = false;
     defaults(true, true);
     slots = {};
     targets.clear();

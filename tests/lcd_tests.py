@@ -31,8 +31,10 @@ def wait_for(predicate, timeout=8):
 
 
 class Process:
-    def __init__(self, exe, root, mode, env=None, terminal=True, extra=(), inherited=(), await_boot=True):
+    def __init__(self, exe, root, mode, env=None, terminal=True, extra=(), inherited=(), await_boot=True, state=None):
         root.mkdir()
+        if state is not None:
+            (root/'state.json').write_text(json.dumps(state))
         self.root, self.buffer = root, b''
         self.master = self.slave = self.serial = None
         options = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
@@ -382,6 +384,31 @@ def run(exe, core):
                 p.close()
             assert b'+--------------------+' not in p.buffer
         checks.append('deliberate GUI close datagram and close-exit race both stop emulator cleanly without terminal fallback')
+        # Closing the actual GUI session must retain an active firmware continuation.
+        from fixtures import Driver
+        for profile in ('revc','i2c'):
+            driver=Driver(str(Path(exe).with_name('rmx-fixture-driver')),profile=profile)
+            try:
+                driver.call('construct',state={'valid':True,'slots':[]})
+                driver.call('local',action='press')
+                driver.call('feed',bytes='n')
+                engine=driver.call('checkpoint')[1]['checkpoint']
+            finally:driver.close()
+            capture=root/('menu-'+profile+'.json')
+            capture.write_text(json.dumps(dict(format='brewpi-emulator-checkpoint-v1',engine=engine,
+                                               speed=0,pacing_fraction_ms=0)))
+            directory=root/('menu-gui-close-'+profile)
+            chosen=dict(env,PATH=str(bindir),LCD_TEST_ROOT=str(directory),
+                        LCD_TEST_PEER='user-close',LCD_SENTINEL='40')
+            p=Process(exe,directory,'gui',env=chosen,await_boot=False,state=engine['store'],
+                      extra=('--profile',profile,'--resume',str(capture)))
+            try:
+                wait_for(lambda: (p.console(),p.proc.poll())[1] is not None)
+                assert p.proc.returncode==0 and p.checkpoint.exists()
+                assert json.loads(p.checkpoint.read_text())['engine']==engine
+                assert not (directory/'serial').is_symlink()
+            finally:p.close()
+        checks.append('both-profile GUI close preserves active menu continuation and deferred input')
         # A paused resume must not add controller evaluations while a GUI stalls.
         base = root/'off'
         snapshot = json.loads((base/'checkpoint.json').read_text())

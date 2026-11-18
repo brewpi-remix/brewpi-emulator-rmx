@@ -331,8 +331,8 @@ int application_main(int argc, char** argv) {
         auto deadline = Clock::now() + std::chrono::seconds(1);
         size_t sent = 0;
         auto wall_anchor = Clock::now();
+        auto dispatch_epoch = engine.dispatch_epoch();
         auto advance_wall = [&]() {
-            auto dispatch_epoch = engine.dispatch_epoch();
             bool starting_up = engine.starting_up();
             auto wall_now = Clock::now();
             double elapsed =
@@ -347,8 +347,10 @@ int application_main(int argc, char** argv) {
                 if (starting_up && !engine.starting_up() && speed == 0)
                     pacing_fraction = 0;
             }
-            if (dispatch_epoch != engine.dispatch_epoch())
+            if (dispatch_epoch != engine.dispatch_epoch()) {
+                dispatch_epoch = engine.dispatch_epoch();
                 deadline = Clock::now() + std::chrono::seconds(1);
+            }
         };
         while (!stopping) {
 #ifdef _WIN32

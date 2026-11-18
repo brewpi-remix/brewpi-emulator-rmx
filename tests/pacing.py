@@ -198,6 +198,38 @@ def run():
                 s.expect('S');assert s.expect('C')['Kp']==7
             finally:s.close()
             checks.append(profile+' sensor initialization freezes at speed zero and resumes a partial command with a fresh token deadline')
+        # Active menu state must survive display fallback/clean close and suspend dispatch.
+        for profile in ('revc','i2c'):
+            directory=root/('menu-pause-'+profile);directory.mkdir()
+            driver=Driver(str(Path(EXE).with_name('rmx-fixture-driver')),profile=profile)
+            try:
+                driver.call('construct',state={'valid':True,'slots':[]})
+                driver.call('feed',bytes='j{mode:b,beerSet:20}')
+                driver.call('local',action='press')
+                driver.call('advance',milliseconds=9000)
+                driver.call('feed',bytes='nj{Kp:7')
+                menu=driver.call('checkpoint')[1]['checkpoint']
+            finally:driver.close()
+            image={'format':'brewpi-emulator-checkpoint-v1','engine':menu,'speed':0,'pacing_fraction_ms':0}
+            captured=directory/'menu.json';captured.write_text(json.dumps(image))
+            frozen=directory/'frozen.json'
+            (directory/'controller.json').write_text(json.dumps(menu['store']))
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','0',
+                      '--resume',str(captured),'--checkpoint',str(frozen),'--lcd','auto'],
+                      env=dict(os.environ,PATH='/nonexistent'))
+            try:s.silent(1.15)
+            finally:s.close()
+            assert json.loads(frozen.read_text())['engine']==menu
+            s=Session(directory,fresh=False,options=['--profile',profile,'--speed','1','--resume',str(captured)])
+            try:
+                s.expect('N')
+                # The token gets its own wall deadline after the blocking menu returns.
+                s.silent(.55)
+                s.write(b'}')
+                s.expect('D',dict(logType='I',logID=12,V=['Kp','7']))
+                s.expect('S');assert s.expect('C')['Kp']==7
+            finally:s.close()
+            checks.append(profile+' active-menu fallback/checkpoint preserves paused state and resumed parser deadline')
         # Resume must not silently mix a checkpoint with subsequently changed saved configuration.
         state=root/'1'/'controller.json'
         mismatched_checkpoint=root/'1'/'checkpoint.json'

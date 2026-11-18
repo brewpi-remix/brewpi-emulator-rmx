@@ -76,9 +76,9 @@ raise SystemExit(10 if v.closing else 0)
     finally:
         p.close()
     checkpoint=json.loads(p.checkpoint.read_text())['engine']
-    assert checkpoint['settings']['beerSet']==-14324,checkpoint['settings']
+    assert checkpoint['settings']['beerSet']==-14336,checkpoint['settings']
     assert checkpoint['settings']['mode']==ord('b')
     assert checkpoint['plant']['door_open'] is False
     print(json.dumps(dict(status='passed',input_method='Tk mouse events' if mouse else 'Tk keyboard events',checks=['real Tk bindings and focused door activation',
-          'actual private IPC and engine confirmation','exact unrotated target',
+          'actual private IPC and engine confirmation','source-defined unrotated quantization',
           'modeled door round trip','deliberate GUI closure and checkpoint'],result=result)))

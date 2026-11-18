@@ -8,9 +8,6 @@
 namespace rmx {
 namespace {
 const std::string modes = "bfpo";
-int cycle(int value, int direction, int count) {
-    return (value + direction + count) % count;
-}
 std::string cell(const std::string& text) {
     if (text == "null")
         return " --.- ";
@@ -18,20 +15,19 @@ std::string cell(const std::string& text) {
 }
 } // namespace
 void Engine::local_cancel() {
+    // Administrative cancellation never rolls back firmware-visible mutations.
+    if (menu.page != LocalMenu::idle) {
+        screen = local_rows();
+        screen_room = menu.old_room;
+        ++dispatch_generation;
+    }
     menu = {};
     ++local_epoch;
 }
-void Engine::local_tick(uint64_t wall) {
-    menu.now = wall;
-    if (menu.page != LocalMenu::idle && (wall < menu.changed || wall - menu.changed >= 10000))
-        local_cancel();
-    menu.now = wall;
-}
-std::array<int, 5> Engine::local_dependencies() const {
-    // Ignore PID-derived fridge values while editing beer/mode/top-level selection.
-    return {{settings.at("mode"),
-             settings.at(menu.page == LocalMenu::fridge ? "fridgeSet" : "beerSet"),
-             constants.at("tempFormat"), constants.at("tempSetMin"), constants.at("tempSetMax")}};
+void Engine::local_tick(uint64_t, bool writable) {
+    // Native UI wall time does not advance the emulated firmware clock.
+    if (encoder_pressed && writable && !reading() && !display_reset_busy && !initialization)
+        service_controller();
 }
 int Engine::local_to_tenths(int raw) const {
     auto nearest = [](int n, int d) { return (n + (n < 0 ? -d / 2 : d / 2)) / d; };
@@ -39,40 +35,114 @@ int Engine::local_to_tenths(int raw) const {
     return nearest(fixed * 10, 512);
 }
 int Engine::local_tenth(int tenth) const {
-    // Quantize the display unit before the existing absolute-unit converter.
     int fixed = (tenth * 512 + 5) / 10;
     int raw = fixed;
     if (fahrenheit()) {
         int delta = fixed - 32 * 512;
         raw = (delta * 5 + (delta < 0 ? -4 : 4)) / 9;
     }
-    return raw - 48 * 512;
+    return std::clamp(raw - 48 * 512, -32766, 32767);
 }
-std::string Engine::local_temperature(bool beer) {
-    int lo = constants.at("tempSetMin"), hi = constants.at("tempSetMax");
-    if (lo < -32766 || hi < -32766 || lo > hi) {
-        local_cancel();
-        return "Invalid bounds";
-    }
+void Engine::menu_range(int value, int low, int high) {
+    encoder_value = value;
+    encoder_low = low;
+    encoder_high = high;
+    menu.changed = seconds();
+    menu.blink_started = controller_ms;
+}
+void Engine::menu_temperature(bool beer) {
     menu.page = beer ? LocalMenu::beer : LocalMenu::fridge;
-    menu.proposed_mode = beer ? 'b' : 'f';
-    int original = settings.at(beer ? "beerSet" : "fridgeSet");
-    menu.target = std::clamp(original < -32766 ? absolute_raw(20) : original, lo, hi);
-    menu.low = local_to_tenths(lo) - 2;
-    while (local_tenth(menu.low) < lo)
-        ++menu.low;
-    menu.high = local_to_tenths(hi) + 2;
-    while (local_tenth(menu.high) > hi)
-        --menu.high;
-    menu.rotated = false;
-    return "Edit target";
+    menu.target = settings.at(beer ? "beerSet" : "fridgeSet");
+    if (menu.target < -32766)
+        menu.target = absolute_raw(20);
+    menu_range(local_to_tenths(menu.target), local_to_tenths(constants.at("tempSetMin")),
+               local_to_tenths(constants.at("tempSetMax")));
+    menu_poll();
 }
-std::string Engine::local_action(const std::string& action, uint64_t wall, bool writable) {
-    local_tick(wall);
+void Engine::menu_poll() {
+    if (menu.page == LocalMenu::idle)
+        return;
+    if (since(menu.changed) >= 10) {
+        if (menu.page == LocalMenu::mode)
+            mode(menu.old_mode);
+        local_cancel();
+        return;
+    }
+    bool changed = encoder_value != encoder_seen || encoder_pressed;
+    encoder_seen = encoder_value;
+    if (changed) {
+        menu.changed = seconds();
+        menu.blink_started = controller_ms;
+        if (menu.page == LocalMenu::mode) {
+            if (encoder_value < 0 || encoder_value > 3)
+                throw std::runtime_error(
+                    "fidelity gap: invalid menu mode lookup requires characterization");
+            mode(modes[size_t(encoder_value)]);
+        } else if (menu.page == LocalMenu::beer || menu.page == LocalMenu::fridge)
+            menu.target = local_tenth(encoder_value);
+    }
+    if (!encoder_pressed)
+        return;
+    encoder_pressed = false;
+    if (menu.page == LocalMenu::setting) {
+        if (encoder_value == 0) {
+            auto found = modes.find(char(settings.at("mode")));
+            if (found == std::string::npos)
+                throw std::runtime_error(
+                    "fidelity gap: invalid menu mode lookup requires characterization");
+            menu.page = LocalMenu::mode;
+            menu.old_mode = settings.at("mode");
+            menu_range(int(found), 0, 3);
+            menu_poll();
+        } else {
+            bool beer = encoder_value == 1;
+            mode(beer ? 'b' : 'f');
+            menu_temperature(beer);
+        }
+        return;
+    }
+    if (menu.page == LocalMenu::mode) {
+        int selected = settings.at("mode");
+        if (selected == 'b' || selected == 'f') {
+            menu_temperature(selected == 'b');
+            return;
+        }
+        telemetry(selected == 'p' ? "Changed to profile mode in menu."
+                                  : "Temp control turned off in menu.");
+    } else {
+        bool beer = menu.page == LocalMenu::beer;
+        int old = settings.at(beer ? "beerSet" : "fridgeSet");
+        if (!beer || std::abs(word16(old - menu.target)) > 256)
+            positive_pending = negative_pending = false;
+        settings[beer ? "beerSet" : "fridgeSet"] = menu.target;
+        command_evaluation();
+        save(false);
+        std::string note = std::string(beer ? "Beer" : "Fridge") + " temp set to " +
+                           number(menu.target, 1, 1) + " in Menu.";
+        note.resize(std::min(size_t(31), note.size()));
+        telemetry(beer ? note : "", beer ? "" : note);
+    }
+    local_cancel();
+}
+bool Engine::service_menu() {
+    if (menu.page == LocalMenu::idle && encoder_pressed) {
+        encoder_pressed = false;
+        menu.page = LocalMenu::setting;
+        menu.old_room = screen_room;
+        screen_room = false;
+        stationary_display();
+        menu_range(0, 0, 2);
+    }
+    menu_poll();
+    return menu.page != LocalMenu::idle;
+}
+std::string Engine::local_action(const std::string& action, uint64_t, bool writable) {
     ++local_epoch;
     if (action == "cancel") {
+        encoder_pressed = false;
         local_cancel();
-        return "Edit canceled";
+        service_controller(writable);
+        return "Menu closed; live changes retained";
     }
     if (action == "door open" || action == "door close") {
         bool open = action == "door open";
@@ -84,110 +154,53 @@ std::string Engine::local_action(const std::string& action, uint64_t wall, bool 
         return "cw ccw press door open/close";
     if (action != "cw" && action != "ccw" && action != "press")
         return "Unknown command";
-    if (reading() || restarting() || dispatch_suspended() || !writable)
-        return "Busy; retry action";
-    menu.changed = wall;
-    if (menu.page == LocalMenu::idle) {
-        if (action == "press") {
-            menu.page = LocalMenu::setting;
-            menu.index = 0;
-        }
-        return "Action accepted";
+    if (startup_display)
+        return "Encoder unavailable during startup";
+    if (action == "press")
+        encoder_pressed = true;
+    else {
+        int next = word16(encoder_value + (action == "cw" ? 1 : -1));
+        encoder_value = next > encoder_high  ? encoder_low
+                        : next < encoder_low ? encoder_high
+                                             : next;
     }
-    int direction = action == "cw" ? 1 : -1;
-    if (action != "press") {
-        if (menu.page == LocalMenu::setting)
-            menu.index = cycle(menu.index, direction, 3);
-        else if (menu.page == LocalMenu::mode) {
-            menu.index = menu.index < 0 ? (direction > 0 ? 0 : 3) : cycle(menu.index, direction, 4);
-            menu.proposed_mode = modes[size_t(menu.index)];
-        } else {
-            if (menu.low > menu.high)
-                return "No tenth in range";
-            int current = local_to_tenths(menu.target);
-            int next = current + direction;
-            if (next > menu.high)
-                next = menu.low;
-            if (next < menu.low)
-                next = menu.high;
-            menu.target = local_tenth(next);
-            menu.rotated = true;
-        }
-        return "Action accepted";
+    if (!writable || reading() || restarting() || display_reset_busy || initialization)
+        return "Encoder event retained";
+    // Preserve an evidence limit without invoking undefined lookup memory.
+    if (menu.page == LocalMenu::setting && encoder_pressed && encoder_value == 0 &&
+        modes.find(char(settings.at("mode"))) == std::string::npos) {
+        encoder_pressed = false;
+        return "Fidelity gap: invalid menu mode lookup";
     }
-    if (menu.page == LocalMenu::setting) {
-        if (menu.index == 1 || menu.index == 2)
-            return local_temperature(menu.index == 1);
-        menu.page = LocalMenu::mode;
-        auto index = modes.find(char(settings.at("mode")));
-        menu.index = index == std::string::npos ? -1 : int(index);
-        menu.proposed_mode = menu.index < 0 ? 0 : modes[index];
-        return menu.index < 0 ? "Choose valid mode" : "Select mode";
-    }
-    if (menu.page == LocalMenu::mode) {
-        if (menu.index < 0 || menu.index > 3)
-            return "Choose valid mode";
-        if (menu.proposed_mode == 'b' || menu.proposed_mode == 'f')
-            return local_temperature(menu.proposed_mode == 'b');
-        int selected = menu.proposed_mode;
-        mode(selected);
-        render_display(); // A deliberate local confirmation repaints even while paused.
-        local_cancel();
-        telemetry(selected == 'p' ? "Changed to profile mode in menu."
-                                  : "Temp control turned off in menu.");
-        return "Mode committed";
-    }
-    bool beer = menu.page == LocalMenu::beer;
-    int target = menu.target;
-    if (target < constants.at("tempSetMin") || target > constants.at("tempSetMax")) {
-        local_cancel();
-        return "Bounds changed; retry";
-    }
-    int old = settings.at(beer ? "beerSet" : "fridgeSet");
-    mode(beer ? 'b' : 'f');
-    if (!beer || std::abs(word16(old - target)) > 256)
-        positive_pending = negative_pending = false;
-    settings[beer ? "beerSet" : "fridgeSet"] = target;
-    command_evaluation();
-    save(false);
-    render_display();
-    local_cancel();
-    std::string value = number(target, 1, 1);
-    std::string note =
-        std::string(beer ? "Beer" : "Fridge") + " temp set to " + value + " in Menu.";
-    note.resize(std::min(size_t(31), note.size()));
-    telemetry(beer ? note : "", beer ? "" : note);
-    return "Target committed";
+    auto previous = menu.page;
+    bool expired = previous != LocalMenu::idle && since(menu.changed) >= 10;
+    service_controller(writable);
+    if (previous != LocalMenu::idle && menu.page == LocalMenu::idle && action == "press" &&
+        !expired)
+        return previous == LocalMenu::beer || previous == LocalMenu::fridge ? "Target committed"
+                                                                            : "Mode committed";
+    if (previous != menu.page && (menu.page == LocalMenu::beer || menu.page == LocalMenu::fridge))
+        return "Edit target";
+    return "Action accepted";
 }
 std::array<std::string, 4> Engine::local_rows() const {
     auto rows = screen;
     if (menu.page == LocalMenu::idle)
         return rows;
-    // The overlay is transient. The retained controller shadow remains checkpoint-exact.
-    rows[2].replace(0, 6, "Fridge");
-    auto fridge = targets.find(5);
-    rows[2].replace(6, 6,
-                    (cell(fridge == targets.end()
-                              ? "null"
-                              : number(reading_raw(fridge->second, true).value_or(-32768), 1, 1)) +
-                     " ")
-                        .substr(0, 6));
-    rows[2].replace(12, 6, (cell(number(settings.at("fridgeSet"), 1, 1)) + " ").substr(0, 6));
-    for (auto& row : rows)
-        row.resize(20, ' ');
-    bool hide = ((menu.now - menu.changed) / 384) % 2;
+    bool hide = ((uint32_t(controller_ms - menu.blink_started) / 384) % 2) != 0;
     if (menu.page == LocalMenu::setting) {
         if (hide)
-            rows[size_t(menu.index)].replace(0, 6, "      ");
+            rows[size_t(encoder_value)].replace(0, 6, "      ");
     } else if (menu.page == LocalMenu::mode) {
         const std::map<int, std::string> names{
             {'b', "Beer Const."}, {'f', "Fridge Const."}, {'p', "Beer Profile"}, {'o', "Off"}};
-        auto found = names.find(menu.proposed_mode);
+        auto found = names.find(settings.at("mode"));
         std::string label = found == names.end() ? "Invalid mode" : found->second;
         rows[0].replace(7, 13,
                         hide ? std::string(13, ' ') : label + std::string(13 - label.size(), ' '));
     } else {
-        rows[0].replace(7, 13, menu.page == LocalMenu::beer ? "Beer Const.  " : "Fridge Const.");
+        const std::string label = menu.page == LocalMenu::beer ? "Beer Const.  " : "Fridge Const.";
+        rows[0].replace(7, 13, label);
         rows[menu.page == LocalMenu::beer ? 1 : 2].replace(
             12, 6, hide ? "      " : (cell(number(menu.target, 1, 1)) + " ").substr(0, 6));
     }

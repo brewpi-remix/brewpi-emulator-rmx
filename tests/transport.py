@@ -15,10 +15,10 @@ EXE = str(Path(sys.argv[1]).resolve())
 
 
 class Session:
-    def __init__(self, root, fresh=True, options=None):
+    def __init__(self, root, fresh=True, options=None, env=None):
         self.path = root / 'serial'
         self.store = root / 'controller.json'
-        self.p = subprocess.Popen([EXE, '--serial', str(self.path), '--state', str(self.store)] + (['--speed','0'] if options is None else options), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.p = subprocess.Popen([EXE, '--serial', str(self.path), '--state', str(self.store)] + (['--speed','0'] if options is None else options), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         self.fd = None
         self.buffer = b''
         deadline = time.monotonic() + 5

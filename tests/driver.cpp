@@ -96,6 +96,8 @@ int main(int argc, char** argv) {
                 engine.restore_checkpoint(request.at("snapshot"));
             else if (op == "checkpoint") {
             } // Collected after common observation below.
+            else if (op == "local")
+                engine.local_action(request.at("action").string(), 0);
             else if (op == "precondition")
                 engine.precondition(request.at("fields"));
             else

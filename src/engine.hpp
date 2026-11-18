@@ -25,7 +25,7 @@ class Engine {
         return phase != Phase::dispatch;
     }
     bool dispatch_suspended() const {
-        return display_reset_busy || initialization.has_value();
+        return display_reset_busy || initialization.has_value() || menu.page != LocalMenu::idle;
     }
     bool starting_up() const {
         return startup;
@@ -62,7 +62,7 @@ class Engine {
     }
     // Local physical-action boundary, separate from serial parsing and EEPROM.
     std::string local_action(const std::string& action, uint64_t wall_ms, bool writable = true);
-    void local_tick(uint64_t wall_ms);
+    void local_tick(uint64_t wall_ms, bool writable = true);
     void local_cancel();
     uint64_t local_revision() const {
         return local_epoch;
@@ -84,12 +84,17 @@ class Engine {
     uint64_t local_epoch = 0;
     struct LocalMenu {
         enum Page { idle, setting, mode, beer, fridge } page = idle;
-        int index = 0, proposed_mode = 0, target = 0, low = 0, high = 0;
-        bool rotated = false;
-        uint64_t changed = 0, now = 0;
+        int target = 0, old_mode = 'o';
+        bool old_room = false;
+        uint16_t changed = 0;
+        uint32_t blink_started = 0;
     } menu;
-    std::array<int, 5> local_dependencies() const;
-    std::string local_temperature(bool beer);
+    int encoder_value = 0, encoder_seen = 0, encoder_low = 0, encoder_high = 0;
+    bool encoder_pressed = false;
+    void menu_range(int value, int low, int high);
+    void menu_temperature(bool beer);
+    void menu_poll();
+    bool service_menu();
     int local_tenth(int tenth) const;
     int local_to_tenths(int raw) const;
     enum class Phase { dispatch, brace, key, value };

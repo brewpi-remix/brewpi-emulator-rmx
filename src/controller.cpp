@@ -388,6 +388,8 @@ void Engine::service_controller(bool allowed) {
         finish_initialization();
         return;
     }
+    if (!display_reset_busy && allowed && !reading() && !restart_requested && service_menu())
+        return;
     bool completed_reset = false;
     auto repaint = [&]() {
         for (auto& row : screen)
@@ -423,7 +425,8 @@ void Engine::service_controller(bool allowed) {
         last_evaluation_ms = controller_ms;
         loop_evaluation();
     }
-    if (completed_reset && !dispatch_suspended()) {
+    if (!dispatch_suspended() && allowed && !reading() && !restart_requested &&
+        (completed_reset || !deferred_serial.empty())) {
         ++dispatch_generation;
         auto queued = std::move(deferred_serial);
         deferred_serial.clear();
@@ -606,6 +609,21 @@ Json Engine::checkpoint() const {
                                {"screen", rows},
                                {"screen_state", screen_state},
                                {"screen_room", screen_room}};
+    if (encoder_value || encoder_seen || encoder_low || encoder_high || encoder_pressed ||
+        menu.page != LocalMenu::idle)
+        result["encoder"] = Json::Object{{"value", encoder_value},
+                                         {"seen", encoder_seen},
+                                         {"low", encoder_low},
+                                         {"high", encoder_high},
+                                         {"pressed", encoder_pressed}};
+    if (menu.page != LocalMenu::idle)
+        result["menu"] = Json::Object{{"page", int(menu.page)},
+                                      {"target", menu.target},
+                                      {"old_mode", menu.old_mode},
+                                      {"old_room", menu.old_room},
+                                      {"changed", int(menu.changed)},
+                                      {"blink_started", double(menu.blink_started)},
+                                      {"queued_hex", hex(deferred_serial)}};
     if (display_reset_busy)
         result["display_reset"] = Json::Object{{"started_ms", double(display_reset_started_ms)},
                                                {"queued_hex", hex(deferred_serial)}};
@@ -811,8 +829,56 @@ void Engine::restore_checkpoint(const Json& j) {
             throw std::runtime_error("invalid checkpoint startup stage");
         copy.startup = true;
     }
+    if (j.has("encoder")) {
+        const auto& e = j.at("encoder");
+        if (e.object().size() != 5)
+            throw std::runtime_error("invalid checkpoint encoder fields");
+        auto word = [&](const char* key) {
+            int value = e.at(key).integer();
+            if (value < -32768 || value > 32767)
+                throw std::runtime_error("invalid checkpoint encoder word");
+            return value;
+        };
+        copy.encoder_value = word("value");
+        copy.encoder_seen = word("seen");
+        copy.encoder_low = word("low");
+        copy.encoder_high = word("high");
+        copy.encoder_pressed = e.at("pressed").boolean();
+    }
+    if (j.has("menu")) {
+        const auto& m = j.at("menu");
+        int page = m.at("page").integer();
+        if (m.object().size() != 7 || !j.has("encoder") || page < 1 || page > 4 ||
+            copy.display_reset_busy || copy.initialization || copy.startup)
+            throw std::runtime_error("invalid checkpoint menu continuation");
+        copy.menu.page = LocalMenu::Page(page);
+        copy.menu.target = m.at("target").integer();
+        copy.menu.old_mode = m.at("old_mode").integer();
+        copy.menu.old_room = m.at("old_room").boolean();
+        copy.menu.changed = u16(m.at("changed"));
+        copy.menu.blink_started = u32(m.at("blink_started"));
+        copy.deferred_serial = unhex(m.at("queued_hex").string());
+        if (copy.menu.target < -32766 || copy.menu.target > 32767 || copy.menu.old_mode < 0 ||
+            copy.menu.old_mode > 255 || copy.screen_room ||
+            uint16_t(copy.menu.blink_started / 1000) != copy.menu.changed ||
+            uint32_t(copy.controller_ms - copy.menu.blink_started) > 0x7fffffffu ||
+            copy.deferred_serial.size() > 65536)
+            throw std::runtime_error("invalid checkpoint menu history");
+        bool top = page == int(LocalMenu::setting), mode_page = page == int(LocalMenu::mode);
+        int low = top || mode_page ? 0 : copy.local_to_tenths(copy.constants.at("tempSetMin"));
+        int high = top ? 2 : mode_page ? 3 : copy.local_to_tenths(copy.constants.at("tempSetMax"));
+        int active_mode = copy.settings.at("mode");
+        if ((page == int(LocalMenu::beer) && active_mode != 'b') ||
+            (page == int(LocalMenu::fridge) && active_mode != 'f') ||
+            (mode_page && std::string("bfpo").find(char(active_mode)) == std::string::npos))
+            throw std::runtime_error("invalid checkpoint menu mode");
+        if (copy.encoder_low != low || copy.encoder_high != high ||
+            ((top || mode_page) && (copy.encoder_value < low || copy.encoder_value > high)) ||
+            (mode_page && std::string("bfpo").find(char(copy.menu.old_mode)) == std::string::npos))
+            throw std::runtime_error("invalid checkpoint menu range");
+    }
     copy.save_callback = save_callback;
-    copy.local_cancel();
+    copy.local_epoch = local_epoch + 1;
     *this = std::move(copy);
 }
 } // namespace rmx

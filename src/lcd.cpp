@@ -246,8 +246,7 @@ struct LocalLcd::Impl {
 #endif
     }
     void cancel() {
-        if (engine)
-            engine->local_cancel();
+        // Presentation cleanup does not cancel an emulated firmware continuation.
         input.clear();
         dropping = false;
         last_cr = false;
@@ -809,12 +808,14 @@ struct LocalLcd::Impl {
         const bool door = engine && engine->local_door();
         const EquipmentStates equipment =
             engine ? engine->local_equipment() : EquipmentStates{{-1, -1, -1, -1}};
+        auto epoch = engine ? engine->local_revision() : 0;
         std::string prompt = acknowledged > now ? status : "> " + input;
         if (dropping)
             prompt = "Line too long/invalid";
         if (terminal_output.empty() &&
             (latest != shown || dim != shown_dim || door != shown_door ||
-             equipment != shown_equipment || (ansi && engine && prompt != shown_status)) &&
+             equipment != shown_equipment ||
+             (ansi && engine && (prompt != shown_status || epoch != shown_epoch))) &&
             now >= next_frame) {
             std::string frame;
             if (ansi && region)
@@ -870,6 +871,7 @@ struct LocalLcd::Impl {
             shown = latest;
             shown_dim = dim;
             shown_status = prompt;
+            shown_epoch = epoch;
             shown_equipment = equipment;
             shown_door = door;
             terminal_lines = lines;
@@ -904,7 +906,7 @@ struct LocalLcd::Impl {
     void tick(const LcdRows& raw) {
         Time now = Clock::now();
         if (engine)
-            engine->local_tick(wall_ms());
+            engine->local_tick(wall_ms(), writable);
         dim = !keep_on && now - activity > 60s;
         if (state == State::headless) {
             reap(now);
