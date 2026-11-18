@@ -960,9 +960,9 @@ void Engine::discover() {
         const bool separator = discovery->has_row;
         std::optional<std::string> val;
         if (q['v'] && hardware.h == 2) {
-            if (carry.rom != hardware.rom && carry.rom == "0000000000000000") {
-                // The observed temporary zero-ROM reader logs before the row's
-                // comma, while the discovery list is still open.
+            if (carry.rom != hardware.rom && carry.rom.substr(0, 2) == "00") {
+                // A 00-prefix matches inventory as a wildcard, but the temporary
+                // reader selects its absent literal address and logs before the comma.
                 out += "D:" + diagnostic_body('W', 2, {carry.p, carry.rom}) + "\r\n";
                 val = "null";
             } else if (carry.rom != hardware.rom)

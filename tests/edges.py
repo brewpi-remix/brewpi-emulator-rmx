@@ -12,16 +12,17 @@ def records(wire):
     return decode_frames(wire)
 
 
-def nested_discovery_observation(executable, profile):
-    """Original byte assertion for the observed Uno zero-ROM discovery reply."""
+def nested_discovery_observation(executable, profile, configured_rom="0000000000000000"):
+    """Observed zero-ROM bytes; other absent 00-prefix literals are source-defined."""
     bus = 14 if profile == 'i2c' else 18
     d = Driver(executable, profile=profile)
     try:
         d.call('construct', state=dict(valid=True, slots=[]))
         for index, function, rom in [(0,9,'28A1010000000204'),
                                      (1,5,'28A10100000001E6'),
-                                     (2,6,'0000000000000000')]:
+                                     (2,6,configured_rom)]:
             d.call('feed', bytes='U{i:%d,f:%d,h:2,p:%d,a:%s}' % (index,function,bus,rom))
+        before = d.call('checkpoint')[1]['checkpoint']
         wire, _ = d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)
         expected = (
             b'h:[{"i":0,"t":1,"c":1,"b":1,"f":9,"h":2,"d":0,"p":14,"v": 20.000,"a":"28A1010000000204","j": 0.000},'
@@ -30,9 +31,14 @@ def nested_discovery_observation(executable, profile):
             b',{"i":2,"t":1,"c":1,"b":0,"f":6,"h":2,"d":0,"p":14,"v":null,"a":"0000000000000000","j": 0.000}]\r\n')
         expected = expected.replace(b'"p":14', ('"p":%d' % bus).encode()).replace(
             b'"V":[14,', ('"V":[%d,' % bus).encode())
+        expected = expected.replace(b'0000000000000000', configured_rom.encode())
         assert wire == expected, wire
         # A repeated discovery creates the same temporary failed reader again.
         assert d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)[0] == expected
+        assert d.call('checkpoint')[1]['checkpoint'] == before
+        assert d.call('feed', bytes='h{h:2,p:%d,v:1,u:-1}' % bus)[0] == b'h:[]\r\n'
+        installed = records(d.call('feed', bytes='d{i:2,r:1}')[0])[0][1][0]
+        assert installed['a'] == configured_rom and installed['v'] is None
         wire, _ = d.call('feed', bytes='h{h:2,p:%d,v:0,u:0}' % bus)
         assert len(records(wire)[0][1]) == 3 and b'D:' not in wire
         assert 'RoomTemp' not in records(d.call('feed', bytes='t')[0])[0][1]
@@ -41,7 +47,39 @@ def nested_discovery_observation(executable, profile):
         assert b'D:' not in wire and records(wire)[0][1][2]['v'] == 20
     finally:
         d.close()
-    return ['%s.zero_rom_embedded_discovery_diagnostic' % profile]
+    basis = 'zero_rom_embedded_discovery_diagnostic' if configured_rom == '0000000000000000' else 'source_absent_00_prefix_' + configured_rom
+    return [profile+'.'+basis]
+
+
+def source_prefix_first_record(executable, profile):
+    """A known-absent literal in the first slot wildcard-matches every probe row."""
+    bus = 14 if profile == 'i2c' else 18
+    d = Driver(executable, profile=profile)
+    try:
+        d.call('construct', state={'valid':True,'slots':[]})
+        d.call('feed', bytes='U{i:0,f:9,h:2,p:%d,a:00AABBCCDDEEFF01}' % bus)
+        d.call('precondition', fields={'probe_reset':[True,True,True]})
+        before = d.call('checkpoint')[1]['checkpoint']
+        warning = ('D:{"logType":"W","logID":2,"V":[%d,"00AABBCCDDEEFF01"]}\r\n' % bus).encode()
+        row = ('{"i":0,"t":1,"c":1,"b":1,"f":9,"h":2,"d":0,"p":%d,"v":null,"a":"00AABBCCDDEEFF01","j": 0.000}' % bus).encode()
+        expected = b'h:[' + warning + row + (warning + b',' + row)*2 + b']\r\n'
+        for _ in range(2):
+            wire, _ = d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)
+            assert wire == expected, wire
+            assert d.call('checkpoint')[1]['checkpoint'] == before
+        assert d.call('feed', bytes='h{h:2,p:%d,v:1,u:-1}' % bus)[0] == b'h:[]\r\n'
+        no_values = records(d.call('feed', bytes='h{h:2,p:%d,v:0,u:0}' % bus)[0])[0][1]
+        assert len(no_values)==3 and all(r['a']=='00AABBCCDDEEFF01' and 'v' not in r for r in no_values)
+        # A nonzero first byte is not a wildcard and must not mask the real probes.
+        d.call('precondition', fields={'probe_reset':[False,False,False]})
+        d.call('feed', bytes='U{i:0,f:9,h:2,p:%d,a:01AABBCCDDEEFF01}' % bus)
+        wire,_ = d.call('feed', bytes='h{h:2,p:%d,v:1,u:0}' % bus)
+        assert b'D:' not in wire
+        rows = records(wire)[0][1]
+        assert len(rows)==3 and all(r['i']==-1 and equal(r['v'],20) for r in rows)
+    finally:
+        d.close()
+    return [profile+'.source_absent_00_prefix_first_record_each_row_and_literal_reads']
 
 
 def read_time_loss_observation(executable):
@@ -510,6 +548,9 @@ def run(executable):
     checks.extend(i2c_observations(executable))
     checks.extend(nested_discovery_observation(executable, 'i2c'))
     checks.extend(nested_discovery_observation(executable, 'revc'))
+    for profile in ('revc','i2c'):
+        checks.extend(nested_discovery_observation(executable, profile, '0001020304050607'))
+        checks.extend(source_prefix_first_record(executable, profile))
     checks.extend(read_time_loss_observation(executable))
     for profile in ('revc','i2c'):
         checks.extend(periodic_dispatch_pause(executable,profile))
