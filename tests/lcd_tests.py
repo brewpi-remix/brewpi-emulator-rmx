@@ -198,7 +198,9 @@ while time.monotonic()<end:
  try:
   msg=json.loads(s.recv(4097))
   if msg['type']=='frame':
-   (root/'frame.json').write_text(json.dumps(msg))
+   pending=root/'frame.pending'
+   pending.write_text(json.dumps(msg))
+   pending.replace(root/'frame.json')
    seen=True
  except socket.timeout:pass
  if time.monotonic()>=next_progress:
