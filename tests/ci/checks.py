@@ -115,6 +115,22 @@ class Completion(unittest.TestCase):
             self.assertFalse((Path(tmp)/'build/execution.json').exists())
 
 
+class WindowsFailureOutput(unittest.TestCase):
+    def test_compiler_failure_keeps_diagnostic_and_failure(self):
+        from native_windows import execute_step
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp)/'build.log'
+            output = io.StringIO()
+            command = [sys.executable, '-c', 'print("original compiler failure");raise SystemExit(7)']
+            with patch('sys.stderr', output):
+                with self.assertRaises(subprocess.CalledProcessError) as failure:
+                    execute_step(command, log, Path(tmp))
+            self.assertEqual(failure.exception.returncode, 7)
+            self.assertIn('original compiler failure', output.getvalue())
+            self.assertIn('original compiler failure', log.read_text())
+            self.assertFalse((Path(tmp)/'receipt.json').exists())
+
+
 class Versions(unittest.TestCase):
     def metadata(self, root, suffix):
         (root/'cmake').mkdir(exist_ok=True)

@@ -19,6 +19,17 @@ from windows import native
 SUITES = {'controls', 'model', 'dynamics', 'protocol-fixtures', 'protocol-edges'}
 
 
+def execute_step(command, log_path, cwd):
+    try:
+        with log_path.open('w') as log:
+            subprocess.run(command, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
+                           timeout=600, check=True)
+    except (subprocess.SubprocessError, OSError):
+        if log_path.exists():
+            print(log_path.read_text(encoding='utf-8', errors='replace'), file=sys.stderr)
+        raise
+
+
 def run(output):
     if os.name != 'nt' or platform.machine().upper() != 'AMD64' or not __debug__:
         raise ValueError('native Windows AMD64 with assertions required')
@@ -32,9 +43,8 @@ def run(output):
                 ['cmake', '--build', str(build), '--config', 'Release', '-j', '4'],
                 ['ctest', '-C', 'Release', '-T', 'Test', '--output-on-failure']]
     for index, command in enumerate(commands):
-        with (output / ('step-' + str(index) + '.log')).open('w') as log:
-            subprocess.run(command, cwd=build if index == 2 else ROOT, stdout=log,
-                           stderr=subprocess.STDOUT, timeout=600, check=True)
+        execute_step(command, output / ('step-' + str(index) + '.log'),
+                     build if index == 2 else ROOT)
     reports = list((build / 'Testing').glob('*/Test.xml'))
     if len(reports) != 1:
         raise ValueError('missing or ambiguous native CTest report')
