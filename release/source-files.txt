@@ -49,6 +49,7 @@ engineering/protocol/test-vectors/README.md
 engineering/protocol/test-vectors/defaults-v1.json
 engineering/protocol/test-vectors/diagnostics-v1.json
 engineering/protocol/test-vectors/protocol-v1.json
+engineering/qualification.md
 release/README.md
 release/artifacts.py
 release/audit_binary.py

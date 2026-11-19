@@ -2,6 +2,8 @@
 
 These original MIT development helpers exercise installed-file integrity, dynamic dependencies, PTY/readiness, acceleration, blocking/backpressure, storage/checkpoint recovery, and inert service commands. They do not enable a service or qualify physical hardware.
 
+The separate [native Pi and systemd record](../../engineering/qualification.md) documents successful direct execution on physical `wspr5`, including native external clients, actual service lifecycle, and enabled startup after a reboot. It is configuration-specific external qualification evidence, not a result produced by these container helpers or a GitHub Actions receipt. The service deployment was disposable and has been removed. Do not run the integration worker's container preparation directly on an existing host; its account and fixed-path assumptions require a disposable environment.
+
 The isolated Docker launcher uses an ARM64 tools image built from the external-client Dockerfile:
 
 ```sh

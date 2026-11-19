@@ -32,6 +32,6 @@ Set the BrewPi host's `port` to that serial path and `altport` to `None`. Use th
 - [Development](docs/development.md): source builds, regression tests, and architecture.
 - [Protocol reference](engineering/protocol/README.md): wire behavior, defaults, diagnostics, and compatibility limits.
 
-The controller follows the selected Arduino firmware's observable behavior, including its quirks. Host profiles and serial deadlines use wall time even when simulation time is accelerated. Undefined-memory and physical-bus outcomes are not fully reproduced; the emulator is not a physical Pi or Arduino hardware qualification tool.
+The controller follows the selected Arduino firmware's observable behavior, including its quirks. Host profiles and serial deadlines use wall time even when simulation time is accelerated. Undefined-memory and physical-bus outcomes are not fully reproduced; the emulator is not a physical Pi or Arduino hardware qualification tool. A separately identified source build passed [native Pi host/panel and systemd lifecycle/boot checks](engineering/qualification.md) on a Raspberry Pi 5 with Debian 13.7 ARM64; this does not qualify other configurations or binary release archives.
 
 Original code and documentation use the [MIT License](LICENSE.md). Compiler/runtime contributions retain their separate terms; keep the [third-party notices](THIRD_PARTY_NOTICES.md) and required distribution companions with the software.
