@@ -1,17 +1,20 @@
 # Architecture
 
-The emulator separates controller behavior from the modeled equipment and its POSIX transport. All modules are original MIT work.
+The emulator separates controller behavior from the modeled equipment and native transport: PTYs on Linux/macOS and an operator-provisioned virtual COM pair on Windows. All implementation modules are independently authored MIT work; external compiler/runtime contributions retain their own terms.
 
 | Module | Responsibility |
 | --- | --- |
-| `main.cpp` and `storage.cpp` | PTY ownership/raw framing, wall pacing, file locks, atomic state/checkpoint writes, and process lifecycle. |
+| `main.cpp`, `storage.cpp`, and `storage_windows.cpp` | Platform startup, wall pacing, file ownership/locks, atomic state/checkpoint writes, and process lifecycle. |
+| `windows_serial.cpp`, `windows_ready.cpp`, `windows_channel.cpp`, and `windows_console.cpp` | Verified virtual COM access, private readiness/viewer channels, and Windows console handling. |
 | `engine.cpp` and `controller.cpp` | Firmware-style command parsing, registry/live state, persistent records, control evaluation, clock scheduling, and LCD shadow. |
 | `dynamics.cpp` | Independent beer/chamber/room energy model, virtual probes, noise, fermentation heat, and modeled physical inputs/outputs. |
-| `controls.cpp` | Staged local menu, confirmation, cancellation, and door input. |
+| `controls.cpp` | Firmware-style menu setters, temperature candidates, confirmation, timeout, cancellation, and door input. |
 | `lcd.cpp` | Terminal rendering, private viewer IPC, fallback, dimming, and viewer lifecycle. |
 | `json.cpp` | Native scenario/store/checkpoint JSON handling, separate from firmware serial parsing. |
 
-The serial host is the sole consumer of the controller PTY. Local display/control traffic uses private IPC; the viewer sends bounded action intents and the engine owns mutations. Draft menu state is transient and excluded from checkpoints. The controller keeps live and saved values distinct according to the firmware semantics.
+The serial client is the sole reader of the controller's client-side serial endpoint. Local display/control traffic uses private IPC; the viewer sends bounded action intents and the engine owns mutations. Mode rotation applies its setter immediately, while temperature rotation changes a candidate until confirmation. Cancellation retains mutations already performed. Checkpoints preserve active menu and logical encoder state, including timeout origins and queued decoded input, subject to the serial-drain conditions below. The controller keeps live and saved values distinct according to firmware semantics.
+
+The engine models bounded nominal UART receive/transmit queues. Full transmit buffers suspend the synchronous writer while peripheral clocks and the plant advance; menu, display, and sensor waits also suspend ordinary controller work. Native input admission and completed-output backpressure are separate host transport boundaries. Checkpoints require drained wire/transmit state and no suspended writer; they do not serialize a native call stack. See [menu execution and serial buffering](protocol/controller.md#menu-execution-and-serial-buffering) for ordering, checkpoint restrictions, and timing limits.
 
 Simulated time advances physics and controller scheduling. Serial-token deadlines, display activity, and host profile/chart time remain wall-clock based. Process restart loads saved controller state with a fresh external plant; explicit checkpoint continuation restores coherent plant/controller histories. Serial `R` restarts controller state while retaining the running plant.
 

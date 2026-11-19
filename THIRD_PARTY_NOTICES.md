@@ -13,7 +13,7 @@ The [MIT License](LICENSE.md) covers independently authored emulator source, hel
 
 The `NOTICES` companion preserves full applicable license/exception texts, package copyright notices, file-level startup notices, and exact component inventories. The glibc-source companion supplies the complete corresponding Debian source package, its patches, and build scripts. The inspected GNU baseline uses GCC 12.2.0-14+deb12u1 and glibc 2.36-9+deb12u14; actual package manifests/inventories identify the build inputs. Keep required source and notice companions with redistributed binaries. Original MIT terms do not become a blanket license for every executable contribution or for external GNU source.
 
-The application source/build scripts permit rebuilding and relinking with modified libraries. The MIT application terms impose no restriction on modification or reverse engineering for debugging those modifications. ELF runtime/library requirements remain architecture-specific; a glibc version alone is not an ABI guarantee.
+The application source/build scripts permit rebuilding and relinking with modified libraries. The MIT application terms do not restrict modification or reverse engineering for debugging those modifications. ELF runtime/library requirements remain architecture-specific; a glibc version alone is not an ABI guarantee.
 
 ## macOS compiled components
 

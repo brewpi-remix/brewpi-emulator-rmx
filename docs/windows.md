@@ -67,7 +67,7 @@ port = COM2
 altport = None
 ```
 
-Use `57600` baud, eight data bits, no parity, and one stop bit. Client open/close and control-line changes do not invent controller resets or serial replies. `R` remains an explicit controller restart. A client's input purge can intentionally discard queued startup bytes.
+Use `57600` baud, eight data bits, no parity, and one stop bit. Client open/close and control-line changes do not trigger controller resets or serial replies. `R` remains an explicit controller restart. A client's input purge can intentionally discard queued startup bytes.
 
 ## Readiness, controls, and shutdown
 
@@ -81,7 +81,7 @@ python .\libexec\brewpi-emulator-rmx\wait-ready.py --serial COM1 --state "C:\Use
 
 It opens neither COM endpoint. The state path's `.ready` publication is private to the current account and names a private local message pipe. A fresh challenge verifies the live publication generation and endpoint; the PID alone is not authentication. A stale record after abrupt termination cannot answer the challenge. Ownership sidecars and the final inactive readiness record can remain beside state files; do not edit them while an instance owns them.
 
-Stop client traffic, consume pending replies, and use `Ctrl+C`, `Ctrl+Break`, or the graphical window's close control for orderly shutdown. Closing a console window, ending the process in Task Manager, or terminating its process abruptly does not guarantee a checkpoint. Use explicit writable paths with `--checkpoint` and `--resume`; checkpoint continuation requires the matching saved controller store and drained application output. OS-buffer acceptance does not prove peer consumption. Cross-OS checkpoint migration and universal power-loss durability are not claimed.
+Stop client traffic, consume pending replies, and use `Ctrl+C`, `Ctrl+Break`, or the graphical window's close control for orderly shutdown. Closing a console window, ending the process in Task Manager, or abruptly terminating it does not guarantee a checkpoint. Use explicit writable paths with `--checkpoint` and `--resume`; checkpoint continuation requires the matching saved controller store and drained application output. OS-buffer acceptance does not prove peer consumption. Cross-OS checkpoint migration and universal power-loss durability are not claimed.
 
 ## Troubleshooting
 

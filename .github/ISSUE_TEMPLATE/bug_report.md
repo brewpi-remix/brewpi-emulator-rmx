@@ -8,7 +8,7 @@ assignees: ""
 
 ## Problem
 
-Describe the observed behavior and expected result. The project currently contains planning/scaffolding only; distinguish a plan/documentation issue from an implemented behavior.
+Describe the observed behavior and expected result. Identify whether the issue affects the emulator, documentation, packaging, or an external client.
 
 ## Reproduction and environment
 

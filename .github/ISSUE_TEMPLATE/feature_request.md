@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose a bounded capability or planning improvement.
+about: Propose a bounded emulator or documentation improvement.
 title: ""
 labels: ""
 assignees: ""

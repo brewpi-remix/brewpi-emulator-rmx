@@ -18,11 +18,11 @@ This is a configuration-specific runtime qualification record for the source-bui
 | Client tools | Python `3.13.5`; pySerial `3.5`; GitPython `3.1.40`; NumPy `2.2.4`; psutil `7.0.0`; configobj `5.0.9`; simplejson `3.19.2`. |
 | Browser and PHP | Playwright `1.56.0`; Chromium `156.0.8078.79`; PHP `8.4.27`, with privately extracted matching mbstring package `8.4.27-1~deb13u1`. |
 
-The source inventory digest is SHA-256 over the UTF-8 JSON object mapping tracked file paths to content SHA-256 values, serialized with sorted keys and compact separators. The private evidence retains the inventory and transfer hashes. These identities bind the observed artifact; other revisions and binary release archives do not inherit this qualification automatically.
+The source inventory digest is SHA-256 over the UTF-8 JSON object mapping tracked file paths to content SHA-256 values, serialized with sorted keys and compact separators. The private evidence retains the inventory and transfer hashes. These identities bind the observed artifact; other revisions and binary release archives do not automatically inherit this qualification.
 
 ## Execution topology
 
-The installed emulator, unchanged pinned host/panel implementations, PHP server, and headless Chromium ran directly on the Pi, without a container or emulated CPU. The native workflow adapter reused the project's original MIT test orchestration with private paths and a separate loopback-only panel listener. It replaced container preparation rather than executing the disposable-container account/path setup on the host.
+The installed emulator, unchanged pinned host/panel implementations, PHP server, and headless Chromium ran directly on the Pi, without a container or emulated CPU. The native workflow adapter reused the project's original MIT test orchestration with private paths and a separate loopback-only panel listener. It replaced container preparation instead of running the disposable-container account/path setup on the host.
 
 The service ran as `brewpi:brewpi`; the isolated host/panel checks ran as `brewpi`, with `www-data` as their primary group and `brewpi` as a supplementary group. Clients used the explicit virtual PTY path and `altport=None`, with one serial reader. Runtime configuration, controller stores, sockets, logs, and client data were separate from working services. Python dependencies and the PHP extension were supplied privately; the existing Apache website was not replaced or reconfigured.
 
@@ -40,7 +40,7 @@ The service ran as `brewpi:brewpi`; the isolated host/panel checks ran as `brewp
 | Enabled boot | Passed one owner-authorized whole-machine reboot. A changed boot ID, current-boot journal, successful readiness post-check, and active enabled unit established emulator startup during that boot. Explicitly started native clients then verified communication and saved settings/assignments. |
 | Isolation and restoration | Source and external-client implementation hashes remained unchanged. Website/configuration hashes and existing service enablement matched their baselines; Apache, WsprryPi, and GPS services were active, and the existing website returned HTTP 200. |
 
-Ordinary deployment checks used `--speed 1`; the existing bounded dynamics workflow used declared `60x` simulation pacing while host scheduling and timestamps remained on wall time. That workflow deliberately resumed its own checkpoint when changing pacing; the service did not resume checkpoints automatically. Host connections were explicitly reopened after emulator replacement. Clean process restart restored firmware-saved configuration and began a fresh simulated plant.
+Ordinary deployment checks used `--speed 1`; the existing bounded dynamics workflow used declared `60x` simulation pacing while host scheduling and timestamps remained on wall time. That workflow deliberately resumed its own checkpoint when changing pacing; the service did not automatically resume checkpoints. Host connections were explicitly reopened after emulator replacement. Clean process restart restored firmware-saved configuration and began a fresh simulated plant.
 
 ## Evidence and disposition
 

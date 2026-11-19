@@ -1,6 +1,6 @@
 # Scenario configuration
 
-Pass a JSON file with `--scenario PATH`. Unknown fields, invalid physical parameters, and input/output path aliases are rejected. Omitted fields use the built-in defaults. Inputs are read without modification. A scenario sets external equipment/initial conditions; it does not change firmware constants or replace a resumed checkpoint history.
+Pass a JSON file with `--scenario PATH`. The emulator rejects unknown fields, invalid physical parameters, and input/output path aliases. Omitted fields use the built-in defaults. Inputs are read without modification. A scenario sets external equipment/initial conditions; it does not change firmware constants or replace a resumed checkpoint history.
 
 Select the controller personality separately with `--profile revc|i2c`; the default is `revc`. When `physical_loads` is omitted, default heater/cooler/light/fan pins are 5/6/2/19 for RevC and 6/5/2/10 for I2C. An explicit load list is used exactly as written in either profile. `instance_id` continues to select the supported synthetic probe identities, not the controller profile. See the [profile and saved-state rules](../docs/operation.md#connect-brewpi-remix).
 

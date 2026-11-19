@@ -1,12 +1,12 @@
 # Arduino bench validation checklist
 
-This reusable procedure validates practical BrewPi Remix workflows using the Uno I2C firmware build, an Arduino Uno R3, a rudimentary shield, a compatible 20×4 I²C LCD, temperature probes, GPIO indicator LEDs, and a rotary encoder. The five practical checks below are the acceptance gate. Detailed protocol, boundary, and characterization checks are optional. BrewPi firmware must be installed before protocol testing. Actuators are unnecessary for serial, probe, and LED observations; physical heating/cooling performance remains outside this setup. Encoder checks remain deferred until the ordered Fabteck module is installed and its connections are verified.
+This reusable procedure validates practical BrewPi Remix workflows using the Uno I2C firmware build, an Arduino Uno R3, a rudimentary shield, a compatible 20×4 I²C LCD, temperature probes, GPIO indicator LEDs, and a rotary encoder. The five practical checks below are the acceptance gate. Detailed protocol, boundary, and characterization checks are optional. Install the BrewPi firmware before protocol testing. Actuators are unnecessary for serial, probe, and LED observations; physical heating/cooling performance remains outside this setup. Encoder checks require an installed Fabteck module with verified connections.
 
 This document specifies checks, not completed hardware qualification. Use an external evidence copy to record results: `not run`, `in progress`, `pass`, `fail`, `blocked` with the missing prerequisite, or `deferred` with the reason. All unchecked items below are not run unless explicitly marked deferred. A pass requires retained evidence and satisfied preconditions; an unavailable measurement is not a pass.
 
 Follow the [behavioral contract](behavioral-contract.md), [firmware findings](firmware-findings.md), [fixture semantics](test-vectors/README.md), and [provenance gate](../licenses/README.md#review-gate). Arduino action/reaction, including deterministic bugs, governs the comparison. Undefined or build-dependent observations qualify only the recorded artifact and history.
 
-Run the emulator with `--profile i2c` for comparison with this Uno I2C bench. RevC remains the emulator default and the existing 48 source-defined fixtures' personality. The I2C profile matches the bench's shield identity, A0 probe bus, and output pin inventory; physical probe ROMs and LCD driver/electrical behavior remain separate observations. Keep the RevC fixture expectations unchanged.
+Run the emulator with `--profile i2c` for comparison with this Uno I2C bench. RevC remains the emulator default and the personality of the existing 48 source-defined fixtures. The I2C profile matches the bench's shield identity, A0 probe bus, and output pin inventory; physical probe ROMs and LCD driver/electrical behavior remain separate observations. Keep the RevC fixture expectations unchanged.
 
 ## Practical acceptance gate
 
@@ -28,7 +28,7 @@ The supported conclusion is “works for the tested BrewPi Remix workflows on th
 
 Separate I2C and parallel display transport modes are unnecessary for this practical gate: the emulator exchanges serial messages and renders a virtual LCD, while the physical firmware drives the actual display. Compare ordinary readings and settings through that shared serial interface.
 
-Controller personality is visible to the host. Start a separate emulator instance with `--profile i2c`, a dedicated `--state` path, and explicit serial path; follow the [startup and persistence rules](../../docs/operation.md#connect-brewpi-remix). Verify `n` reports `s=5`, discovery reports probes on A0 (`14`), and outputs enumerate as 5, 6, 2, 10. Initialize and assign the emulator's own synthetic ROMs rather than copying physical probe records. An A4 probe assignment must produce the documented invalid-OneWire-bus diagnostics while preserving the prior valid slot. Keep `--profile i2c` on restart and checkpoint resume. Profile mismatches fail locally, and older untagged state/checkpoints belong to RevC. The shared virtual LCD does not characterize the physical I²C bus or backpack.
+Controller personality is visible to the host. Start a separate emulator instance with `--profile i2c`, a dedicated `--state` path, and an explicit serial path; follow the [startup and persistence rules](../../docs/operation.md#connect-brewpi-remix). Verify `n` reports `s=5`, discovery reports probes on A0 (`14`), and outputs enumerate as 5, 6, 2, 10. Initialize and assign the emulator's own synthetic ROMs rather than copying physical probe records. An A4 probe assignment must produce the documented invalid-OneWire-bus diagnostics while preserving the prior valid slot. Keep `--profile i2c` on restart and checkpoint resume. Profile mismatches fail locally, and older untagged state/checkpoints belong to RevC. The shared virtual LCD does not characterize the physical I²C bus or backpack.
 
 ## Equipment and evidence prerequisites
 
@@ -58,11 +58,11 @@ Use a 5 V, 20×4 HD44780-compatible character LCD with a PCF8574-style backpack 
 | SDA | A4 / SDA |
 | SCL | A5 / SCL |
 
-The Uno R3's dedicated SDA/SCL header contacts duplicate A4/A5; they are not a second bus. The firmware [address scan](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/I2cLcd.cpp#L76) selects the first responding address from 8 through 119, without identifying the device type. Connect only the LCD on I²C during baseline validation, record its address, and adjust the backpack contrast control for legible text. Confirm existing I²C pull-ups rather than adding resistors blindly.
+The Uno R3's dedicated SDA/SCL header contacts duplicate A4/A5; they are not a second bus. The firmware [address scan](https://github.com/brewpi-remix/brewpi-firmware-rmx/blob/8f1fa1213cbbfc1f987fada5168d01925e1a2ee8/src/I2cLcd.cpp#L76) selects the first responding address from 8 through 119, without identifying the device type. Connect only the LCD on I²C during baseline validation, record its address, and adjust the backpack contrast control for legible text. Confirm existing I²C pull-ups before adding resistors.
 
 ### Temperature probes
 
-For verified DS18B20 probes, use three-wire external power for the baseline, following the [DS18B20 datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf). If the probes are another type or the cable pinout is unknown, establish compatibility and the pinout before using this table.
+For verified DS18B20 probes, use three-wire external power for the baseline, following the [DS18B20 datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf). If the probes are a different type or the cable pinout is unknown, confirm compatibility and the pinout before using this table.
 
 | Probe contact | Uno connection |
 | --- | --- |
@@ -71,7 +71,7 @@ For verified DS18B20 probes, use three-wire external power for the baseline, fol
 | DQ / data, all probes in parallel | A0 |
 | One shared bus pull-up | 4.7 kΩ between A0 and 5 V, unless a suitable pull-up is already fitted |
 
-All beer, chamber, and ambient probes share A0; software assigns roles by each probe's ROM. Start with short leads and one probe, then add the others. Use one bus pull-up for the baseline, not one additional resistor per probe. This external OneWire pull-up is separate from the firmware's internal encoder pull-ups. A0 is digital pin identifier `14` in device records on the Uno; use the actual discovered pin value when assigning probes. Do not use the RevC fixture's bus pin `18` (A4), because A4 is SDA in this build.
+All beer, chamber, and ambient probes share A0; software assigns roles by each probe's ROM. Start with short leads and one probe, then add the others. Use one bus pull-up for the baseline, not one additional resistor per probe. This external OneWire pull-up is separate from the firmware's internal encoder pull-ups. A0 is the digital pin identifier `14` in device records on the Uno; use the actual discovered pin value when assigning probes. Do not use the RevC fixture's bus pin `18` (A4), because A4 is SDA in this build.
 
 ### Rotary encoder
 
@@ -93,7 +93,7 @@ A bare contact encoder needs no 5 V connection. Identify the contacts from its d
 
 ### GPIO indicator LEDs
 
-Fit up to four ordinary indicator LEDs, each with its own 1 kΩ series resistor. For an active-low indication, connect each branch as `5 V → 1 kΩ resistor → LED anode → LED cathode → output pin`. A driven LOW lights the LED; a driven HIGH extinguishes it. This choice limits each branch to less than 5 mA even before the LED's forward drop is considered. Arduino's [external LED guidance](https://docs.arduino.cc/built-in-examples/basics/Blink) explains LED polarity and the need for a series resistor; the larger resistance here is a conservative bench choice.
+Fit up to four ordinary indicator LEDs, each with its own 1 kΩ series resistor. For an active-low indication, connect each branch as `5 V → 1 kΩ resistor → LED anode → LED cathode → output pin`. A driven LOW lights the LED; a driven HIGH extinguishes it. This choice limits each branch to less than 5 mA, even before the LED's forward drop is considered. Arduino's [external LED guidance](https://docs.arduino.cc/built-in-examples/basics/Blink) explains LED polarity and the need for a series resistor; the larger resistance here is a conservative bench choice.
 
 | Label for this bench | Uno output pin | Serial pin identifier | Function to assign |
 | --- | --- | --- | --- |
@@ -153,7 +153,7 @@ All subsections below, before the acceptance record, supplement the five practic
 
 ### GPIO LEDs and controller behavior
 
-An LED establishes an observable indicator state only after its wiring and polarity are known. It does not establish drive voltage, current capacity, relay operation, transient timing, or actuator performance. Readback may describe a logical fallback object rather than the electrical pin. Record logical value, expected pin polarity, and observed illumination separately.
+An LED shows an indicator state only when its wiring and polarity are known. It does not establish drive voltage, current capacity, relay operation, transient timing, or actuator performance. Readback may describe a logical fallback object rather than the electrical pin. Record logical value, expected pin polarity, and observed illumination separately.
 
 - [ ] Inventory the I2C build's output pins against shield wiring and capture actual discovery order; verify the set is D5, D6, D2, and D10 on both the Arduino and emulator with `--profile i2c`. The default RevC profile has a different set, including A5 (`19`); A5 is SCL on this physical bench and must not receive an LED output assignment.
 - [ ] Assign each usable output independently to heater, cooler, light, or fan as appropriate, checking normal and inverted polarity. Use controlled `d` writes in test mode to observe on/off LEDs without ordinary controller output updates immediately overwriting the stimulus; verify that mode and assignments actually establish those preconditions.
@@ -163,7 +163,7 @@ An LED establishes an observable indicator state only after its wiring and polar
 - [ ] Enter beer constant and profile modes with valid probe assignments; observe derived chamber targets, state changes, and LEDs. Record which PID/filter/estimator outcomes cannot be isolated with the available temperature stimulus; absent loads do not create a controlled thermal response.
 - [ ] Change beer filter settings and compare live response with behavior after `C` or reboot, targeting the documented filter-routing quirk (`F10`); block exact coefficient/history claims if the physical stimulus cannot distinguish them.
 - [ ] Exercise light/camera requests and their timeout, including test mode skipping output/timeout updates (`F11`); record the actual pin and logical state with the required light assignment.
-- [ ] If a verified door input and jumper/switch are available, exercise open/closed indications, annotations, control effects, and recovery without joining driven outputs. Otherwise mark this check blocked by the missing input fixture; it does not require a rotary encoder.
+- [ ] If a verified door input and jumper/switch are available, exercise open/closed indications, annotations, control effects, and recovery without joining driven outputs. Otherwise, mark this check blocked by the missing input fixture; it does not require a rotary encoder.
 - [ ] Observe LEDs during boot, mode off, probe loss, reset, removal of an active assignment, and reassignment. Do not assume removal clears a latched output; retain that sequence for `F17` characterization.
 - [ ] End by requesting mode off, recording resulting LEDs, and removing bench power after capture; mode off alone is not proof that every previously assigned pin is inactive.
 
@@ -194,7 +194,7 @@ The [nine characterization fixtures](test-vectors/protocol-v1.json) have no inve
 
 ### Extended encoder checks and unavailable hardware
 
-Basic display/encoder operation is required by practical check 5 when the hardware is available. The extended checks below remain optional and deferred until their equipment is connected; the unavailable physical-load checks do not block practical acceptance with GPIO LEDs.
+Practical check 5 requires basic display/encoder operation when the hardware is available. The extended checks below remain optional and deferred until their equipment is connected; the unavailable physical-load checks do not block practical acceptance with GPIO LEDs.
 
 - [ ] **Optional, deferred — rotary encoder:** count individual detents, characterize bounce, and exercise rapid/reversed input and missed steps beyond the ordinary rotation checks in gate 5.
 - [ ] **Optional, deferred — rotary encoder/pushbutton:** once installed, characterize timeout, button bounce, and any supported long-press behavior beyond the ordinary menu entry/selection/confirmation required by check 5; compare with settings and annotations captured after exit.
