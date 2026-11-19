@@ -403,6 +403,15 @@ void Engine::setting(const std::string& k, const std::string& v) {
     }
 }
 void Engine::pair() {
+    if (phase == Phase::value) {
+        // A shorter value overwrites its prefix and terminator, retaining bytes
+        // established by earlier callbacks in this same token-reader invocation.
+        const size_t written = value.size() + 1;
+        if (value_memory.size() < written)
+            value_memory.resize(written);
+        value_memory.replace(0, value.size(), value);
+        value_memory[value.size()] = '\0';
+    }
     // Token capacity counts received bytes, but callback arguments have C-string
     // visibility on the reference, including embedded NUL truncation.
     const std::string token_key = key.substr(0, key.find('\0'));
@@ -415,8 +424,20 @@ void Engine::pair() {
     }
     char name = token_key[0];
     if (command == 'U' && name == 'a') {
-        if (token_value.size() > 16 || token_value.size() % 2)
-            throw std::runtime_error("fidelity gap: odd/excessive ROM requires characterization");
+        size_t parsed = 0;
+        for (;;) {
+            if (parsed >= value_memory.size())
+                throw std::runtime_error(
+                    "fidelity gap: odd/excessive ROM requires characterization");
+            if (value_memory[parsed] == '\0')
+                break;
+            // The ninth decoded byte touches only a reset-before-use output
+            // flag on both retained images. Later writes have other consumers.
+            if (parsed >= 18 || parsed + 1 >= value_memory.size())
+                throw std::runtime_error(
+                    "fidelity gap: odd/excessive ROM requires characterization");
+            parsed += 2;
+        }
         std::string result = address.value_or("FFFFFFFFFFFFFFFF");
         const std::string digits = "0123456789ABCDEF";
         auto component = [](char c) {
@@ -425,9 +446,9 @@ void Engine::pair() {
                 byte -= 256;
             return byte >= 'A' ? byte - 'A' + 10 : byte - '0';
         };
-        for (size_t i = 0; i < token_value.size(); i += 2) {
-            int byte_value = ((static_cast<unsigned>(component(token_value[i])) * 16U) |
-                              static_cast<unsigned>(component(token_value[i + 1]))) &
+        for (size_t i = 0; i < std::min(parsed, size_t(16)); i += 2) {
+            int byte_value = ((static_cast<unsigned>(component(value_memory[i])) * 16U) |
+                              static_cast<unsigned>(component(value_memory[i + 1]))) &
                              255U;
             result[i] = digits[size_t(byte_value >> 4)];
             result[i + 1] = digits[size_t(byte_value & 15)];
@@ -463,6 +484,7 @@ void Engine::token(std::optional<unsigned char> c) {
             phase = Phase::key;
             key.clear();
             value.clear();
+            value_memory.assign(1, '\0');
             return;
         }
         diagnostic('E', 10, {c ? int(*c) : -1});
@@ -781,8 +803,8 @@ std::optional<int> Engine::read_probe(const Device& d, std::string& nested_diagn
 
 bool Engine::start_initialization(const Device& d, InitPurpose purpose, int slot) {
     auto index = physical_index(d);
-    if (d.d || d.h != 2 || d.p != probe_pin(profile) || !index || !plant.read(*index) ||
-        !plant.needs_initialization(*index))
+    if ((d.d && purpose != InitPurpose::discovery) || d.h != 2 || d.p != probe_pin(profile) ||
+        !index || !plant.read(*index) || !plant.needs_initialization(*index))
         return false;
     // Connection setup clears the reset indication before requesting conversion.
     plant.set_probe_reset(*index, false);
@@ -897,14 +919,18 @@ int Engine::validate(const Device& d) {
     return 0;
 }
 std::string Engine::device_wire(const Device& d, int i, std::optional<std::string> val) const {
-    Fields f = {{"i", std::to_string(i)},   {"t", std::to_string(type_of(d.f))},
-                {"c", std::to_string(d.c)}, {"b", std::to_string(d.b)},
-                {"f", std::to_string(d.f)}, {"h", std::to_string(d.h)},
-                {"d", std::to_string(d.d)}, {"p", std::to_string(narrow8(d.p))}};
+    Fields f = {{"i", std::to_string(i)},
+                {"t", std::to_string(type_of(d.f))},
+                {"c", std::to_string(d.c)},
+                {"b", std::to_string(d.b)},
+                {"f", std::to_string(d.f)},
+                {"h", std::to_string(d.h)},
+                {"d", std::to_string(narrow8(d.d))},
+                {"p", std::to_string(narrow8(d.p))}};
     if (val)
         f.emplace_back("v", *val);
     if (d.h == 1)
-        f.emplace_back("x", std::to_string(d.x));
+        f.emplace_back("x", std::to_string(narrow8(d.x)));
     if (d.h == 2) {
         f.emplace_back("a", wire_string(d.rom));
         f.emplace_back("j", number(d.cal * 32, 3, 2));
@@ -947,8 +973,7 @@ void Engine::update_device() {
         return;
     }
     if (!d.supported_flags())
-        throw std::runtime_error(
-            "fidelity gap: noncanonical bool representation requires characterization");
+        throw std::runtime_error("invalid device flag byte");
     if (live_target(old)) {
         targets.erase(old.f);
         if (old.h == 2) {
@@ -1306,7 +1331,7 @@ void Engine::load_store(const Json& image) {
             if (v < 0 || v > 255)
                 throw std::runtime_error("invalid stored device width");
         if (!d.supported_flags())
-            throw std::runtime_error("invalid stored boolean representation");
+            throw std::runtime_error("invalid stored flag byte");
         if (d.cal < -128 || d.cal > 127)
             throw std::runtime_error("invalid stored calibration width");
     }

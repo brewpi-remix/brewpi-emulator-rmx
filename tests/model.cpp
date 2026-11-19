@@ -17,6 +17,201 @@ Json without_profile(const Json& value) {
             fields.push_back(entry);
     return fields;
 }
+// Independent polynomial oracle: rounded rational products, followed by word storage.
+void artifact_filter_bytes() {
+    auto product = [](int32_t value, unsigned count) -> int64_t {
+        unsigned byte = count % 256;
+        if (byte == 0 || byte > 128)
+            return value;
+        if (byte >= 32)
+            return value < 0 ? -1 : 0;
+        int64_t scale = int64_t(1) << byte;
+        int64_t quotient = int64_t(value) / scale;
+        return quotient - (value < 0 && int64_t(value) % scale != 0);
+    };
+    auto store = [](int64_t value) -> int32_t {
+        int64_t bits = value % 4294967296LL;
+        if (bits < 0)
+            bits += 4294967296LL;
+        return int32_t(bits > 2147483647 ? bits - 4294967296LL : bits);
+    };
+    constexpr int32_t hi = 2147483647, lo = -2147483647 - 1;
+    const std::array<std::array<int32_t, 4>, 8> rows{{{{0, 0, 0, 0}},
+                                                      {{0, 0, 0, 0}},
+                                                      {{0, 0, 0, 0}},
+                                                      {{65536, 65536, 65536, 65536}},
+                                                      {{-65536, -65536, -65536, -65536}},
+                                                      {{hi, hi, hi, hi}},
+                                                      {{lo, lo, lo, lo}},
+                                                      {{hi, lo, 65536, -65536}}}};
+    const std::array<int32_t, 8> input{{0, hi, lo, 65536, -65536, lo, hi, 0}};
+    const std::array<int32_t, 16> sequence{
+        {0, hi, 0, lo, 0, 65536, -65536, 0, hi, hi, lo, lo, 0, 65536, 0, -65536}};
+    for (unsigned byte = 0; byte < 256; ++byte) {
+        for (size_t state = 0; state <= rows.size(); ++state) {
+            Signal signal;
+            signal.coefficient = byte;
+            std::array<std::array<int32_t, 4>, 3> histories;
+            histories.fill(state < rows.size() ? rows[state] : rows[0]);
+            std::array<int32_t, 3> recent{{histories[2][2], histories[2][3], 0}};
+            auto snapshot = [&]() {
+                Json::Array delays, peaks;
+                for (const auto& row : histories) {
+                    Json::Array values;
+                    for (int32_t value : row)
+                        values.emplace_back(double(value));
+                    delays.emplace_back(values);
+                }
+                for (int32_t value : recent)
+                    peaks.emplace_back(double(value));
+                return Json(Json::Object{{"b", int(byte)}, {"delays", delays}, {"recent", peaks}});
+            };
+            signal.restore(snapshot());
+            size_t length = state < rows.size() ? 1 : sequence.size();
+            for (size_t step = 0; step < length; ++step) {
+                int32_t sample = state < rows.size() ? input[state] : sequence[step];
+                int32_t output = sample;
+                unsigned a = (2 * byte + 4) % 256;
+                for (auto& row : histories) {
+                    int64_t predicted = 2LL * row[2] - row[3];
+                    int64_t feedback =
+                        product(row[3], byte) - product(row[2], byte) - product(row[3], a + 254);
+                    int64_t forward =
+                        product(output, a) + product(row[0], a + 255) + product(row[1], a);
+                    int32_t next = store(predicted + feedback + forward);
+                    row = {{output, row[0], next, row[2]}};
+                    output = next;
+                }
+                recent = {{output, recent[0], recent[1]}};
+                signal.push(sample);
+                require(signal.snapshot().dump() == snapshot().dump(),
+                        "artifact byte-count filter differs from rounded polynomial oracle");
+                Signal continued;
+                continued.restore(signal.snapshot());
+                require(continued.snapshot().dump() == signal.snapshot().dump(),
+                        "byte coefficient/history checkpoint changed state");
+            }
+        }
+    }
+}
+
+void artifact_flag_bytes() {
+    const std::array<int, 9> boundaries{{0, 1, 2, 3, 127, 128, 129, 254, 255}};
+    for (auto profile : {Profile::revc, Profile::i2c}) {
+        int bus = profile == Profile::i2c ? 14 : 18;
+        for (int function : {1, 2, 6, 9}) {
+            std::string wire;
+            Engine seed([&](const std::string& s) { wire += s; }, profile);
+            seed.feed("EU{i:0,f:" + std::to_string(function) + ",h:" +
+                      (function < 3 ? (function == 1 ? "1,p:4" : "1,p:6")
+                                    : "2,p:" + std::to_string(bus) + ",a:28A10100000001E6") +
+                      "}");
+            auto base = seed.store_image();
+            require(base.at("devices").array()[0].at("f").integer() == function,
+                    "flag fixture did not create its canonical record");
+            auto check = [&](int deactivated, int inversion, bool continuation) {
+                auto image = base;
+                auto devices = image.at("devices").array();
+                devices[0]["d"] = deactivated;
+                devices[0]["x"] = inversion;
+                image["devices"] = devices;
+                Engine engine([&](const std::string& s) { wire += s; }, profile);
+                engine.load_store(image);
+                engine.boot(false);
+                require(engine.store_image().dump() == image.dump(),
+                        "boot normalized a retained device flag byte");
+                auto request = [&](const std::string& command) {
+                    wire.clear();
+                    engine.feed(command);
+                    auto frame = wire.rfind("d:");
+                    require(frame != std::string::npos, "missing device reply");
+                    return Json::parse(wire.substr(frame + 2)).array()[0];
+                };
+                auto printed = request("d{i:0,r:0}");
+                require(printed.at("d").integer() ==
+                            (deactivated < 128 ? deactivated : deactivated - 256),
+                        "raw deactivation byte lost signed serial formatting");
+                if (function < 3)
+                    require(printed.at("x").integer() ==
+                                (inversion < 128 ? inversion : inversion - 256),
+                            "raw inversion byte lost signed serial formatting");
+                if (function == 1) {
+                    for (bool open : {false, true}) {
+                        engine.precondition(Json::Object{{"door_open", open}});
+                        bool electrical = open != (profile == Profile::i2c);
+                        require(request("d{i:0,r:1}").at("v").integer() ==
+                                    (!deactivated && int(electrical) != inversion),
+                                "raw inversion switch inequality changed");
+                    }
+                } else if (function == 2) {
+                    engine.feed("j{mode:t}");
+                    for (int active : {1, 0}) {
+                        request("d{i:0,w:" + std::to_string(active) + "}");
+                        int expected =
+                            deactivated ? active : int((active ^ inversion) != 0) ^ inversion;
+                        require(request("d{i:0,r:1}").at("v").integer() == expected,
+                                "raw inversion output XOR or shared fallback changed");
+                    }
+                } else {
+                    auto row = request("d{i:0,r:1}");
+                    require(!row.has("x") &&
+                                row.at("d").integer() ==
+                                    (deactivated < 128 ? deactivated : deactivated - 256),
+                            "OneWire inversion leaked into wire representation");
+                    require(deactivated ? row.at("v").null() : row.at("v").number() == 20,
+                            "OneWire ignored inversion or nonzero fallback changed");
+                }
+                if (continuation) {
+                    auto checkpoint = engine.checkpoint();
+                    Engine copy([](const std::string&) {}, profile);
+                    copy.restore_checkpoint(checkpoint);
+                    require(copy.checkpoint().dump() == checkpoint.dump(),
+                            "flag bytes changed across checkpoint continuation");
+                    // Public 128..255 patches are negative sentinels, even over a high stored byte.
+                    engine.feed("U{i:0,f:" + std::to_string(function) + ",x:128,d:255}");
+                    require(engine.store_image().at("devices").array()[0].at("x").integer() ==
+                                    inversion &&
+                                engine.store_image().at("devices").array()[0].at("d").integer() ==
+                                    deactivated,
+                            "public signed-byte omission widened with stored byte support");
+                    if (deactivated == 255 && inversion == 255)
+                        for (const auto& field : {"x", "d"})
+                            for (int invalid : {-1, 256})
+                                for (bool saved : {false, true}) {
+                                    auto bad = checkpoint;
+                                    if (saved) {
+                                        auto records = bad.at("store").at("devices").array();
+                                        records[0][field] = invalid;
+                                        bad["store"]["devices"] = records;
+                                    } else {
+                                        auto targets = bad.at("targets").array();
+                                        targets[0][field] = invalid;
+                                        bad["targets"] = targets;
+                                    }
+                                    auto before = copy.checkpoint().dump();
+                                    bool rejected = false;
+                                    try {
+                                        copy.restore_checkpoint(bad);
+                                    } catch (const std::runtime_error&) {
+                                        rejected = true;
+                                    }
+                                    require(rejected && copy.checkpoint().dump() == before,
+                                            "invalid flag width mutated checkpoint state");
+                                }
+                }
+            };
+            for (int value = 0; value < 256; ++value)
+                for (int canonical : {0, 1}) {
+                    check(canonical, value, false);
+                    check(value, canonical, false);
+                }
+            for (int deactivated : boundaries)
+                for (int inversion : boundaries)
+                    check(deactivated, inversion, true);
+        }
+    }
+}
+
 void profiles() {
     std::string implicit_output, explicit_output;
     Engine implicit([&](const std::string& s) { implicit_output += s; });
@@ -90,6 +285,9 @@ void profiles() {
         engine.restart(false);
         require(engine.store_image().dump() == before_restart.dump(), "R changed saved profile");
         auto store = engine.store_image();
+        auto stored_devices = store.at("devices").array();
+        stored_devices[0]["x"] = 255;
+        store["devices"] = stored_devices;
         require(store.at("profile").string() == profile_name(profile), "store lost profile");
         require(store.at("format").string() ==
                     (i2c ? "brewpi-emulator-store-v2" : "brewpi-emulator-store-v1"),
@@ -335,6 +533,8 @@ int main() {
 
     try {
         profiles();
+        artifact_filter_bytes();
+        artifact_flag_bytes();
         duplicate_actuator_fallback();
         // Closed-form independent oracle: with b=0 the triple cascade is
         // (1+z^-1)^6 / [4096*(1-z^-1/2)^6]. Expand this binomial transfer
@@ -367,14 +567,14 @@ int main() {
                     "filter history was not restored exactly");
         }
         Signal unsafe;
-        unsafe.coefficient = 255;
+        unsafe.coefficient = 256;
         bool gap = false;
         try {
             unsafe.push(0);
         } catch (const std::runtime_error&) {
             gap = true;
         }
-        require(gap, "undefined reference shift was executed natively");
+        require(gap, "out-of-byte filter coefficient was executed natively");
         Plant plain, lagged;
         plain.configure(Json::Object{{"beer_chamber_conductance_w_per_k", 0},
                                      {"chamber_room_conductance_w_per_k", 0}});
@@ -420,7 +620,8 @@ int main() {
             }
             require(rejected, "positive derived capacity concealed a negative physical component");
         }
-        std::cout << "Independent filter impulse/DC/history, shift guard, lag/quantization/noise, "
+        std::cout << "Independent filter byte domain/impulse/DC/history, byte-width guard, "
+                     "lag/quantization/noise, "
                      "and room phase passed.\n";
         return 0;
     } catch (const std::exception& e) {

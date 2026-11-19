@@ -42,18 +42,26 @@ int Signal::value() const {
     return word16(signed_shift(recent[0], 16));
 }
 void Signal::push(int32_t input) {
+    if (coefficient > 255)
+        throw std::runtime_error("invalid filter coefficient byte");
     unsigned a = (2 * coefficient + 4) & 255;
-    if (coefficient >= 32 || a < 2 || a >= 32)
-        throw std::runtime_error(
-            "fidelity gap: filter coefficient shift requires characterization");
+    // These artifact loops interpret the decremented low count byte as signed.
+    // Counts 129..255 perform no shift; 32..128 reach the sign-filled word.
+    auto shift = [](int32_t word, unsigned count) -> int64_t {
+        count &= 255;
+        if (count > 128)
+            return word;
+        if (count >= 32)
+            return word < 0 ? -1 : 0;
+        return signed_shift(word, count);
+    };
     int32_t v = input;
     for (auto& row : delays) {
         const auto old = row;
         int32_t next = word32(int64_t(old[2]) + (int64_t(old[2]) - old[3]));
-        const std::array<int64_t, 6> terms{{-signed_shift(old[2], coefficient),
-                                            signed_shift(old[3], coefficient), signed_shift(v, a),
-                                            signed_shift(old[0], a - 1), signed_shift(old[1], a),
-                                            -signed_shift(old[3], a - 2)}};
+        const std::array<int64_t, 6> terms{{-shift(old[2], coefficient), shift(old[3], coefficient),
+                                            shift(v, a), shift(old[0], a - 1), shift(old[1], a),
+                                            -shift(old[3], a - 2)}};
         for (auto term : terms)
             next = word32(int64_t(next) + term);
         row = {{v, old[0], next, old[2]}};

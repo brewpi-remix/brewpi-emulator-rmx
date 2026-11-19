@@ -776,12 +776,12 @@ void Engine::restore_checkpoint(const Json& j) {
         if (init.object().size() != (purpose == int(InitPurpose::discovery) ? 10u : 9u) ||
             !j.at("plant").has("probe_reset") || init.at("device").object().size() != 9 ||
             device.c < 0 || device.c > 4 || device.b < 0 || device.b > 6 || device.f < 0 ||
-            device.f > 15 || device.cal < -128 || device.cal > 127 ||
-            (device.x != 0 && device.x != 1) || copy.display_reset_busy || purpose < 0 ||
-            purpose > 4 || physical < 0 || physical > 2 || cursor < 0 || cursor > 3 || slot < -1 ||
-            slot > 15 || uint32_t(copy.controller_ms - started) > 0x7fffffffu ||
-            !copy.physical_index(device) || *copy.physical_index(device) != size_t(physical) ||
-            device.h != 2 || device.p != probe_pin(profile) || device.d)
+            device.f > 15 || device.cal < -128 || device.cal > 127 || !device.supported_flags() ||
+            copy.display_reset_busy || purpose < 0 || purpose > 4 || physical < 0 || physical > 2 ||
+            cursor < 0 || cursor > 3 || slot < -1 || slot > 15 ||
+            uint32_t(copy.controller_ms - started) > 0x7fffffffu || !copy.physical_index(device) ||
+            *copy.physical_index(device) != size_t(physical) || device.h != 2 ||
+            device.p != probe_pin(profile) || (device.d && purpose != int(InitPurpose::discovery)))
             throw std::runtime_error("invalid checkpoint sensor initialization");
         if (purpose != int(InitPurpose::discovery) &&
             (function != device.f || !copy.targets.count(function) ||

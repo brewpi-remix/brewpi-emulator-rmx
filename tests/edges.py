@@ -69,8 +69,23 @@ def artifact_device_bytes(executable, profile):
         d.call('feed',bytes='R');d.call('restart')
         wire,_=d.call('feed',bytes='d{i:3,r:1}')
         assert decode_frames(wire)[0][1][0]['v']==6
+        # OneWire preserves public flag bytes too, but never consumes inversion.
+        d.call('construct',state={'valid':True,'slots':[],'scenario':{'physical_loads':[]}})
+        bus=14 if profile=='i2c' else 18
+        for function in (6,9):
+            for value in range(128):
+                wire,_=d.call('feed',bytes='U{i:0,f:%d,h:2,p:%d,a:28A10100000001E6,x:%d,d:0}'%
+                              (function,bus,value))
+                row=decode_frames(wire)[-1][1]
+                assert row['f']==function and row['d']==0 and 'x' not in row
+                checkpoint=d.call('checkpoint')[1]['checkpoint']
+                assert checkpoint['store']['devices'][0]['x']==value
+                d.call('restore',snapshot=checkpoint)
+                wire,_=d.call('feed',bytes='d{i:0,r:1}')
+                assert decode_frames(wire)[0][1][0]['v']==20
+                d.call('feed',bytes='U{i:0,f:0}')
     finally:d.close()
-    return [profile+'.artifact_digital_flag_bytes_and_continuation']
+    return [profile+'.artifact_device_flag_bytes_and_continuation']
 
 
 def artifact_bounded_rom(executable, profile):
@@ -90,6 +105,76 @@ def artifact_bounded_rom(executable, profile):
         assert decode_frames(wire)[-1][1]['a']=='28CF00AA00000001'
     finally:d.close()
     return [profile+'.artifact_bounded_nonhex_rom_text']
+
+
+def artifact_bounded_memory_rom(executable, profile):
+    """Only known token bytes and the artifact's overwritten output flag are admitted."""
+    bus=14 if profile=='i2c' else 18
+    d=Driver(executable,profile=profile)
+    try:
+        def fresh():
+            d.call('construct',state={'valid':True,'slots':[],
+                                      'scenario':{'physical_loads':[]}})
+        def assert_record(command,expected):
+            wire,_=d.call('feed',bytes=command)
+            row=decode_frames(wire)[-1][1]
+            assert row==dict(i=0,t=1,c=1,b=0,f=6,h=2,d=1,p=bus,a=expected,j=0),wire
+            checkpoint=d.call('checkpoint')[1]['checkpoint']
+            assert checkpoint['store']['devices'][0]['rom']==expected
+            d.call('restore',snapshot=checkpoint)
+            wire,_=d.call('feed',bytes='d{i:0}n')
+            assert [kind for kind,value in decode_frames(wire)]==['d','N']
+            assert decode_frames(wire)[0][1][0]['a']==expected
+        fields='i:0,f:6,h:2,p:%d,d:1'%bus
+        for address in ('281122334455665500','2811223344556655FF','2811223344556655GG'):
+            for first in (False,True):
+                fresh()
+                payload='a:'+address+','+fields if first else fields+',a:'+address
+                assert_record('U{'+payload+'}','2811223344556655')
+        fresh()
+        assert_record('U{'+fields+',a:2}', 'F0FFFFFFFFFFFFFF')
+        # Unknown keys can establish the reader's retained bytes without changing a device field.
+        for length,expected in ((1,'F0FFFFFFFFFFFFFF'),(15,'28112233445566D0'),
+                                (17,'2811223344556655')):
+            for first in (False,True):
+                fresh()
+                prefix='z:'+('0'*(length+1))+',a:'+('281122334455665500'[:length])
+                payload=prefix+','+fields if first else fields+','+prefix
+                assert_record('U{'+payload+'}',expected)
+        # Repeated address callbacks preserve bytes not overwritten by the later callback.
+        fresh()
+        assert_record('U{'+fields+',a:2811223344556655,z:00,a:2}',
+                      'F011223344556655')
+        # Embedded NUL is consumed as a low nibble; the following known even-position NUL stops.
+        fresh()
+        assert_record('U{'+fields+',z:0000,a:281\x00}', '28D0FFFFFFFFFFFF')
+        fresh()
+        assert_record('U{'+fields+',z:0000,a:28\x000}', '28FFFFFFFFFFFFFF')
+        command='U{'+fields+',z:0000000000000000,a:281122334455665}'
+        for split in range(len(command)+1):
+            fresh()
+            before,_=d.call('feed',bytes=command[:split])
+            if split==len(command)-1:
+                try:d.call('checkpoint')
+                except AssertionError as e:assert 'quiescent' in str(e)
+                else:raise AssertionError('partial parser state acquired a fabricated checkpoint')
+            after,_=d.call('feed',bytes=command[split:])
+            assert decode_frames(before+after)[-1][1]['a']=='28112233445566D0'
+        # These are retained local limits, not expected Arduino replies.
+        for address in ('2','281122334455665','28112233445566550',
+                        '28112233445566550011','28112233445566550011223344556'):
+            fresh()
+            try:d.call('feed',bytes='U{a:'+address+','+fields+'}')
+            except AssertionError as e:assert 'odd/excessive ROM' in str(e)
+            else:raise AssertionError('unknown memory or live collateral writes were invented')
+        # A previous command's stack is not known storage for the next invocation.
+        fresh()
+        d.call('feed',bytes='U{'+fields+',z:000000000000000000}')
+        try:d.call('feed',bytes='U{'+fields+',a:281122334455665}')
+        except AssertionError as e:assert 'odd/excessive ROM' in str(e)
+        else:raise AssertionError('token backing leaked across invocations')
+    finally:d.close()
+    return [profile+'.artifact_known_rom_tail_and_dead_overwrite']
 
 
 def records(wire):
@@ -632,6 +717,7 @@ def run(executable):
     for profile in ('revc','i2c'):
         checks.extend(artifact_input_words(executable,profile))
         checks.extend(artifact_device_bytes(executable,profile))
+        checks.extend(artifact_bounded_memory_rom(executable,profile))
         checks.extend(artifact_bounded_rom(executable,profile))
     checks.extend(i2c_observations(executable))
     checks.extend(nested_discovery_observation(executable, 'i2c'))

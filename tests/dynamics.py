@@ -245,6 +245,24 @@ def source_startup_and_discovery(executable, profile):
         assert [p for p,v in rows]==['h','N'] and len(rows[0][1])==3
         d.call('restore',snapshot=paused)
         assert d.call('advance',milliseconds=800)[0]==suffix
+        # Temporary discovery readers ignore stored d/x; installed readers do not.
+        for flag in (1,127,255):
+            record=dict(i=0,c=1,b=0,f=6,h=2,p=bus,d=flag,x=flag,
+                        rom='28A10100000001E6',cal=0)
+            d.call('construct',state={'valid':True,'slots':[record],
+                                     'scenario':{'physical_loads':[]}})
+            d.call('precondition',fields={'probe_reset':[True,False,False]})
+            prefix=d.call('feed',bytes='h{h:2,p:%d,v:1}n'%bus)[0]
+            inactive=d.call('checkpoint')[1]['checkpoint']
+            pending=inactive['sensor_initialization']
+            assert pending['device']['d']==flag and pending['device']['x']==flag
+            suffix=d.call('advance',milliseconds=800)[0]
+            d.call('restore',snapshot=inactive)
+            assert d.call('advance',milliseconds=800)[0]==suffix
+            rows=decode_frames(prefix+suffix)[0][1]
+            matched=next(row for row in rows if row['a']==record['rom'])
+            assert matched['d']==(flag if flag<128 else flag-256)
+            assert matched['v']==20 and 'x' not in matched
         # Losing DATA during the wait gives an embedded warning and null row.
         d.call('restore',snapshot=paused)
         d.call('precondition',fields={'connected':[False,True,True]})

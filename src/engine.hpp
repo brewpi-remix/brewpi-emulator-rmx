@@ -16,9 +16,9 @@ namespace rmx {
 struct Device {
     int c = 0, b = 0, f = 0, h = 0, d = 0, p = 0, x = 0, cal = 0;
     std::string rom = "0000000000000000";
-    // Bounded artifact representation, not stricter Arduino input validation.
+    // Raw retained flag bytes; public patches still use signed-byte omission.
     bool supported_flags() const {
-        return d >= 0 && d <= 127 && x >= 0 && x <= 127 && (h == 1 || (d <= 1 && x <= 1));
+        return d >= 0 && d <= 255 && x >= 0 && x <= 255;
     }
 };
 class Engine {
@@ -214,6 +214,9 @@ class Engine {
     Phase phase = Phase::dispatch;
     char command = 0;
     std::string key, value;
+    // Known prefix of the current token reader's value storage, including NULs.
+    // Unwritten stack bytes remain unknown; no history survives a new brace.
+    std::string value_memory;
     std::map<char, int> fields;
     std::optional<std::string> address;
     void byte(unsigned char c);
