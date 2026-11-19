@@ -9,7 +9,6 @@ import signal
 import statistics
 import subprocess
 import sys
-import threading
 import time
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -133,28 +132,36 @@ def run():
                 simulated_seconds=simulated,measured_wall_seconds=wall,partial_token_wait_seconds=blocked,
                 ordinary_n=quantiles(latencies),workload='seven assigned devices, beer target 22 C, native filters/PID/model'))
 
-        # Backpressure must defer the final mutation and preserve every ordered reply.
+        # RX is finite while synchronous replies block ordinary dispatch. Keep
+        # each decoded request batch below its 63 positions, then drain before
+        # sending another. An unpaced stream has firmware-defined loss; it is
+        # not a valid lossless ordered-reply test.
         directory=ROOT/'backpressure';directory.mkdir()
         s=Session(directory,options=['--speed','10']);active.append(s)
         initialize(s,'t')
         count=12000
-        errors=[]
-        def produce():
-            try:s.write(b'ns'*(count//2)+b'j{Kp:9}')
-            except BaseException as exc:errors.append(repr(exc))
-        writer=threading.Thread(target=produce);writer.start()
-        time.sleep(.5)
-        assert json.loads(s.store.read_text())['constants_raw']['Kp']==2560
+        batch_pairs=8
         started=time.monotonic()
-        for _ in range(count//2):
-            assert receive(s,'N')==IDENTITY
-            assert receive(s,'S')['mode']=='t'
+        for offset in range(0,count//2,batch_pairs):
+            pairs=min(batch_pairs,count//2-offset)
+            s.write(b'ns'*pairs)
+            if offset==0:
+                time.sleep(.5)
+                assert json.loads(s.store.read_text())['constants_raw']['Kp']==2560
+            for _ in range(pairs):
+                assert receive(s,'N')==IDENTITY
+                assert receive(s,'S')['mode']=='t'
+        # Submit the mutation only after draining the last bounded batch.
+        # This checks recovery; it does not claim no loss from an RX overflow
+        # or prove that the OS/provider output buffer was filled.
+        s.write(b'j{Kp:9}')
         receive(s,'D');receive(s,'S');assert receive(s,'C')['Kp']==9
-        writer.join(timeout=5);assert not writer.is_alive() and not errors,errors
         elapsed=time.monotonic()-started
         s.close();active.remove(s)
         record('slow-reader backpressure',dict(ordered_replies=count,reader_pause_seconds=.5,
-            drain_seconds=elapsed,reply_pattern='N,S repeated',final_mutation_deferred=True,writer_errors=errors))
+            drain_seconds=elapsed,reply_pattern='N,S repeated',request_batch_bytes=batch_pairs*2,
+            mutation_after_drain=True,rx_overflow_losslessness_claimed=False,
+            os_output_buffer_saturation_claimed=False))
 
         # Nontrivial running histories survive a real process checkpoint/resume.
         directory=ROOT/'continuation';directory.mkdir()
@@ -197,6 +204,8 @@ def run():
         # Only this controlled test's private link is removed; never touch the PTY target.
         s.path.unlink()
         s=Session(directory,fresh=False);active.append(s)
+        # Opening the PTY does not mean startup has enabled application RX.
+        s.identify(IDENTITY)
         assert feed(s,b'c','C')['Kp']==7
         s.close();active.remove(s)
         record('forced-stop recovery and saved state',dict(stale_link_preserved=True,implicit_replacement_rejected=True,saved_gain=7))
