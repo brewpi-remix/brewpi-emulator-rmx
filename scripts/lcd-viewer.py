@@ -67,95 +67,193 @@ def decode(data):
     return item
 
 
-# Original geometry in a 32-unit square; no imported icon paths or assets.
+# Original vector geometry in a 32-unit square; no imported paths or assets.
 def icon_strokes(name):
     import math
-    def arc(cx, cy, radius, start, end, steps=32):
-        return [(cx + radius * math.cos(math.radians(start + (end-start)*i/steps)),
-                 cy + radius * math.sin(math.radians(start + (end-start)*i/steps)))
+
+    def arc(cx, cy, radius, start, end):
+        steps = max(12, int(abs(end-start)/3))
+        return [(cx+radius*math.cos(math.radians(start+(end-start)*i/steps)),
+                 cy+radius*math.sin(math.radians(start+(end-start)*i/steps)))
                 for i in range(steps+1)]
+
+    def curve(start, *segments):
+        points = [start]
+        for first, second, end in segments:
+            x, y = points[-1]
+            for i in range(1, 25):
+                t = i/24; u = 1-t
+                points.append((u**3*x+3*u*u*t*first[0]+3*u*t*t*second[0]+t**3*end[0],
+                               u**3*y+3*u*u*t*first[1]+3*u*t*t*second[1]+t**3*end[1]))
+        return points
+
     if name in ('cw', 'ccw'):
-        path = arc(16, 16, 10, -135, 135)
-        tip, previous = path[-1], path[-2]
-        dx, dy = tip[0]-previous[0], tip[1]-previous[1]
-        length = math.hypot(dx, dy); dx, dy = dx/length, dy/length
-        head = [(tip[0]-5*dx+4*dy, tip[1]-5*dy-4*dx), tip,
-                (tip[0]-5*dx-4*dy, tip[1]-5*dy+4*dx)]
+        path = arc(16, 17, 10, 35, 270)
+        head = [(15, 1), (25, 7), (15, 13), (15, 1)]
         paths = [path, head]
         return [[(32-x, y) for x, y in p] for p in paths] if name == 'ccw' else paths
     if name == 'press':
-        return [[(16, 3), (16, 18)], [(10, 12), (16, 18), (22, 12)],
-                [(6, 23), (26, 23), (26, 29), (6, 29), (6, 23)]]
+        return [[(16, 3), (16, 14)], [(10, 12), (16, 21), (22, 12), (10, 12)],
+                [(6, 25), (26, 25), (26, 30), (6, 30), (6, 25)]]
     if name == 'heater':
-        return [[(16, 2), (18, 9), (24, 15), (26, 21), (24, 26), (19, 29),
-                 (12, 29), (7, 26), (5, 21), (7, 15), (10, 12), (10, 19),
-                 (14, 16), (17, 10), (16, 2)]]
+        return [curve((16, 2), ((20, 8), (18, 10), (23, 14)),
+                      ((30, 23), (23, 30), (16, 30)),
+                      ((6, 30), (3, 23), (7, 17)),
+                      ((8, 15), (9, 13), (10, 12)),
+                      ((9, 18), (11, 21), (14, 18)),
+                      ((19, 13), (17, 9), (16, 2)))]
     if name == 'cooler':
         paths = []
-        for degrees in (0, 60, 120):
-            angle = math.radians(degrees); dx, dy = math.cos(angle), math.sin(angle)
-            paths.append([(16-12*dx, 16-12*dy), (16+12*dx, 16+12*dy)])
-            for side in (-1, 1):
-                x, y = 16+side*7*dx, 16+side*7*dy
-                paths.append([(x-side*3*dx-3*dy, y-side*3*dy+3*dx), (x, y),
-                              (x-side*3*dx+3*dy, y-side*3*dy-3*dx)])
+        for degrees in range(0, 360, 60):
+            a = math.radians(degrees); dx, dy = math.cos(a), math.sin(a)
+            paths.append([(16, 16), (16+12*dx, 16+12*dy)])
+            paths.append([(16+10*dx-3*dy, 16+10*dy+3*dx),
+                          (16+7*dx, 16+7*dy),
+                          (16+10*dx+3*dy, 16+10*dy-3*dx)])
         return paths
     if name == 'fan':
-        paths = [arc(16, 16, 2, 0, 360)]
-        blade = [(0, -3), (-3, -9), (-2, -13), (3, -14), (7, -11),
-                 (7, -7), (3, -3), (0, -3)]
-        for degrees in (0, 90, 180, 270):
+        paths = [arc(16, 16, 2.5, 0, 360)]
+        blade = curve((14, 13), ((10, 11), (9, 6), (13, 3)),
+                      ((17, 0), (25, 3), (25, 7)),
+                      ((25, 11), (20, 10), (18, 14)),
+                      ((17, 12), (15, 12), (14, 13)))
+        for degrees in (0, 120, 240):
             a = math.radians(degrees)
-            paths.append([(16+x*math.cos(a)-y*math.sin(a),
-                           16+x*math.sin(a)+y*math.cos(a)) for x, y in blade])
+            paths.append([(16+(x-16)*math.cos(a)-(y-16)*math.sin(a),
+                           16+(x-16)*math.sin(a)+(y-16)*math.cos(a)) for x, y in blade])
         return paths
     if name == 'no':
-        return [arc(16, 16, 15, 0, 360), [(5, 5), (27, 27)]]
+        return [arc(16, 16, 14, 0, 360), [(6, 6), (26, 26)]]
     if name == 'light':
-        return [arc(16, 12, 9, 150, 390), [(8.2, 16.5), (11, 22), (21, 22), (23.8, 16.5)],
-                [(11, 26), (21, 26)], [(13, 30), (19, 30)]]
-    if name == 'door open':
-        return [[(8, 29), (8, 3), (25, 3), (25, 29)],
-                [(8, 3), (19, 7), (19, 29), (8, 25)], [(15, 17), (16, 17)],
-                [(3, 29), (29, 29)]]
-    if name == 'door close':
-        return [[(8, 29), (8, 3), (25, 3), (25, 29)], [(20, 16), (21, 16)],
-                [(3, 29), (29, 29)]]
+        return [curve((11, 22), ((11, 18), (7, 17), (7, 11)),
+                      ((7, -1), (25, -1), (25, 11)),
+                      ((25, 17), (21, 18), (21, 22))),
+                [(11, 22), (21, 22)], [(11, 26), (21, 26)], [(13, 30), (19, 30)]]
+    if name in ('door open', 'door close'):
+        body = [(10, 2), (23, 2)]
+        body += curve((23, 2), ((24.5, 2), (25, 2.5), (25, 4)))[1:]
+        body += [(25, 27)]
+        body += curve((25, 27), ((25, 28.5), (24.5, 29), (23, 29)))[1:]
+        body += [(10, 29)]
+        body += curve((10, 29), ((8.5, 29), (8, 28.5), (8, 27)))[1:]
+        body += [(8, 4)]
+        body += curve((8, 4), ((8, 2.5), (8.5, 2), (10, 2)))[1:]
+        paths = [body, [(8, 11), (25, 11)], [(22, 5), (22, 8)],
+                 [(10, 29), (10, 30)], [(23, 29), (23, 30)]]
+        if name == 'door open':
+            return paths + [[(8, 12), (2, 15), (2, 29), (8, 27), (8, 12)],
+                            [(4, 20), (4, 24)], [(11, 18), (23, 18)],
+                            [(11, 23), (23, 23)]]
+        return paths + [[(22, 15), (22, 21)]]
     raise ValueError('unknown original icon')
 
 
-def canvas_icon(canvas, name, x, y, size, color, tag):
-    for points in icon_strokes(name):
-        coords = [value for px, py in points for value in (x+(px-16)*size/32, y+(py-16)*size/32)]
-        canvas.create_line(*coords, fill=color, width=2, capstyle='round', joinstyle='round', tags=(tag, name))
-
-
-def button_image(tk, name, color='#273125', size=28, face=False):
-    # Rasterize only these original strokes for native button images. Keep the
-    # surrounding pixels transparent; no platform-dependent symbol font.
+def icon_png(name, color, size, face=False, focused=False):
+    """Supersample original vectors and encode an RGBA PNG using only the stdlib."""
     import math
-    image = tk.PhotoImage(width=size, height=size)
-    if face:
-        for y in range(size):
-            for x in range(size):
-                radius = math.hypot(x-(size-1)/2, y-(size-1)/2)
-                if radius <= size/2-1:
-                    image.put('#31412a' if radius > size/2-3 else '#e1e9d2', (x, y))
-    pixels = set()
-    inset = size*.23 if face else 2
-    scale = (size-2*inset)/32
-    for path in icon_strokes(name):
-        points = [(inset+x*scale, inset+y*scale) for x, y in path]
-        for (x0, y0), (x1, y1) in zip(points, points[1:]):
-            dx, dy = x1-x0, y1-y0; length = dx*dx+dy*dy
-            for y in range(max(0, int(min(y0,y1))-2), min(size, math.ceil(max(y0,y1))+2)):
-                for x in range(max(0, int(min(x0,x1))-2), min(size, math.ceil(max(x0,x1))+2)):
-                    t = max(0, min(1, ((x-x0)*dx+(y-y0)*dy)/length)) if length else 0
-                    if (x-x0-t*dx)**2+(y-y0-t*dy)**2 <= 1.25**2:
-                        pixels.add((x, y))
-    for point in pixels:
-        image.put(color, point)
-    return image
+    import struct
+    import zlib
+
+    samples = 6
+    width = size*samples
+    coverage = bytearray(width*width)
+    prohibition = bytearray(width*width)
+    radius = (1.5 if name in ('cw', 'ccw', 'press') else 1.1)*samples
+
+    def draw(paths, inset, filled=False, target=None):
+        target = coverage if target is None else target
+        scale = (size-2*inset)/32*samples
+        for path in paths:
+            points = [(inset*samples+x*scale, inset*samples+y*scale) for x, y in path]
+            if filled:
+                # Even-odd scan conversion of the original closed vector shape.
+                for y in range(max(0, math.floor(min(p[1] for p in points))),
+                               min(width, math.ceil(max(p[1] for p in points)))):
+                    py = y+.5; crossings = []
+                    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+                        if y0 <= py < y1 or y1 <= py < y0:
+                            crossings.append(x0+(py-y0)*(x1-x0)/(y1-y0))
+                    crossings.sort()
+                    for left, right in zip(crossings[::2], crossings[1::2]):
+                        first, last = max(0, math.ceil(left-.5)), min(width, math.ceil(right-.5))
+                        target[y*width+first:y*width+last] = b'\x01'*(last-first)
+                continue
+            for (x0, y0), (x1, y1) in zip(points, points[1:]):
+                dx, dy = x1-x0, y1-y0; length = dx*dx+dy*dy
+                for y in range(max(0, math.floor(min(y0,y1)-radius)),
+                               min(width, math.ceil(max(y0,y1)+radius))):
+                    for x in range(max(0, math.floor(min(x0,x1)-radius)),
+                                   min(width, math.ceil(max(x0,x1)+radius))):
+                        px, py = x+.5-x0, y+.5-y0
+                        t = max(0, min(1, (px*dx+py*dy)/length)) if length else 0
+                        if (px-t*dx)**2+(py-t*dy)**2 <= radius**2:
+                            target[y*width+x] = 1
+    if name in ('cw', 'ccw', 'press'):
+        paths = icon_strokes(name)
+        inset = size*.23 if face else 2
+        draw(paths[:1]+paths[2:], inset)
+        draw(paths[1:2], inset, filled=True)
+    elif name == 'fan off':
+        draw(icon_strokes('fan'), 4, filled=True)
+        # Clear beneath the slash so it cannot tangle with the fan silhouette.
+        for y in range(width):
+            for x in range(max(0, y-math.ceil(1.9*samples*math.sqrt(2))),
+                           min(width, y+math.ceil(1.9*samples*math.sqrt(2))+1)):
+                if abs(x-y) <= 1.9*samples*math.sqrt(2):
+                    coverage[y*width+x] = 0
+        draw(icon_strokes('no'), 2, target=prohibition)
+    else:
+        draw(icon_strokes(name), size*.23 if face else 2, filled=name == 'fan')
+    rgb = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
+    raw = bytearray(); count = samples*samples
+    outer = ((size/2-1)*samples)**2
+    inner = ((size/2-(5 if focused else 3))*samples)**2
+    edge = (22, 39, 17) if focused else (49, 65, 42)
+    for y in range(size):
+        raw.append(0)  # PNG row filter: none.
+        for x in range(size):
+            hits = 0; total = [0, 0, 0]
+            for sy in range(y*samples, (y+1)*samples):
+                for sx in range(x*samples, (x+1)*samples):
+                    mark = prohibition[sy*width+sx]
+                    hit = coverage[sy*width+sx] or mark; hits += hit
+                    ink = (185, 107, 102) if mark else rgb
+                    if face:
+                        distance = (sx+.5-width/2)**2+(sy+.5-width/2)**2
+                        base = (97, 127, 62) if distance > outer else edge if distance > inner else (225, 233, 210)
+                        for channel, value in enumerate(ink if hit else base):
+                            total[channel] += value
+                    elif hit:
+                        for channel, value in enumerate(ink):
+                            total[channel] += value
+            if face:
+                raw.extend((*[round(value/count) for value in total], 255))
+            else:
+                pixel_rgb = tuple(round(value/hits) for value in total) if hits else rgb
+                raw.extend((*pixel_rgb, round(255*hits/count)))
+
+    def chunk(kind, data):
+        return struct.pack('!I', len(data))+kind+data+struct.pack('!I', zlib.crc32(kind+data))
+
+    return (b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR', struct.pack('!2I5B', size, size, 8, 6, 0, 0, 0))+
+            chunk(b'IDAT', zlib.compress(raw))+chunk(b'IEND', b''))
+
+
+def canvas_icon(canvas, name, x, y, size, color, tag):
+    import tkinter as tk
+    # The set of icon/color/size combinations is fixed by equipment states.
+    if not hasattr(canvas, '_icon_images'):
+        canvas._icon_images = {}
+    key = (name, size, color)
+    if key not in canvas._icon_images:
+        canvas._icon_images[key] = button_image(tk, name, color=color, size=size)
+    tags = (tag, 'fan', 'no') if name == 'fan off' else (tag, name)
+    canvas.create_image(x, y, image=canvas._icon_images[key], tags=tags)
+
+
+def button_image(tk, name, color='#273125', size=28, face=False, focused=False):
+    import base64
+    return tk.PhotoImage(data=base64.b64encode(icon_png(name, color, size, face, focused)), format='png')
 
 
 class Tooltip:
@@ -222,9 +320,11 @@ class Viewer:
         self.equipment = [-1]*4
         self.equipment_canvas = tk.Canvas(self.root, height=62, background='#242d29', highlightthickness=0)
         self.equipment_tip = Tooltip(self.equipment_canvas, 'Modeled physical equipment; N/A means unavailable or no modeled load')
-        controls = ttk.Frame(self.root, padding=(16, 10))
+        controls = ttk.Frame(self.root, padding=(16, 6))
+        controls.columnconfigure(0, weight=1, uniform='control-sides')
+        controls.columnconfigure(2, weight=1, uniform='control-sides')
         group = ttk.Frame(controls)
-        group.pack()
+        group.grid(row=0, column=1)
         style = ttk.Style(self.root)
         icon_color = style.lookup('TButton', 'foreground') or '#273125'
         try:
@@ -233,8 +333,16 @@ class Viewer:
         except tk.TclError:
             icon_color = '#273125'
         self.images = {name: button_image(tk, name, color=icon_color)
-                       for name in ('ccw', 'cw', 'door open', 'door close')}
-        self.images['press'] = button_image(tk, 'press', size=58, face=True)
+                       for name in ('ccw', 'cw')}
+        self.images.update({name: button_image(tk, name, color=icon_color, size=84)
+                            for name in ('door open', 'door close')})
+        self.images.update({name+' focus': button_image(tk, name, color='#617f3e', size=84)
+                            for name in ('door open', 'door close')})
+        self.images['press'] = button_image(tk, 'press', size=60, face=True)
+        self.images['press focus'] = button_image(tk, 'press', size=60, face=True, focused=True)
+        style.layout('Encoder.TButton', [('Button.label', {'sticky': 'nswe'})])
+        style.configure('Encoder.TButton', background='#617f3e', padding=0)
+        style.layout('Door.TButton', [('Button.label', {'sticky': 'nswe'})])
         ccw = ttk.Button(group, text='Counterclockwise', image=self.images['ccw'], width=4,
                          command=lambda: self.action('ccw'))
         ccw.pack(side='left', padx=(0, 18))
@@ -244,11 +352,9 @@ class Viewer:
         self.encoder.pack(side='left')
         self.encoder.create_oval(5, 5, 105, 105, fill='#617f3e', outline='#31412a', width=2)
         self.encoder.create_line(55, 9, 55, 24, fill='#e1e9d2', width=4)
-        self.press_button = tk.Button(self.encoder, text='Press', image=self.images['press'],
-                                      command=lambda: self.action('press'), borderwidth=0,
-                                      highlightthickness=1, highlightbackground='#617f3e',
-                                      highlightcolor='#162711', background='#617f3e',
-                                      activebackground='#617f3e', padx=0, pady=0)
+        self.press_button = ttk.Button(self.encoder, text='Press',
+                                       image=(self.images['press'], 'focus', self.images['press focus']),
+                                       command=lambda: self.action('press'), style='Encoder.TButton')
         self.press_button.place(x=55, y=55, anchor='center', width=60, height=60)
         self.encoder.bind('<Button-1>', self.knob)
         cw = ttk.Button(group, text='Clockwise', image=self.images['cw'], width=4,
@@ -260,11 +366,14 @@ class Viewer:
         for widget, command in zip(self.buttons, ('ccw', 'press', 'cw')):
             self.bind_keys(widget, command, encoder=True)
         self.bind_keys(self.encoder, 'press', encoder=True)
-        footer = ttk.Frame(self.root, padding=(16, 0, 16, 12))
-        self.door_button = ttk.Button(footer, text='Open door', image=self.images['door close'],
-                                      width=4, command=self.door_action)
+        footer = ttk.Frame(self.root, padding=(16, 0, 16, 6))
+        door_area = ttk.Frame(controls, width=110, height=110)
+        door_area.grid(row=0, column=2, sticky='e', padx=(18, 0))
+        self.door_button = ttk.Button(door_area, text='Open door',
+                                      image=(self.images['door close'], 'focus', self.images['door close focus']),
+                                      width=4, command=self.door_action, style='Door.TButton')
         footer.columnconfigure(0, weight=1)
-        self.door_button.grid(row=0, column=1, sticky='e')
+        self.door_button.place(x=0, y=0, width=110, height=110)
         self.door_tip = Tooltip(self.door_button, 'Door closed — click to open')
         self.bind_keys(self.door_button, 'door', encoder=False)
         self.status = ttk.Label(footer, text='Connecting controls…', wraplength=360)
@@ -274,6 +383,8 @@ class Viewer:
         controls.pack(side='bottom', fill='x')
         self.equipment_canvas.pack(side='bottom', fill='x')
         self.canvas.pack(side='top', fill='both', expand=True)
+        self.root.update_idletasks()
+        self.root.minsize(max(560, controls.winfo_reqwidth()), 360)
         self.enable_controls(False)
         self.parent_seen = time.monotonic()
         self.next_progress = 0
@@ -406,9 +517,9 @@ class Viewer:
             x = width*(i+.5)/4
             value = self.equipment[i]
             color = colors[i] if value == 1 else muted[i] if value == 0 else '#a5afa8'
-            canvas_icon(canvas, name, x-34, 25, 24, color, 'equipment')
-            if name == 'fan' and value == 0:
-                canvas_icon(canvas, 'no', x-34, 25, 28, color, 'equipment')
+            fan_off = name == 'fan' and value == 0
+            canvas_icon(canvas, 'fan off' if fan_off else name, x-34, 25,
+                        28 if fan_off else 24, color, 'equipment')
             canvas.create_text(x-14, 17, text=name.capitalize(), anchor='w',
                                fill='#e7eee8', font=('TkDefaultFont', 10))
             canvas.create_text(x-14, 37, text='N/A' if value < 0 else 'On' if value else 'Off',
@@ -444,13 +555,16 @@ class Viewer:
                 self.rows = newest['rows']
                 self.door_open = newest['door']
                 self.equipment = newest.get('equipment', [-1]*4)
+                door_icon = 'door open' if self.door_open else 'door close'
                 self.door_button.configure(text='Close door' if self.door_open else 'Open door',
-                                           image=self.images['door open' if self.door_open else 'door close'])
+                                           image=(self.images[door_icon], 'focus', self.images[door_icon+' focus']))
                 self.door_tip.text = ('Door open — click to close' if self.door_open
                                       else 'Door closed — click to open')
                 self.canvas.itemconfigure('all', fill='#384624' if newest['dim'] else '#162711')
                 if not self.pending:
-                    self.status.configure(text=newest['status'])
+                    # Terminal command hints do not describe graphical controls.
+                    self.status.configure(text='' if newest['status'] == 'cw ccw press help'
+                                          else newest['status'])
                 self.layout()
             self.enable_controls(self.ready and self.session is not None and not self.pending
                                  and self.frame_epoch >= self.epoch)

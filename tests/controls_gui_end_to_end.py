@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Opt-in real Tk keyboard/mouse bindings -> private IPC -> actual engine -> clean close."""
 import json
+import argparse
 import os
 from pathlib import Path
 import sys
@@ -9,8 +10,13 @@ import tempfile
 import time
 from lcd_tests import Process, wait_for
 
-exe=str(Path(sys.argv[1]).resolve())
-mouse='--mouse' in sys.argv[2:]
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('executable',type=Path)
+parser.add_argument('--mouse',action='store_true')
+parser.add_argument('--profile',choices=['revc','i2c'],default='revc')
+args=parser.parse_args()
+exe=str(args.executable.resolve())
+mouse=args.mouse
 with tempfile.TemporaryDirectory(prefix='rmx-controls-real-gui-') as tmp:
     root=Path(tmp)
     peer=root/'python3'
@@ -59,7 +65,7 @@ raise SystemExit(10 if v.closing else 0)
              PYTHONDONTWRITEBYTECODE='1',
              CONTROL_GUI_ROOT=str(root),CONTROL_GUI_MOUSE='1' if mouse else '0',TERM='xterm-256color',
              LC_ALL='en_US.UTF-8' if sys.platform=='darwin' else 'C.UTF-8')
-    p=Process(exe,root/'instance','gui',env=env)
+    p=Process(exe,root/'instance','gui',env=env,extra=['--profile',args.profile])
     try:
         p.command(b'E');p.command(b'j{mode:b,beerSet:20.023}')
         while not p.line().startswith(b'C:'):
@@ -79,6 +85,6 @@ raise SystemExit(10 if v.closing else 0)
     assert checkpoint['settings']['beerSet']==-14336,checkpoint['settings']
     assert checkpoint['settings']['mode']==ord('b')
     assert checkpoint['plant']['door_open'] is False
-    print(json.dumps(dict(status='passed',input_method='Tk mouse events' if mouse else 'Tk keyboard events',checks=['real Tk bindings and focused door activation',
+    print(json.dumps(dict(status='passed',profile=args.profile,input_method='Tk mouse events' if mouse else 'Tk keyboard events',checks=['real Tk bindings and focused door activation',
           'actual private IPC and engine confirmation','source-defined unrotated quantization',
           'modeled door round trip','deliberate GUI closure and checkpoint'],result=result)))

@@ -123,6 +123,44 @@ def decoder_checks():
     spec = importlib.util.spec_from_file_location('lcd_viewer', ROOT / 'scripts/lcd-viewer.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    # Validate the encoded images independently of Tk/display availability.
+    import zlib
+    def pixels(data, size):
+        assert data[:8] == b'\x89PNG\r\n\x1a\n'
+        chunks = []; offset = 8
+        while offset < len(data):
+            length, = struct.unpack('!I', data[offset:offset+4])
+            kind = data[offset+4:offset+8]
+            payload = data[offset+8:offset+8+length]
+            crc, = struct.unpack('!I', data[offset+8+length:offset+12+length])
+            assert crc == zlib.crc32(kind+payload)
+            chunks.append((kind, payload)); offset += length+12
+        assert offset == len(data) and [k for k, _ in chunks] == [b'IHDR', b'IDAT', b'IEND']
+        assert struct.unpack('!2I5B', chunks[0][1]) == (size, size, 8, 6, 0, 0, 0)
+        raw = zlib.decompress(chunks[1][1]); stride = size*4+1
+        assert len(raw) == stride*size and all(raw[y*stride] == 0 for y in range(size))
+        return b''.join(raw[y*stride+1:(y+1)*stride] for y in range(size))
+    for name, size in (('cw', 28), ('ccw', 28), ('press', 28), ('heater', 24),
+                       ('cooler', 24), ('fan', 24), ('fan off', 28), ('no', 28),
+                       ('light', 24), ('door open', 84), ('door close', 84)):
+        rgba = pixels(module.icon_png(name, '#123456', size), size)
+        alpha = rgba[3::4]
+        assert 0 in alpha and 255 in alpha and any(0 < a < 255 for a in alpha), name
+        assert not any(alpha[:size]+alpha[-size:]+alpha[::size]+alpha[size-1::size]), name
+        if name == 'fan off':
+            colors = {rgba[i:i+4] for i in range(0, len(rgba), 4)}
+            assert b'\xb9\x6b\x66\xff' in colors and b'\x12\x34\x56\xff' in colors
+        else:
+            assert all(rgba[i:i+3] == b'\x12\x34\x56' for i in range(0, len(rgba), 4))
+    normal, focused = [pixels(module.icon_png('press', '#273125', 60, True, state), 60)
+                       for state in (False, True)]
+    assert normal != focused and normal[:4] == focused[:4] == b'\x61\x7f\x3e\xff'
+    assert all(a == 255 for a in normal[3::4]+focused[3::4])
+    assert module.icon_strokes('cw')[1][1][1] < 16
+    assert module.icon_strokes('ccw')[1][1][1] < 16
+    assert module.icon_strokes('cw')[1][1][0] > 16
+    assert module.icon_strokes('ccw')[1][1][0] < 16
+    assert module.icon_png('door open', '#123456', 84) != module.icon_png('door close', '#123456', 84)
     good = dict(version=2, type='frame', sequence=1,
                 dim=False, door=False, status='Ready', session='test', epoch=0,
                 rows=['Mode   Beer Const.  ', 'Beer   20.0  20.0 °C',

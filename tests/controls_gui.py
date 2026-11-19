@@ -64,9 +64,9 @@ def block_stale():
     stale_blocked+=1
 
 def held():
-    key(v.encoder,'Return',False)
-    for offset in (60,120,180):v.root.after(offset,lambda:key(v.encoder,'Return',False))
-    v.root.after(240,lambda:v.encoder.event_generate('<KeyRelease-Return>'))
+    key(v.press_button,'Return',False)
+    for offset in (60,120,180):v.root.after(offset,lambda:key(v.press_button,'Return',False))
+    v.root.after(240,lambda:v.press_button.event_generate('<KeyRelease-Return>'))
 
 def assertions():
     global completed
