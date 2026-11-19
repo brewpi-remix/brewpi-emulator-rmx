@@ -169,6 +169,8 @@ An LED establishes an observable indicator state only after its wiring and polar
 
 ### Unresolved characterization register
 
+The separate [physical I2C characterization reference](i2c-characterization.md) records serial observations, door/light indication, observed actuator responses, and one controlled active-D6 removal history for the `da7e14a9`, `s=5` artifact. The table below retains the original RevC fixture scope and pre-execution statuses; those I2C observations do not silently close its memory-dependent or physical-evidence requirements.
+
 The [nine characterization fixtures](test-vectors/protocol-v1.json) have no invented exact expected reply and do not count as passing. Run ordinary checks first. Each characterization run needs its own reproducible preconditions, exact artifact, EEPROM history, raw bytes/timing, recovery record, and repeats. Retain observations as artifact-specific evidence even if repeated runs agree. Their supplied stimuli target RevC: review pins before use, replace the OneWire bus with `p=14` and output pins with verified I2C outputs where applicable, and record these as separate I2C variants. Such observations do not close the original RevC artifact obligations automatically.
 
 | Check | Status before execution | Available method and limits |

@@ -98,6 +98,8 @@ src/windows_serial.hpp
 systemd/README.md
 systemd/brewpi-emulator@.service.in
 tests/README.md
+tests/arduino_characterization.py
+tests/arduino_characterization_checks.py
 tests/ci/Dockerfile
 tests/ci/README.md
 tests/ci/checks.py

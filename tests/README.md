@@ -2,6 +2,8 @@
 
 The model suite also covers RevC/I2C identity, discovery order, A4/A0 probe validation, persistence/checkpoint profile isolation, legacy RevC files, and profile-specific thermal load wiring. The process suite exercises the public `--profile` option, restart/resume, and rejection before PTY publication. The 48 original source-defined fixtures remain RevC cases; the nine characterization cases remain unresolved.
 
+LCD regressions check RevC `B0` and I2C `DF` in twenty-byte shadow rows and exact serial replies across unit changes, resets, and checkpoint restoration, while both local presentations receive Unicode degree glyphs. The exhaustive byte-adapter check also verifies the raw shadow is unchanged.
+
 The six CTest suites exercise model arithmetic, dynamics/controller behavior, process pacing/checkpoints, protocol fixtures, edge cases, and real PTY/file ownership. Build and run them using the [development guide](../docs/development.md). Reports distinguish deterministic source-defined cases from unresolved physical/artifact-dependent behavior.
 
 The original [fixture driver](driver.cpp) provides controlled internal state for semantic tests. The shipped executable has no such test interface. PTY/process tests exercise the public executable separately. [Fixture data](../engineering/protocol/test-vectors/README.md) describes byte matching and characterization limits.
@@ -53,6 +55,8 @@ Pop-Location
 The storage suite creates disposable files under its build directory, including a directory symlink for reparse-point rejection; that fault setup requires Windows symlink permission. The message-channel test launches a separate Python client and checks packet boundaries, binary bytes, nonblocking reads, and launched-process binding. These are development boundary checks; full Windows application, desktop-control, and package qualification remain separate. External compiler/runtime and provider terms are described in [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 Original tests are MIT. No reference helper, routine, or test is copied or translated. Physical Arduino/Pi behavior and system-manager activation are outside these regression claims.
+
+The opt-in [physical Uno I2C characterization helper](arduino_characterization.py) requires explicit owner authorization, an identified serial port, pySerial 3.5, and a new external evidence directory. It changes settings and assignments, resets the controller, and toggles bench outputs; restoration preserves the original probe roles and adds the documented bench outputs and inverted D4 door input with control off. Read its [preconditions, evidence policy, and observed quirks](../engineering/protocol/i2c-characterization.md) before use. It is separate from normal regression validation; raw hardware captures stay outside source and package inputs.
 
 The native Windows [application lifecycle check](windows_application.py) exercises the actual executable and the approved pair with Unicode state paths, readiness, raw replies, parser waits, client reopening, cooperative shutdown, and checkpoints. The [package runtime check](windows_runtime.py) binds the verified unsigned package and runs the declared pacing, resource, and paused-continuation checks. Both require separately supplied pySerial `3.5`; neither installs a driver. Use each helper's `--help` for explicit paths and finite budgets. [Windows build/core CI](ci/native_windows.py) produces its own execution receipt and does not imply provider or desktop acceptance.
 
