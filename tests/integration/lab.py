@@ -80,17 +80,24 @@ class WireTap:
         except Exception as exc:
             self.error = repr(exc)
 
+    def stop_capture(self):
+        # Keep both PTYs open until the deliberately stopped controller exits.
+        # Reading its slave after that exit can report the normal PTY EIO.
+        self.closed.set()
+        self.thread.join(timeout=5)
+        assert not self.thread.is_alive(), "relay did not stop"
+        assert self.error is None, self.error
+
     def close(self):
         if getattr(self,"disposed",False):
             return
         self.disposed=True
-        self.closed.set()
-        self.thread.join(timeout=5)
-        assert not self.thread.is_alive(), "relay did not stop"
-        for fd in [self.fd, self.master, self.slave]:
-            os.close(fd)
-        self.path.unlink(missing_ok=True)
-        assert self.error is None, self.error
+        try:
+            self.stop_capture()
+        finally:
+            for fd in [self.fd, self.master, self.slave]:
+                os.close(fd)
+            self.path.unlink(missing_ok=True)
 
 
 class Lab:
@@ -236,6 +243,15 @@ logJson = True
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait(timeout=5)
 
+    def stop_emulator(self):
+        try:
+            if self.tap:
+                self.tap.stop_capture()
+        finally:
+            # An earlier live relay failure remains fatal, but must not leave
+            # the owned emulator running during cleanup.
+            self.stop_process(self.emulator)
+
     def stop_host(self):
         if self.host and self.host.poll() is None:
             try:
@@ -282,7 +298,7 @@ logJson = True
                 failures.append(label+': '+repr(exc))
         attempt('host shutdown',self.stop_host)
         attempt('PHP shutdown',lambda:self.stop_process(self.php))
-        attempt('emulator shutdown',lambda:self.stop_process(self.emulator))
+        attempt('emulator shutdown',self.stop_emulator)
         if self.emulator and self.emulator.returncode!=0:
             failures.append('unexpected emulator exit: '+str(self.emulator.returncode))
         if any(code!=0 for code in self.host_exits):

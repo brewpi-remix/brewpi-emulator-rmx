@@ -7,6 +7,10 @@ if not __debug__:
 import hashlib
 import json
 import os
+import errno
+import fcntl
+import pty
+import select
 from pathlib import Path
 import subprocess
 import tempfile
@@ -229,6 +233,72 @@ assert json.loads((out/'interrupted.json').read_text())['status']=='failed'
         validate_devices(devices,expected)
         devices['installed'][0]['p']=5
         with self.assertRaises(AssertionError):validate_devices(devices,expected)
+
+
+class RelayLifecycleTests(unittest.TestCase):
+    def test_planned_controller_stop_keeps_descriptors_until_exit(self):
+        with tempfile.TemporaryDirectory(prefix='rmx-relay-stop-') as temp:
+            root=Path(temp)
+            master,slave=pty.openpty()
+            tap=None
+            try:
+                with patch.object(lab,'LAB',root),patch.object(lab,'EVIDENCE',root):
+                    tap=lab.WireTap(os.ttyname(slave),1)
+                    expected=b'original relay bytes\r\n'
+                    os.write(master,expected)
+                    self.assertTrue(select.select([tap.slave],[],[],2)[0])
+                    self.assertEqual(os.read(tap.slave,4096),expected)
+                    instance=lab.Lab();instance.tap=tap;instance.emulator=object()
+                    def stop(proc):
+                        self.assertIs(proc,instance.emulator)
+                        self.assertFalse(tap.thread.is_alive())
+                        for fd in [tap.fd,tap.master,tap.slave]:
+                            fcntl.fcntl(fd,fcntl.F_GETFD)
+                    instance.stop_process=stop
+                    instance.stop_emulator()
+                    os.close(master);master=None
+                    self.assertIsNone(tap.error)
+                    tap.close()
+                    self.assertFalse((root/'host-serial').is_symlink())
+                    for fd in [tap.fd,tap.master,tap.slave]:
+                        with self.assertRaises(OSError):fcntl.fcntl(fd,fcntl.F_GETFD)
+            finally:
+                if tap:tap.close()
+                if master is not None:os.close(master)
+                os.close(slave)
+
+    def test_live_relay_io_error_is_not_hidden_and_handles_close(self):
+        with tempfile.TemporaryDirectory(prefix='rmx-relay-fault-') as temp:
+            root=Path(temp);master,slave=pty.openpty();tap=None
+            try:
+                with patch.object(lab,'LAB',root),patch.object(lab,'EVIDENCE',root):
+                    tap=lab.WireTap(os.ttyname(slave),1)
+                    original_read=os.read
+                    def read(fd,size):
+                        if fd==tap.fd:raise OSError(errno.EIO,'deliberate live relay failure')
+                        return original_read(fd,size)
+                    with patch.object(lab.os,'read',side_effect=read):
+                        os.write(master,b'fault trigger')
+                        tap.thread.join(timeout=2)
+                    self.assertFalse(tap.thread.is_alive())
+                    self.assertIn('deliberate live relay failure',tap.error)
+                    with self.assertRaisesRegex(AssertionError,'deliberate live relay failure'):
+                        tap.close()
+                    for fd in [tap.fd,tap.master,tap.slave]:
+                        with self.assertRaises(OSError):fcntl.fcntl(fd,fcntl.F_GETFD)
+                    self.assertFalse((root/'host-serial').is_symlink())
+            finally:
+                if tap:tap.close()
+                os.close(master);os.close(slave)
+
+    def test_relay_fault_still_stops_owned_emulator(self):
+        instance=lab.Lab();calls=[];instance.emulator=object()
+        class FailedRelay:
+            def stop_capture(self):raise RuntimeError('prior live I/O error')
+        instance.tap=FailedRelay();instance.stop_process=lambda proc:calls.append(proc)
+        with self.assertRaisesRegex(RuntimeError,'prior live I/O error'):
+            instance.stop_emulator()
+        self.assertEqual(calls,[instance.emulator])
 
 
 if __name__=='__main__':

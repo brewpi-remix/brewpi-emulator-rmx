@@ -209,7 +209,7 @@ class Run:
         set_mode(self.page,self.client,'b',22)
         # A quiescent checkpoint allows a separate, declared accelerated constant-target phase.
         self.lab.stop_host()
-        self.lab.stop_process(self.lab.emulator)
+        self.lab.stop_emulator()
         assert self.lab.emulator.returncode==0
         self.lab.tap.close();self.lab.tap=None
         self.lab.start_emulator(speed=60,resume=True)
@@ -236,7 +236,7 @@ class Run:
         before=self.client.store()
         assert before['constants_raw']['Kp']==3584
         self.lab.stop_host()
-        self.lab.stop_process(self.lab.emulator)
+        self.lab.stop_emulator()
         assert self.lab.emulator.returncode==0
         self.lab.tap.close();self.lab.tap=None
         self.lab.start_emulator(speed=1,resume=False)
